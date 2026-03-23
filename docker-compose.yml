@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-patrimonium}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-patrimonium}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-patrimonium}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://${POSTGRES_USER:-patrimonium}:${POSTGRES_PASSWORD:-changeme}@db:5432/${POSTGRES_DB:-patrimonium}
+      - SECRET_KEY=${SECRET_KEY:-change-this-secret-key-in-production}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:-}
+      - NTFY_URL=${NTFY_URL:-}
+      - NTFY_ENABLED=${NTFY_ENABLED:-false}
+      - MARKET_REFRESH_MINUTES=${MARKET_REFRESH_MINUTES:-5}
+      - OFFMARKET_REFRESH_MINUTES=${OFFMARKET_REFRESH_MINUTES:-30}
+      - FIRST_ADMIN_EMAIL=${FIRST_ADMIN_EMAIL:-}
+      - FIRST_ADMIN_PASSWORD=${FIRST_ADMIN_PASSWORD:-}
+      - TZ=Europe/Brussels
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  pgdata:
