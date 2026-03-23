@@ -6,7 +6,7 @@
 const DENOMS = [500, 200, 100, 50, 20, 10, 5];
 let _coffresData = [];
 let _selectedCoffreId = null;
-let _caissMode = 'inventory'; // inventory | entry | exit
+let _caissMode = 'entry'; // entry | exit | inventory
 
 async function loadCoffres() {
   try {
@@ -83,9 +83,9 @@ function renderCaisseInterface() {
           <div style="font-family:var(--font-display);font-size:24px;color:var(--accent-gold)">${fmtEur(coffre.balance)}</div>
         </div>
         ${isAdmin() ? `<div class="tabs" style="margin-bottom:0;flex:none">
-          <button class="tab-btn ${_caissMode === 'inventory' ? 'active' : ''}" onclick="setCaisseMode('inventory')">Inventaire</button>
           <button class="tab-btn ${_caissMode === 'entry' ? 'active' : ''}" onclick="setCaisseMode('entry')">Entrée</button>
           <button class="tab-btn ${_caissMode === 'exit' ? 'active' : ''}" onclick="setCaisseMode('exit')">Sortie</button>
+          <button class="tab-btn ${_caissMode === 'inventory' ? 'active' : ''}" onclick="setCaisseMode('inventory')">Inventaire</button>
         </div>` : `<span class="badge badge-inventory">Lecture seule</span>`}
       </div>
 
