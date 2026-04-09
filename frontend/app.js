@@ -251,6 +251,57 @@ function injectPortfolioModals() {
   document.body.appendChild(container);
 }
 
+// ── Export USB ────────────────────────────────────────────
+
+function openExportModal() {
+  const dd = document.getElementById('userDropdown');
+  if (dd) dd.style.display = 'none';
+  document.getElementById('exportPassphrase').value = '';
+  document.getElementById('exportPassphrase2').value = '';
+  openModal('exportModal');
+}
+
+async function submitExport(e) {
+  e.preventDefault();
+  const pass = document.getElementById('exportPassphrase').value;
+  const pass2 = document.getElementById('exportPassphrase2').value;
+  if (pass !== pass2) { showToast('Les passphrases ne correspondent pas', 'error'); return; }
+  if (pass.length < 6) { showToast('Passphrase trop courte (6 caractères minimum)', 'error'); return; }
+
+  const btn = document.getElementById('exportBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Génération en cours…';
+
+  try {
+    const res = await fetch('/api/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken || '' },
+      credentials: 'include',
+      body: JSON.stringify({ passphrase: pass }),
+    });
+    if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+
+    const blob = await res.blob();
+    const today = new Date().toISOString().slice(0, 10);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `patrimonium-export-${today}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    showToast('Export téléchargé avec succès', 'success');
+    closeModal('exportModal');
+  } catch (err) {
+    showToast('Erreur export : ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⬇ Générer et télécharger';
+  }
+}
+
 // ── Bootstrap ─────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
