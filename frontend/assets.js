@@ -103,7 +103,9 @@ function renderAssetRows(assets, filter = '', catFilter = '') {
             <div class="pos-icon ${a.category || 'autre'}">${ASSET_CAT_ICONS[a.category || 'autre'] ?? '📦'}</div>
             <div>
               <div class="asset-name">${escHtml(a.name)}</div>
-              ${a.description ? `<div class="asset-sub" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${escHtml(a.description)}</div>` : ''}
+              ${a.category === 'vehicule' && (a.vehicle_make || a.vehicle_model || a.vehicle_plate)
+                ? `<div class="asset-sub" style="max-width:240px;overflow:hidden;text-overflow:ellipsis">${[a.vehicle_make, a.vehicle_model, a.vehicle_year, a.vehicle_plate ? '• ' + a.vehicle_plate : ''].filter(Boolean).join(' ')}</div>`
+                : (a.description ? `<div class="asset-sub" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${escHtml(a.description)}</div>` : '')}
             </div>
           </div>
         </td>
@@ -137,6 +139,11 @@ function buildAssetDetails(a) {
     </tr>`).join('')}
     </tbody></table>`;
 
+  const DOC_TYPE_LABELS = {
+    facture: '🧾 Facture', carte_grise: '📋 Carte grise', assurance: '🛡 Assurance',
+    controle_technique: '🔧 CT', certificat: '📜 Certificat', photo: '📷 Photo', autre: '📄 Autre',
+  };
+
   const docsHtml = !(a.documents?.length) ? '<div style="color:var(--text-secondary);font-size:12px">Aucun document</div>' :
     `<div style="display:flex;flex-wrap:wrap;gap:8px">
     ${a.documents.map(d => `
@@ -144,24 +151,50 @@ function buildAssetDetails(a) {
         <span style="font-size:18px">📄</span>
         <div>
           <div style="font-size:12px;font-weight:500">${escHtml(d.filename)}</div>
-          <div style="font-size:11px;color:var(--text-secondary)">${fmtSize(d.size_bytes)} · ${fmtDate(d.created_at)}</div>
+          <div style="font-size:11px;color:var(--text-secondary)">${d.document_type ? (DOC_TYPE_LABELS[d.document_type] ?? d.document_type) + ' · ' : ''}${fmtSize(d.size_bytes)} · ${fmtDate(d.created_at)}</div>
         </div>
         <a href="/api/assets/${a.id}/documents/${d.id}/download" class="btn btn-ghost btn-sm" download>⬇</a>
         ${isAdmin() ? `<button class="btn btn-ghost danger btn-sm" onclick="deleteDocConfirm(${a.id},${d.id})">🗑</button>` : ''}
       </div>`).join('')}
     </div>`;
 
-  return `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;padding-bottom:4px">
-      <div>
-        <div style="font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Événements</div>
-        ${eventsHtml}
+  // Vehicle info panel
+  const vehicleHtml = a.category === 'vehicule' ? `
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🚗 Fiche véhicule</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">
+        ${_vField('Marque', a.vehicle_make)}
+        ${_vField('Modèle', a.vehicle_model)}
+        ${_vField('Année', a.vehicle_year)}
+        ${_vField('Carburant', a.vehicle_fuel ? (a.vehicle_fuel.charAt(0).toUpperCase() + a.vehicle_fuel.slice(1)) : null)}
+        ${_vField('Immatriculation', a.vehicle_plate)}
+        ${_vField('Kilométrage', a.vehicle_km != null ? fmtNum(a.vehicle_km, 0) + ' km' : null)}
+        ${a.vehicle_vin ? `<div style="grid-column:1/-1">${_vField('VIN / Châssis', a.vehicle_vin)}</div>` : ''}
       </div>
-      <div>
-        <div style="font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Documents</div>
-        ${docsHtml}
+    </div>` : '';
+
+  return `
+    <div style="padding-bottom:4px">
+      ${vehicleHtml}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
+        <div>
+          <div style="font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Événements</div>
+          ${eventsHtml}
+        </div>
+        <div>
+          <div style="font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Documents</div>
+          ${docsHtml}
+        </div>
       </div>
     </div>`;
+}
+
+function _vField(label, value) {
+  if (!value && value !== 0) return '';
+  return `<div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px">
+    <div style="font-size:10px;color:var(--text-secondary);margin-bottom:2px">${label}</div>
+    <div style="font-size:13px;font-weight:500">${escHtml(String(value))}</div>
+  </div>`;
 }
 
 function toggleAssetExpand(assetId) {
@@ -181,19 +214,18 @@ function filterAssetCat(cat) {
 // ── Asset CRUD modals ──────────────────────────────────────
 
 function addAssetModals() {
-  // Modals are defined in index.html + extra ones injected here
   const el = document.getElementById('assetModals');
   if (!el) return;
   const coffreOptions = _coffresList.map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('');
   el.innerHTML = `
     <!-- Add/Edit asset -->
     <div class="modal-overlay" id="assetModal">
-      <div class="modal">
+      <div class="modal" style="max-width:640px">
         <div class="modal-header"><span class="modal-title" id="assetModalTitle">Ajouter un actif</span><button class="modal-close" onclick="closeModal('assetModal')">✕</button></div>
         <form onsubmit="submitAssetModal(event)" class="form-grid">
           <div class="form-group full"><label class="form-label">Nom</label><input type="text" class="form-input" id="assetName" required/></div>
           <div class="form-group"><label class="form-label">Catégorie</label>
-            <select class="form-select" id="assetCategory">
+            <select class="form-select" id="assetCategory" onchange="toggleVehicleFields(this.value)">
               ${Object.entries(ASSET_CAT_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
             </select>
           </div>
@@ -202,6 +234,31 @@ function addAssetModals() {
             <select class="form-select" id="assetCoffre"><option value="">—</option>${coffreOptions}</select>
           </div>
           <div class="form-group full"><label class="form-label">Description</label><textarea class="form-textarea" id="assetDesc" rows="2"></textarea></div>
+
+          <!-- Champs véhicule (masqués par défaut) -->
+          <div id="vehicleFields" style="display:none;grid-column:1/-1">
+            <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin:8px 0 12px;border-top:1px solid var(--border);padding-top:12px">🚗 Informations véhicule</div>
+            <div class="form-grid" style="padding:0">
+              <div class="form-group"><label class="form-label">Marque</label><input type="text" class="form-input" id="vMake" placeholder="ex: Volkswagen"/></div>
+              <div class="form-group"><label class="form-label">Modèle</label><input type="text" class="form-input" id="vModel" placeholder="ex: Golf"/></div>
+              <div class="form-group"><label class="form-label">Année</label><input type="number" class="form-input" id="vYear" placeholder="ex: 2021" min="1900" max="2100"/></div>
+              <div class="form-group"><label class="form-label">Carburant</label>
+                <select class="form-select" id="vFuel">
+                  <option value="">—</option>
+                  <option value="essence">Essence</option>
+                  <option value="diesel">Diesel</option>
+                  <option value="hybride">Hybride</option>
+                  <option value="electrique">Électrique</option>
+                  <option value="gpl">GPL</option>
+                  <option value="autre">Autre</option>
+                </select>
+              </div>
+              <div class="form-group"><label class="form-label">Immatriculation</label><input type="text" class="form-input" id="vPlate" placeholder="ex: 1-ABC-234" style="text-transform:uppercase"/></div>
+              <div class="form-group"><label class="form-label">Kilométrage</label><input type="number" class="form-input" id="vKm" placeholder="ex: 45000" min="0"/></div>
+              <div class="form-group full"><label class="form-label">Numéro VIN / Châssis</label><input type="text" class="form-input" id="vVin" placeholder="ex: VF1RFD00X56789012" style="text-transform:uppercase"/></div>
+            </div>
+          </div>
+
           <input type="hidden" id="assetModalId"/>
           <div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal('assetModal')">Annuler</button><button type="submit" class="btn btn-primary" id="assetModalBtn">Créer</button></div>
         </form>
@@ -232,7 +289,15 @@ function addAssetModals() {
         <form onsubmit="submitUploadDoc(event)" id="uploadDocForm">
           <div class="form-group" style="margin-bottom:14px"><label class="form-label">Fichier (max 20 MB)</label><input type="file" class="form-input" id="docFile" required/></div>
           <div class="form-group" style="margin-bottom:14px"><label class="form-label">Type de document</label>
-            <select class="form-select" id="docType"><option value="">—</option><option value="facture">Facture</option><option value="assurance">Assurance</option><option value="certificat">Certificat</option><option value="photo">Photo</option><option value="autre">Autre</option></select>
+            <select class="form-select" id="docType"><option value="">—</option>
+              <option value="facture">Facture d'achat</option>
+              <option value="carte_grise">Carte grise</option>
+              <option value="assurance">Assurance</option>
+              <option value="controle_technique">Contrôle technique</option>
+              <option value="certificat">Certificat</option>
+              <option value="photo">Photo</option>
+              <option value="autre">Autre</option>
+            </select>
           </div>
           <div class="form-group" style="margin-bottom:20px"><label class="form-label">Note</label><input type="text" class="form-input" id="docNotes"/></div>
           <input type="hidden" id="docAssetId"/>
@@ -240,6 +305,11 @@ function addAssetModals() {
         </form>
       </div>
     </div>`;
+}
+
+function toggleVehicleFields(cat) {
+  const el = document.getElementById('vehicleFields');
+  if (el) el.style.display = cat === 'vehicule' ? 'block' : 'none';
 }
 
 function openAddAssetModal() {
@@ -251,7 +321,16 @@ function openAddAssetModal() {
   document.getElementById('assetValue').value = '';
   document.getElementById('assetCoffre').value = '';
   document.getElementById('assetDesc').value = '';
+  _clearVehicleFields();
+  toggleVehicleFields('autre');
   openModal('assetModal');
+}
+
+function _clearVehicleFields() {
+  ['vMake','vModel','vYear','vFuel','vPlate','vKm','vVin'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
 }
 
 function openEditAssetModal(assetId) {
@@ -265,18 +344,39 @@ function openEditAssetModal(assetId) {
   document.getElementById('assetValue').value = a.estimated_value ?? '';
   document.getElementById('assetCoffre').value = a.coffre_id ?? '';
   document.getElementById('assetDesc').value = a.description ?? '';
+  // Vehicle fields
+  _clearVehicleFields();
+  if (a.category === 'vehicule') {
+    document.getElementById('vMake').value = a.vehicle_make ?? '';
+    document.getElementById('vModel').value = a.vehicle_model ?? '';
+    document.getElementById('vYear').value = a.vehicle_year ?? '';
+    document.getElementById('vFuel').value = a.vehicle_fuel ?? '';
+    document.getElementById('vPlate').value = a.vehicle_plate ?? '';
+    document.getElementById('vKm').value = a.vehicle_km ?? '';
+    document.getElementById('vVin').value = a.vehicle_vin ?? '';
+  }
+  toggleVehicleFields(a.category || 'autre');
   openModal('assetModal');
 }
 
 async function submitAssetModal(e) {
   e.preventDefault();
   const id = document.getElementById('assetModalId').value;
+  const cat = document.getElementById('assetCategory').value;
   const body = {
     name: document.getElementById('assetName').value,
-    category: document.getElementById('assetCategory').value,
+    category: cat,
     estimated_value: parseFloat(document.getElementById('assetValue').value) || null,
     coffre_id: parseInt(document.getElementById('assetCoffre').value) || null,
     description: document.getElementById('assetDesc').value || null,
+    // Vehicle fields (null if not vehicule category)
+    vehicle_make: cat === 'vehicule' ? (document.getElementById('vMake').value || null) : null,
+    vehicle_model: cat === 'vehicule' ? (document.getElementById('vModel').value || null) : null,
+    vehicle_year: cat === 'vehicule' ? (parseInt(document.getElementById('vYear').value) || null) : null,
+    vehicle_fuel: cat === 'vehicule' ? (document.getElementById('vFuel').value || null) : null,
+    vehicle_plate: cat === 'vehicule' ? (document.getElementById('vPlate').value.toUpperCase() || null) : null,
+    vehicle_km: cat === 'vehicule' ? (parseInt(document.getElementById('vKm').value) || null) : null,
+    vehicle_vin: cat === 'vehicule' ? (document.getElementById('vVin').value.toUpperCase() || null) : null,
   };
   try {
     if (id) { await apiPut(`/api/assets/${id}`, body); showToast('Actif mis à jour', 'success'); }

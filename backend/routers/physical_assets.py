@@ -31,6 +31,14 @@ class AssetCreate(BaseModel):
     description: Optional[str] = None
     estimated_value: Optional[float] = None
     coffre_id: Optional[int] = None
+    # Champs spécifiques aux véhicules
+    vehicle_make: Optional[str] = None
+    vehicle_model: Optional[str] = None
+    vehicle_year: Optional[int] = None
+    vehicle_plate: Optional[str] = None
+    vehicle_vin: Optional[str] = None
+    vehicle_fuel: Optional[str] = None
+    vehicle_km: Optional[int] = None
 
 class AssetUpdate(AssetCreate):
     pass
@@ -224,6 +232,14 @@ def _fmt_asset(a: PhysicalAsset) -> dict:
         "description": a.description, "estimated_value": a.estimated_value,
         "coffre_id": a.coffre_id, "user_id": a.user_id,
         "created_at": a.created_at, "updated_at": a.updated_at,
+        # Champs véhicule
+        "vehicle_make": a.vehicle_make,
+        "vehicle_model": a.vehicle_model,
+        "vehicle_year": a.vehicle_year,
+        "vehicle_plate": a.vehicle_plate,
+        "vehicle_vin": a.vehicle_vin,
+        "vehicle_fuel": a.vehicle_fuel,
+        "vehicle_km": a.vehicle_km,
         "events": [
             {"id": e.id, "type": e.type, "amount": e.amount, "date": str(e.date), "notes": e.notes}
             for e in a.events

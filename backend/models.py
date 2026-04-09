@@ -169,6 +169,15 @@ class PhysicalAsset(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
+    # ── Véhicule (renseignés uniquement si category == 'vehicule') ──
+    vehicle_make = Column(String(100), nullable=True)    # Marque (ex: BMW)
+    vehicle_model = Column(String(100), nullable=True)   # Modèle (ex: Série 3)
+    vehicle_year = Column(Integer, nullable=True)        # Année (ex: 2021)
+    vehicle_plate = Column(String(30), nullable=True)    # Immatriculation
+    vehicle_vin = Column(String(50), nullable=True)      # Numéro de châssis VIN
+    vehicle_fuel = Column(String(30), nullable=True)     # Carburant (essence|diesel|hybride|électrique)
+    vehicle_km = Column(Integer, nullable=True)          # Kilométrage actuel
+
     coffre = relationship("Coffre", back_populates="physical_assets")
     user = relationship("User", back_populates="physical_assets")
     events = relationship("AssetEvent", back_populates="asset", cascade="all, delete-orphan")
