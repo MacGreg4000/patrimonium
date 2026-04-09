@@ -4,16 +4,30 @@ import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+# ── Security config ───────────────────────────────────────
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS = [o.strip() for o in _raw_origins.split(",") if o.strip()] or [
+    "http://localhost:8080",
+    "http://localhost:8081",
+    "http://127.0.0.1:8080",
+    "http://127.0.0.1:8081",
+]
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 import auth as auth_utils
 import market_data as md
 import scheduler as sched
 from database import SessionLocal, init_db
 from models import Coffre, Position, User
+
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 logging.basicConfig(
     level=logging.INFO,
@@ -94,11 +108,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Patrimonium", version="1.0.0", lifespan=lifespan, docs_url=None, redoc_url=None)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], allow_credentials=True,
-    allow_methods=["*"], allow_headers=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-CSRF-Token", "Authorization"],
 )
 
 # ── Register routers ──────────────────────────────────────

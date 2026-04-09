@@ -1,10 +1,15 @@
 """Authentication router: login, logout, refresh, 2FA, CSRF."""
 import base64
 import json
+import os
 from datetime import datetime, timezone
+
+SECURE_COOKIES = os.getenv("SECURE_COOKIES", "false").lower() == "true"
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, EmailStr
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 import auth as auth_utils
@@ -14,6 +19,7 @@ from dependencies import get_current_user
 from models import AuditLog, User
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+limiter = Limiter(key_func=get_remote_address)
 
 # ── Schemas ───────────────────────────────────────────────
 
@@ -37,6 +43,7 @@ class TwoFADisableRequest(BaseModel):
 # ── Login / Logout ────────────────────────────────────────
 
 @router.post("/login")
+@limiter.limit("10/minute")
 def login(data: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email.lower(), User.is_active == True).first()  # noqa: E712
     if not user or not auth_utils.verify_password(data.password, user.hashed_password):
@@ -214,9 +221,9 @@ def change_password(body: dict, request: Request, db: Session = Depends(get_db),
 
 def _set_cookies(response: Response, access: str, refresh: str):
     response.set_cookie("access_token", access, httponly=True, samesite="strict",
-                        secure=False, max_age=3600)
+                        secure=SECURE_COOKIES, max_age=3600)
     response.set_cookie("refresh_token", refresh, httponly=True, samesite="strict",
-                        secure=False, max_age=7 * 86400)
+                        secure=SECURE_COOKIES, max_age=7 * 86400)
 
 
 def _audit(db: Session, user_id: int, action: str, description: str, request: Request):

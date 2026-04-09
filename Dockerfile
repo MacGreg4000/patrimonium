@@ -14,7 +14,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./backend/
 COPY frontend/ ./frontend/
 
-RUN mkdir -p /app/data
+RUN mkdir -p /app/data /app/.cache && \
+    addgroup --system appgroup && \
+    adduser --system --ingroup appgroup --home /app --no-create-home appuser && \
+    chown -R appuser:appgroup /app
+
+USER appuser
+ENV HOME=/app
 
 EXPOSE 8080
 

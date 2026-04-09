@@ -31,6 +31,8 @@ services:
       - OFFMARKET_REFRESH_MINUTES=${OFFMARKET_REFRESH_MINUTES:-30}
       - FIRST_ADMIN_EMAIL=${FIRST_ADMIN_EMAIL:-}
       - FIRST_ADMIN_PASSWORD=${FIRST_ADMIN_PASSWORD:-}
+      - SECURE_COOKIES=${SECURE_COOKIES:-false}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - TZ=Europe/Brussels
     volumes:
       - ./data:/app/data
