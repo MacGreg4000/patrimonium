@@ -43,6 +43,25 @@ services:
       timeout: 10s
       retries: 3
 
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_USER: ${POSTGRES_USER:-patrimonium}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-patrimonium}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-30}
+      TZ: Europe/Brussels
+    volumes:
+      - ./backups:/backups
+      - ./backup/backup.sh:/backup.sh:ro
+      - ./backup/scheduler.sh:/scheduler.sh:ro
+    entrypoint: ["sh", "/scheduler.sh"]
+
   adminer:
     image: adminer:latest
     restart: unless-stopped

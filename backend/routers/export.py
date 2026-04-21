@@ -1,5 +1,5 @@
 """Export router: génère un fichier HTML autonome chiffré pour clé USB."""
-import base64
+import base64 as b64_stdlib
 import json
 import os
 from datetime import datetime, timezone
@@ -12,10 +12,11 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+import encryption as enc
 import market_data as md
 from database import get_db
 from dependencies import get_current_user
-from models import Coffre, PhysicalAsset, Position, Reserve, User
+from models import Coffre, PasswordFile, PhysicalAsset, Position, Reserve, User
 from routers.coffres import compute_balance
 from calculations import calc_position_metrics
 
@@ -105,10 +106,29 @@ def _collect_data(db: Session, user: User) -> dict:
                 for e in a.events
             ],
             "documents": [
-                {"filename": d.filename, "document_type": d.document_type, "notes": d.notes,
-                 "size_bytes": d.size_bytes, "created_at": str(d.created_at)}
+                {
+                    "filename": d.filename,
+                    "document_type": d.document_type,
+                    "notes": d.notes,
+                    "size_bytes": d.size_bytes,
+                    "mime_type": d.mime_type,
+                    "created_at": str(d.created_at),
+                    # Contenu déchiffré en base64 pour téléchargement offline
+                    "data_b64": b64_stdlib.b64encode(enc.decrypt(d.encrypted_data)).decode(),
+                }
                 for d in a.documents
             ],
+        })
+
+    # Coffre de fichiers (vault)
+    vault_data = []
+    for f in db.query(PasswordFile).filter(PasswordFile.user_id == user.id).all():
+        vault_data.append({
+            "filename": f.filename,
+            "mime_type": f.mime_type,
+            "size_bytes": f.size_bytes,
+            "created_at": str(f.created_at),
+            "data_b64": b64_stdlib.b64encode(enc.decrypt(f.encrypted_data)).decode(),
         })
 
     # Réserves
@@ -139,6 +159,7 @@ def _collect_data(db: Session, user: User) -> dict:
         "portfolio": portfolio_items,
         "coffres": coffres_data,
         "assets": assets_data,
+        "vault": vault_data,
         "reserves": reserves_data,
     }
 
@@ -259,12 +280,14 @@ footer{{padding:16px 24px;text-align:center;color:var(--text2);font-size:11px;bo
       <button class="tab-btn" onclick="showTab('coffres')">🏦 Coffres</button>
       <button class="tab-btn" onclick="showTab('assets')">💎 Actifs physiques</button>
       <button class="tab-btn" onclick="showTab('reserves')">📅 Réserves</button>
+      <button class="tab-btn" onclick="showTab('vault')">🔐 Fichiers</button>
     </div>
     <div class="tab-panel active" id="tab-summary"></div>
     <div class="tab-panel" id="tab-portfolio"></div>
     <div class="tab-panel" id="tab-coffres"></div>
     <div class="tab-panel" id="tab-assets"></div>
     <div class="tab-panel" id="tab-reserves"></div>
+    <div class="tab-panel" id="tab-vault"></div>
   </main>
   <footer id="footerInfo"></footer>
 </div>
@@ -278,6 +301,17 @@ function b64ToBytes(b64) {{
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
+}}
+
+function downloadFile(filename, mimeType, b64data) {{
+  const bytes = b64ToBytes(b64data);
+  const blob = new Blob([bytes], {{ type: mimeType || 'application/octet-stream' }});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }}
 
 document.getElementById('exportDateDisplay').textContent = "{exported_at}";
@@ -315,6 +349,13 @@ function showTab(id) {{
   event.target.classList.add('active');
 }}
 
+function fmtSize(b) {{
+  if (!b) return '—';
+  if (b>=1048576) return (b/1048576).toFixed(1)+' MB';
+  if (b>=1024) return (b/1024).toFixed(0)+' KB';
+  return b+' B';
+}}
+
 function eur(v, d=2) {{
   if (v == null) return '—';
   return new Intl.NumberFormat('fr-BE', {{style:'currency',currency:'EUR',minimumFractionDigits:d,maximumFractionDigits:d}}).format(v);
@@ -346,6 +387,7 @@ function renderAll(data) {{
   renderCoffres(data);
   renderAssets(data);
   renderReserves(data);
+  renderVault(data);
 }}
 
 function renderSummary(data) {{
@@ -444,7 +486,26 @@ function renderAssets(data) {{
         ${{a.vehicle_km!=null?`<div class="v-field"><div class="v-label">Kilométrage</div><div class="v-val">${{num(a.vehicle_km)}} km</div></div>`:''}}
         ${{a.vehicle_vin?`<div class="v-field" style="grid-column:1/-1"><div class="v-label">VIN</div><div class="v-val">${{esc(a.vehicle_vin)}}</div></div>`:''}}
       </div>` : '';
-    const docsBlock = (a.documents||[]).length ? `<div style="margin-top:10px"><div class="section-title">Documents (${{a.documents.length}})</div><div style="display:flex;flex-wrap:wrap;gap:6px">${{a.documents.map(d=>`<span style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px">📄 ${{esc(d.filename)}} · ${{d.document_type||'—'}}</span>`).join('')}}</div></div>` : '';
+    const DOC_LABELS = {{facture:'🧾 Facture',carte_grise:'📋 Carte grise',assurance:'🛡 Assurance',controle_technique:'🔧 CT',certificat:'📜 Certificat',photo:'📷 Photo',autre:'📄 Autre'}};
+    const docsBlock = (a.documents||[]).length ? `
+      <div style="margin-top:10px">
+        <div class="section-title">Documents (${{a.documents.length}})</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          ${{a.documents.map((d,i)=>`
+            <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px;min-width:200px">
+              <span style="font-size:20px">📄</span>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${{esc(d.filename)}}</div>
+                <div style="font-size:11px;color:var(--text2);margin-top:2px">${{DOC_LABELS[d.document_type]||d.document_type||'—'}} · ${{fmtSize(d.size_bytes)}} · ${{fmtDate(d.created_at)}}</div>
+                ${{d.notes?`<div style="font-size:11px;color:var(--text2);font-style:italic">${{esc(d.notes)}}</div>`:''}}
+              </div>
+              <button onclick="downloadFile('${{esc(d.filename)}}','${{d.mime_type}}','${{d.data_b64}}')"
+                style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0">
+                ⬇ Télécharger
+              </button>
+            </div>`).join('')}}
+        </div>
+      </div>` : '';
     const eventsBlock = (a.events||[]).length ? `<div style="margin-top:10px"><div class="section-title">Événements</div><table style="font-size:12px"><thead><tr><th class="left">Date</th><th class="left">Type</th><th>Montant</th><th class="left">Note</th></tr></thead><tbody>${{a.events.map(e=>`<tr><td class="left">${{fmtDate(e.date)}}</td><td class="left">${{e.type}}</td><td>${{eur(e.amount)}}</td><td class="left" style="color:var(--text2)">${{esc(e.notes||'—')}}</td></tr>`).join('')}}</tbody></table></div>` : '';
     return `
       <tr onclick="this.nextElementSibling.querySelector('.expand-content').classList.toggle('open')" style="cursor:pointer">
@@ -507,6 +568,44 @@ function renderReserves(data) {{
       <div class="card"><div class="card-label">Libérable</div><div class="card-value green">${{eur(Math.max(0,totalAmt-totalRel))}}</div></div>
     </div>
     ${{blocks}}`;
+}}
+
+function renderVault(data) {{
+  const files = data.vault || [];
+  const EXT_ICONS = {{pdf:'📕',jpg:'🖼',jpeg:'🖼',png:'🖼',webp:'🖼',csv:'📊',json:'📋',zip:'🗜',txt:'📝',doc:'📄',docx:'📄',xls:'📊',xlsx:'📊'}};
+  const getIcon = f => {{ const ext = f.split('.').pop().toLowerCase(); return EXT_ICONS[ext] || '📄'; }};
+
+  if (!files.length) {{
+    document.getElementById('tab-vault').innerHTML = `
+      <div class="card" style="padding:40px;text-align:center">
+        <div style="font-size:40px;margin-bottom:12px">🔐</div>
+        <div style="color:var(--text2);font-size:14px">Aucun fichier dans le coffre au moment de l'export.</div>
+      </div>`;
+    return;
+  }}
+
+  const cards = files.map((f,i) => `
+    <div class="card" style="display:flex;align-items:center;gap:16px;padding:16px">
+      <span style="font-size:32px;flex-shrink:0">${{getIcon(f.filename)}}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:14px;font-weight:600;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${{esc(f.filename)}}</div>
+        <div style="font-size:12px;color:var(--text2)">${{fmtSize(f.size_bytes)}} · Ajouté le ${{fmtDate(f.created_at)}}</div>
+      </div>
+      <button onclick="downloadFile('${{esc(f.filename)}}','${{f.mime_type}}','${{f.data_b64}}')"
+        style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:500;cursor:pointer;flex-shrink:0;display:flex;align-items:center;gap:6px">
+        ⬇ Télécharger
+      </button>
+    </div>`).join('');
+
+  document.getElementById('tab-vault').innerHTML = `
+    <div class="summary-grid" style="margin-bottom:24px">
+      <div class="card">
+        <div class="card-label">🔐 Fichiers chiffrés</div>
+        <div class="card-value">${{files.length}}</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:4px">Total : ${{fmtSize(files.reduce((s,f)=>s+f.size_bytes,0))}}</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">${{cards}}</div>`;
 }}
 </script>
 </body>

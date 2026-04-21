@@ -14,6 +14,11 @@ venv/
 
 # Docker volumes
 pgdata/
+data/
+
+# Sauvegardes automatiques (conservées localement, non versionnées)
+backups/*.sql.gz
+backups/backup.log
 
 # OS
 .DS_Store
