@@ -5,8 +5,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import get_db
-from dependencies import get_current_user, require_admin_csrf
-from models import AuditLog, Coffre, Inventory, InventoryDetail, Movement, MovementDetail, User
+from dependencies import get_current_user, log_audit, require_admin_csrf
+from models import Coffre, Inventory, InventoryDetail, Movement, MovementDetail, User
 
 router = APIRouter(prefix="/api", tags=["coffres"])
 
@@ -41,7 +41,6 @@ class MovementUpdate(BaseModel):
 
 def compute_balance(coffre_id: int, db: Session) -> float:
     """Compute current balance from last inventory + subsequent movements."""
-    # Get last non-deleted inventory
     last_inv = (
         db.query(Inventory)
         .filter(Inventory.coffre_id == coffre_id, Inventory.deleted_at.is_(None))
@@ -55,7 +54,6 @@ def compute_balance(coffre_id: int, db: Session) -> float:
         base = 0.0
         base_date = None
 
-    # Sum movements after last inventory
     q = db.query(Movement).filter(
         Movement.coffre_id == coffre_id,
         Movement.deleted_at.is_(None),
@@ -77,10 +75,8 @@ def compute_balance(coffre_id: int, db: Session) -> float:
 def list_coffres(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     coffres = db.query(Coffre).filter(Coffre.is_active == True).order_by(Coffre.name).all()  # noqa: E712
     return [
-        {
-            "id": c.id, "name": c.name, "description": c.description,
-            "balance": compute_balance(c.id, db),
-        }
+        {"id": c.id, "name": c.name, "description": c.description,
+         "balance": compute_balance(c.id, db)}
         for c in coffres
     ]
 
@@ -107,10 +103,8 @@ def list_movements(
         q = q.filter(Movement.coffre_id == coffre_id)
     total = q.count()
     items = q.order_by(Movement.created_at.desc()).offset((page - 1) * limit).limit(min(limit, 100)).all()
-    return {
-        "total": total, "page": page, "limit": limit,
-        "items": [_fmt_movement(m) for m in items],
-    }
+    return {"total": total, "page": page, "limit": limit,
+            "items": [_fmt_movement(m) for m in items]}
 
 
 @router.post("/movements", status_code=201)
@@ -130,7 +124,8 @@ def create_movement(data: MovementCreate, request: Request,
             db.add(MovementDetail(movement_id=mv.id, denomination=d.denomination, quantity=d.quantity))
     db.commit()
     db.refresh(mv)
-    _audit(db, user.id, "MOVEMENT_CREATED", f"{data.type} {data.amount}€ coffre #{data.coffre_id}", request)
+    log_audit(db, user.id, "MOVEMENT_CREATED",
+              f"{data.type} {data.amount}€ — coffre '{coffre.name}'", request)
     return _fmt_movement(mv)
 
 
@@ -143,7 +138,7 @@ def update_movement(movement_id: int, data: MovementUpdate, request: Request,
     mv.amount = data.amount
     mv.description = data.description
     db.commit()
-    _audit(db, user.id, "MOVEMENT_UPDATED", f"Mouvement #{movement_id} modifié", request)
+    log_audit(db, user.id, "MOVEMENT_UPDATED", f"Mouvement #{movement_id} modifié", request)
     return {"ok": True}
 
 
@@ -156,7 +151,7 @@ def delete_movement(movement_id: int, request: Request,
     from datetime import datetime, timezone
     mv.deleted_at = datetime.now(timezone.utc)
     db.commit()
-    _audit(db, user.id, "MOVEMENT_DELETED", f"Mouvement #{movement_id} supprimé", request)
+    log_audit(db, user.id, "MOVEMENT_DELETED", f"Mouvement #{movement_id} supprimé", request)
     return {"ok": True}
 
 
@@ -174,10 +169,8 @@ def list_inventories(
         q = q.filter(Inventory.coffre_id == coffre_id)
     total = q.count()
     items = q.order_by(Inventory.date.desc()).offset((page - 1) * limit).limit(min(limit, 100)).all()
-    return {
-        "total": total, "page": page, "limit": limit,
-        "items": [_fmt_inventory(i) for i in items],
-    }
+    return {"total": total, "page": page, "limit": limit,
+            "items": [_fmt_inventory(i) for i in items]}
 
 
 @router.post("/inventories", status_code=201)
@@ -186,7 +179,6 @@ def create_inventory(data: InventoryCreate, request: Request,
     coffre = db.query(Coffre).filter(Coffre.id == data.coffre_id, Coffre.is_active == True).first()  # noqa: E712
     if not coffre:
         raise HTTPException(status_code=404, detail="Coffre introuvable")
-    # Compute total from details if provided
     total = sum(d.denomination * d.quantity for d in data.details) if data.details else data.total_amount
     inv = Inventory(coffre_id=data.coffre_id, user_id=user.id,
                     total_amount=total, notes=data.notes)
@@ -197,7 +189,8 @@ def create_inventory(data: InventoryCreate, request: Request,
             db.add(InventoryDetail(inventory_id=inv.id, denomination=d.denomination, quantity=d.quantity))
     db.commit()
     db.refresh(inv)
-    _audit(db, user.id, "INVENTORY_CREATED", f"Inventaire {total}€ coffre #{data.coffre_id}", request)
+    log_audit(db, user.id, "INVENTORY_CREATED",
+              f"Inventaire {total}€ — coffre '{coffre.name}'", request)
     return _fmt_inventory(inv)
 
 
@@ -210,7 +203,7 @@ def delete_inventory(inventory_id: int, request: Request,
     from datetime import datetime, timezone
     inv.deleted_at = datetime.now(timezone.utc)
     db.commit()
-    _audit(db, user.id, "INVENTORY_DELETED", f"Inventaire #{inventory_id} supprimé", request)
+    log_audit(db, user.id, "INVENTORY_DELETED", f"Inventaire #{inventory_id} supprimé", request)
     return {"ok": True}
 
 
@@ -255,16 +248,6 @@ def _fmt_movement(m: Movement) -> dict:
 def _fmt_inventory(i: Inventory) -> dict:
     return {
         "id": i.id, "coffre_id": i.coffre_id, "user_id": i.user_id,
-        "total_amount": i.total_amount, "notes": i.notes,
-        "date": i.date,
+        "total_amount": i.total_amount, "notes": i.notes, "date": i.date,
         "details": [{"denomination": d.denomination, "quantity": d.quantity} for d in i.details],
     }
-
-
-def _audit(db: Session, user_id: int, action: str, desc: str, request: Request):
-    db.add(AuditLog(
-        user_id=user_id, action=action, description=desc,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
-    ))
-    db.commit()

@@ -15,8 +15,8 @@ from sqlalchemy.orm import Session
 import auth as auth_utils
 import encryption as enc
 from database import get_db
-from dependencies import get_current_user
-from models import AuditLog, User
+from dependencies import get_current_user, log_audit
+from models import User
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 limiter = Limiter(key_func=get_remote_address)
@@ -71,7 +71,7 @@ def login(data: LoginRequest, request: Request, response: Response, db: Session 
     refresh = auth_utils.create_refresh_token(user.id)
 
     _set_cookies(response, access, refresh)
-    _audit(db, user.id, "LOGIN", f"Connexion de {user.email}", request)
+    log_audit(db, user.id, "LOGIN", f"Connexion de {user.email}", request)
 
     return {"ok": True, "user": {"id": user.id, "name": user.name, "email": user.email, "role": user.role}}
 
@@ -158,7 +158,7 @@ def confirm_2fa(body: dict, request: Request, db: Session = Depends(get_db),
     current_user.two_factor_backup = auth_utils.hash_backup_codes(raw_codes)
     current_user.two_factor_enabled = True
     db.commit()
-    _audit(db, current_user.id, "2FA_ENABLED", "2FA activé", request)
+    log_audit(db, current_user.id, "2FA_ENABLED", "2FA activé", request)
     return {"ok": True, "backup_codes": raw_codes}
 
 
@@ -176,7 +176,7 @@ def disable_2fa(data: TwoFADisableRequest, request: Request, db: Session = Depen
     current_user.two_factor_secret = None
     current_user.two_factor_backup = None
     db.commit()
-    _audit(db, current_user.id, "2FA_DISABLED", "2FA désactivé", request)
+    log_audit(db, current_user.id, "2FA_DISABLED", "2FA désactivé", request)
     return {"ok": True}
 
 
@@ -196,7 +196,7 @@ def regenerate_backup(request: Request, db: Session = Depends(get_db),
     raw_codes = auth_utils.generate_backup_codes()
     current_user.two_factor_backup = auth_utils.hash_backup_codes(raw_codes)
     db.commit()
-    _audit(db, current_user.id, "2FA_BACKUP_REGEN", "Codes de secours régénérés", request)
+    log_audit(db, current_user.id, "2FA_BACKUP_REGEN", "Codes de secours régénérés", request)
     return {"backup_codes": raw_codes}
 
 
@@ -213,24 +213,12 @@ def change_password(body: dict, request: Request, db: Session = Depends(get_db),
         raise HTTPException(status_code=400, detail="Mot de passe trop court (8 caractères minimum)")
     current_user.hashed_password = auth_utils.hash_password(new_pw)
     db.commit()
-    _audit(db, current_user.id, "PASSWORD_CHANGED", "Mot de passe modifié", request)
+    log_audit(db, current_user.id, "PASSWORD_CHANGED", "Mot de passe modifié", request)
     return {"ok": True}
 
-
-# ── Private helpers ───────────────────────────────────────
 
 def _set_cookies(response: Response, access: str, refresh: str):
     response.set_cookie("access_token", access, httponly=True, samesite="strict",
                         secure=SECURE_COOKIES, max_age=3600)
     response.set_cookie("refresh_token", refresh, httponly=True, samesite="strict",
                         secure=SECURE_COOKIES, max_age=7 * 86400)
-
-
-def _audit(db: Session, user_id: int, action: str, description: str, request: Request):
-    log = AuditLog(
-        user_id=user_id, action=action, description=description,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
-    )
-    db.add(log)
-    db.commit()

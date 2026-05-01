@@ -1,12 +1,12 @@
 """Password files vault: AES-256-GCM encrypted file storage."""
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 
 import encryption as enc
 from database import get_db
-from dependencies import get_current_user, require_admin_csrf
-from models import AuditLog, PasswordFile, User
+from dependencies import get_current_user, log_audit, require_admin_csrf
+from models import PasswordFile, User
 
 router = APIRouter(prefix="/api/password-files", tags=["password_files"])
 
@@ -20,7 +20,9 @@ ALLOWED_MIME = {
 
 @router.get("")
 def list_files(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    files = db.query(PasswordFile).filter(PasswordFile.user_id == user.id).order_by(PasswordFile.created_at.desc()).all()
+    files = (db.query(PasswordFile)
+             .filter(PasswordFile.user_id == user.id)
+             .order_by(PasswordFile.created_at.desc()).all())
     return [_fmt(f) for f in files]
 
 
@@ -44,7 +46,7 @@ async def upload_file(
     db.add(pf)
     db.commit()
     db.refresh(pf)
-    _audit(db, user.id, "PWFILE_UPLOADED", f"Fichier '{file.filename}' chargé", request)
+    log_audit(db, user.id, "PWFILE_UPLOADED", f"Fichier '{file.filename}' chargé", request)
     return _fmt(pf)
 
 
@@ -69,7 +71,7 @@ def delete_file(file_id: int, request: Request,
     name = pf.filename
     db.delete(pf)
     db.commit()
-    _audit(db, user.id, "PWFILE_DELETED", f"Fichier '{name}' supprimé", request)
+    log_audit(db, user.id, "PWFILE_DELETED", f"Fichier '{name}' supprimé", request)
     return {"ok": True}
 
 
@@ -78,10 +80,3 @@ def _fmt(f: PasswordFile) -> dict:
         "id": f.id, "filename": f.filename, "mime_type": f.mime_type,
         "size_bytes": f.size_bytes, "sha256": f.sha256, "created_at": f.created_at,
     }
-
-
-def _audit(db: Session, user_id: int, action: str, desc: str, request: Request):
-    db.add(AuditLog(user_id=user_id, action=action, description=desc,
-                    ip_address=request.client.host if request.client else None,
-                    user_agent=request.headers.get("user-agent") if request else None))
-    db.commit()

@@ -5,8 +5,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import get_db
-from dependencies import get_current_user, require_admin_csrf
-from models import AuditLog, Reserve, User
+from dependencies import get_current_user, log_audit, require_admin_csrf
+from models import Reserve, User
 
 router = APIRouter(prefix="/api/reserves", tags=["reserves"])
 
@@ -51,8 +51,8 @@ def list_reserves(db: Session = Depends(get_db), user: User = Depends(get_curren
 
 
 @router.post("", status_code=201)
-def create_reserve(data: ReserveCreate, db: Session = Depends(get_db),
-                   user: User = Depends(require_admin_csrf)):
+def create_reserve(data: ReserveCreate, request: Request,
+                   db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     existing = db.query(Reserve).filter(
         Reserve.user_id == user.id, Reserve.year == data.year, Reserve.month == data.month
     ).first()
@@ -62,11 +62,14 @@ def create_reserve(data: ReserveCreate, db: Session = Depends(get_db),
     db.add(r)
     db.commit()
     db.refresh(r)
+    log_audit(db, user.id, "RESERVE_CREATED",
+              f"Réserve créée: {data.year}/{data.month:02d} — {data.amount}€", request)
     return _fmt(r)
 
 
 @router.post("/initialize")
-def initialize_reserves(db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
+def initialize_reserves(request: Request,
+                        db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     """Auto-create empty rows for 2013–2035 if they don't exist."""
     created = 0
     for year in range(2013, 2036):
@@ -78,11 +81,13 @@ def initialize_reserves(db: Session = Depends(get_db), user: User = Depends(requ
                 db.add(Reserve(user_id=user.id, year=year, month=month))
                 created += 1
     db.commit()
+    log_audit(db, user.id, "RESERVES_INITIALIZED",
+              f"{created} réserves initialisées (2013–2035)", request)
     return {"created": created}
 
 
 @router.put("/{reserve_id}")
-def update_reserve(reserve_id: int, data: ReserveUpdate,
+def update_reserve(reserve_id: int, data: ReserveUpdate, request: Request,
                    db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     r = db.query(Reserve).filter(Reserve.id == reserve_id, Reserve.user_id == user.id).first()
     if not r:
@@ -90,17 +95,21 @@ def update_reserve(reserve_id: int, data: ReserveUpdate,
     for k, v in data.model_dump(exclude_none=True).items():
         setattr(r, k, v)
     db.commit()
+    log_audit(db, user.id, "RESERVE_UPDATED",
+              f"Réserve modifiée: {r.year}/{r.month:02d}", request)
     return _fmt(r)
 
 
 @router.delete("/{reserve_id}")
-def delete_reserve(reserve_id: int, db: Session = Depends(get_db),
-                   user: User = Depends(require_admin_csrf)):
+def delete_reserve(reserve_id: int, request: Request,
+                   db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     r = db.query(Reserve).filter(Reserve.id == reserve_id, Reserve.user_id == user.id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Réserve introuvable")
+    label = f"{r.year}/{r.month:02d}"
     db.delete(r)
     db.commit()
+    log_audit(db, user.id, "RESERVE_DELETED", f"Réserve supprimée: {label}", request)
     return {"ok": True}
 
 

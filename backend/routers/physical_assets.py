@@ -1,5 +1,4 @@
 """Physical assets router: CRUD, events, encrypted documents."""
-import hashlib
 from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
@@ -8,8 +7,8 @@ from sqlalchemy.orm import Session
 
 import encryption as enc
 from database import get_db
-from dependencies import get_current_user, require_admin_csrf
-from models import AssetDocument, AssetEvent, AuditLog, PhysicalAsset, User
+from dependencies import get_current_user, log_audit, require_admin_csrf
+from models import AssetDocument, AssetEvent, PhysicalAsset, User
 
 router = APIRouter(prefix="/api/assets", tags=["assets"])
 
@@ -31,7 +30,6 @@ class AssetCreate(BaseModel):
     description: Optional[str] = None
     estimated_value: Optional[float] = None
     coffre_id: Optional[int] = None
-    # Champs spécifiques aux véhicules
     vehicle_make: Optional[str] = None
     vehicle_model: Optional[str] = None
     vehicle_year: Optional[int] = None
@@ -67,8 +65,7 @@ def list_assets(
         q = q.filter(PhysicalAsset.category == category)
     if coffre_id:
         q = q.filter(PhysicalAsset.coffre_id == coffre_id)
-    assets = q.order_by(PhysicalAsset.name).all()
-    return [_fmt_asset(a) for a in assets]
+    return [_fmt_asset(a) for a in q.order_by(PhysicalAsset.name).all()]
 
 
 @router.post("", status_code=201)
@@ -78,7 +75,7 @@ def create_asset(data: AssetCreate, request: Request,
     db.add(asset)
     db.commit()
     db.refresh(asset)
-    _audit(db, user.id, "ASSET_CREATED", f"Actif créé: {asset.name}", request)
+    log_audit(db, user.id, "ASSET_CREATED", f"Actif créé: {asset.name}", request)
     return _fmt_asset(asset)
 
 
@@ -99,6 +96,7 @@ def update_asset(asset_id: int, data: AssetUpdate, request: Request,
     for k, v in data.model_dump().items():
         setattr(asset, k, v)
     db.commit()
+    log_audit(db, user.id, "ASSET_UPDATED", f"Actif modifié: {asset.name}", request)
     return _fmt_asset(asset)
 
 
@@ -108,9 +106,10 @@ def delete_asset(asset_id: int, request: Request,
     asset = db.query(PhysicalAsset).filter(PhysicalAsset.id == asset_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Actif introuvable")
+    name = asset.name
     db.delete(asset)
     db.commit()
-    _audit(db, user.id, "ASSET_DELETED", f"Actif supprimé: {asset.name}", request)
+    log_audit(db, user.id, "ASSET_DELETED", f"Actif supprimé: {name}", request)
     return {"ok": True}
 
 
@@ -126,11 +125,12 @@ def add_event(asset_id: int, data: EventCreate, request: Request,
     ev = AssetEvent(asset_id=asset_id, type=data.type,
                     amount=data.amount, date=date.fromisoformat(data.date), notes=data.notes)
     db.add(ev)
-    # Update estimated value on VALUATION event
     if data.type == "VALUATION" and data.amount is not None:
         asset.estimated_value = data.amount
     db.commit()
     db.refresh(ev)
+    log_audit(db, user.id, "ASSET_EVENT_CREATED",
+              f"Événement {data.type} sur actif '{asset.name}': {data.amount}€", request)
     return {"id": ev.id, "type": ev.type, "amount": ev.amount, "date": str(ev.date), "notes": ev.notes}
 
 
@@ -140,8 +140,11 @@ def delete_event(asset_id: int, event_id: int, request: Request,
     ev = db.query(AssetEvent).filter(AssetEvent.id == event_id, AssetEvent.asset_id == asset_id).first()
     if not ev:
         raise HTTPException(status_code=404, detail="Événement introuvable")
+    asset = db.query(PhysicalAsset).filter(PhysicalAsset.id == asset_id).first()
     db.delete(ev)
     db.commit()
+    log_audit(db, user.id, "ASSET_EVENT_DELETED",
+              f"Événement #{event_id} supprimé sur actif '{asset.name if asset else asset_id}'", request)
     return {"ok": True}
 
 
@@ -182,7 +185,8 @@ async def upload_document(
     db.add(doc)
     db.commit()
     db.refresh(doc)
-    _audit(db, user.id, "DOCUMENT_UPLOADED", f"Document '{file.filename}' ajouté à actif #{asset_id}", request)
+    log_audit(db, user.id, "DOCUMENT_UPLOADED",
+              f"Document '{file.filename}' ajouté à actif '{asset.name}'", request)
     return _fmt_doc(doc)
 
 
@@ -205,8 +209,11 @@ def delete_document(asset_id: int, doc_id: int, request: Request,
     doc = db.query(AssetDocument).filter(AssetDocument.id == doc_id, AssetDocument.asset_id == asset_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document introuvable")
+    filename = doc.filename
     db.delete(doc)
     db.commit()
+    log_audit(db, user.id, "DOCUMENT_DELETED",
+              f"Document '{filename}' supprimé de l'actif #{asset_id}", request)
     return {"ok": True}
 
 
@@ -218,7 +225,6 @@ def _fmt_asset(a: PhysicalAsset) -> dict:
         "description": a.description, "estimated_value": a.estimated_value,
         "coffre_id": a.coffre_id, "user_id": a.user_id,
         "created_at": a.created_at, "updated_at": a.updated_at,
-        # Champs véhicule
         "vehicle_make": a.vehicle_make,
         "vehicle_model": a.vehicle_model,
         "vehicle_year": a.vehicle_year,
@@ -240,10 +246,3 @@ def _fmt_doc(d: AssetDocument) -> dict:
         "size_bytes": d.size_bytes, "sha256": d.sha256,
         "document_type": d.document_type, "notes": d.notes, "created_at": d.created_at,
     }
-
-
-def _audit(db: Session, user_id: int, action: str, desc: str, request: Request):
-    db.add(AuditLog(user_id=user_id, action=action, description=desc,
-                    ip_address=request.client.host if request.client else None,
-                    user_agent=request.headers.get("user-agent") if request else None))
-    db.commit()

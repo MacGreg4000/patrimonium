@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 import calculations
 import market_data as md
 from database import get_db
-from dependencies import get_current_user, require_admin_csrf
-from models import AuditLog, Position, PortfolioSnapshot, Purchase, User
+from dependencies import get_current_user, log_audit, require_admin_csrf
+from models import Position, PortfolioSnapshot, Purchase, User
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
@@ -78,7 +78,6 @@ def _build_position(pos: Position, portfolio_total: float) -> dict:
 
 def _all_positions_with_total(db: Session) -> tuple[list, float]:
     positions = db.query(Position).filter(Position.is_active == True).all()  # noqa: E712
-    # First pass for total
     total = 0.0
     for pos in positions:
         if pos.ticker == "MANUAL":
@@ -116,17 +115,18 @@ def list_positions(db: Session = Depends(get_db), user: User = Depends(get_curre
 
 
 @router.post("/positions", status_code=201)
-def create_position(data: PositionCreate,
+def create_position(data: PositionCreate, request: Request,
                     db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     pos = Position(**data.model_dump())
     db.add(pos)
     db.commit()
     db.refresh(pos)
+    log_audit(db, user.id, "POSITION_CREATED", f"Position créée: {pos.display_name} ({pos.ticker})", request)
     return _build_position(pos, 0.0)
 
 
 @router.put("/positions/{pos_id}")
-def update_position(pos_id: int, data: PositionUpdate,
+def update_position(pos_id: int, data: PositionUpdate, request: Request,
                     db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     pos = db.query(Position).filter(Position.id == pos_id).first()
     if not pos:
@@ -134,16 +134,19 @@ def update_position(pos_id: int, data: PositionUpdate,
     for k, v in data.model_dump(exclude_none=True).items():
         setattr(pos, k, v)
     db.commit()
+    log_audit(db, user.id, "POSITION_UPDATED", f"Position modifiée: {pos.display_name} ({pos.ticker})", request)
     return _build_position(pos, 0.0)
 
 
 @router.delete("/positions/{pos_id}")
-def archive_position(pos_id: int, db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
+def archive_position(pos_id: int, request: Request,
+                     db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     pos = db.query(Position).filter(Position.id == pos_id).first()
     if not pos:
         raise HTTPException(status_code=404, detail="Position introuvable")
     pos.is_active = False
     db.commit()
+    log_audit(db, user.id, "POSITION_ARCHIVED", f"Position archivée: {pos.display_name} ({pos.ticker})", request)
     return {"ok": True}
 
 
@@ -158,7 +161,7 @@ def list_purchases(pos_id: int, db: Session = Depends(get_db), user: User = Depe
 
 
 @router.post("/positions/{pos_id}/purchases", status_code=201)
-def add_purchase(pos_id: int, data: PurchaseCreate,
+def add_purchase(pos_id: int, data: PurchaseCreate, request: Request,
                  db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     pos = db.query(Position).filter(Position.id == pos_id).first()
     if not pos:
@@ -173,15 +176,18 @@ def add_purchase(pos_id: int, data: PurchaseCreate,
     db.add(purchase)
     db.commit()
     db.refresh(purchase)
+    log_audit(db, user.id, "PURCHASE_CREATED",
+              f"Achat {data.quantity} x {pos.ticker} à {data.unit_price}", request)
     return purchase
 
 
 @router.put("/positions/{pos_id}/purchases/{pid}")
-def update_purchase(pos_id: int, pid: int, data: PurchaseCreate,
+def update_purchase(pos_id: int, pid: int, data: PurchaseCreate, request: Request,
                     db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     p = db.query(Purchase).filter(Purchase.id == pid, Purchase.position_id == pos_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Achat introuvable")
+    pos = db.query(Position).filter(Position.id == pos_id).first()
     from datetime import date
     p.purchase_date = date.fromisoformat(data.purchase_date)
     p.quantity = data.quantity
@@ -189,22 +195,27 @@ def update_purchase(pos_id: int, pid: int, data: PurchaseCreate,
     p.fees = data.fees
     p.note = data.note
     db.commit()
+    log_audit(db, user.id, "PURCHASE_UPDATED",
+              f"Achat #{pid} modifié sur {pos.ticker if pos else pos_id}", request)
     return p
 
 
 @router.delete("/positions/{pos_id}/purchases/{pid}")
-def delete_purchase(pos_id: int, pid: int, db: Session = Depends(get_db),
-                    user: User = Depends(require_admin_csrf)):
+def delete_purchase(pos_id: int, pid: int, request: Request,
+                    db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     p = db.query(Purchase).filter(Purchase.id == pid, Purchase.position_id == pos_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Achat introuvable")
+    pos = db.query(Position).filter(Position.id == pos_id).first()
     db.delete(p)
     db.commit()
+    log_audit(db, user.id, "PURCHASE_DELETED",
+              f"Achat #{pid} supprimé sur {pos.ticker if pos else pos_id}", request)
     return {"ok": True}
 
 
 @router.post("/positions/{pos_id}/manual-price")
-def set_manual_price(pos_id: int, data: ManualPriceUpdate,
+def set_manual_price(pos_id: int, data: ManualPriceUpdate, request: Request,
                      db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     pos = db.query(Position).filter(Position.id == pos_id).first()
     if not pos or pos.ticker != "MANUAL":
@@ -212,6 +223,8 @@ def set_manual_price(pos_id: int, data: ManualPriceUpdate,
     pos.manual_price = data.price
     pos.manual_price_updated_at = datetime.now(timezone.utc)
     db.commit()
+    log_audit(db, user.id, "MANUAL_PRICE_SET",
+              f"Prix manuel {data.price} fixé sur {pos.display_name}", request)
     return {"ok": True, "price": data.price}
 
 

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 import auth as auth_utils
 from database import get_db
-from dependencies import require_admin, require_admin_csrf
+from dependencies import log_audit, require_admin, require_admin_csrf
 from models import AuditLog, Coffre, Movement, User
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -63,7 +63,7 @@ def create_user(data: UserCreate, request: Request, db: Session = Depends(get_db
     db.add(user)
     db.commit()
     db.refresh(user)
-    _audit(db, admin.id, "USER_CREATED", f"Utilisateur créé: {user.email}", request)
+    log_audit(db, admin.id, "USER_CREATED", f"Utilisateur créé: {user.email}", request)
     return {"id": user.id, "email": user.email, "name": user.name, "role": user.role}
 
 
@@ -82,7 +82,7 @@ def update_user(user_id: int, data: UserUpdate, request: Request,
     if data.is_active is not None:
         user.is_active = data.is_active
     db.commit()
-    _audit(db, admin.id, "USER_UPDATED", f"Utilisateur modifié: {user.email}", request)
+    log_audit(db, admin.id, "USER_UPDATED", f"Utilisateur modifié: {user.email}", request)
     return {"ok": True}
 
 
@@ -97,7 +97,7 @@ def delete_user(user_id: int, request: Request, db: Session = Depends(get_db),
     email = user.email
     db.delete(user)
     db.commit()
-    _audit(db, admin.id, "USER_DELETED", f"Utilisateur supprimé: {email}", request)
+    log_audit(db, admin.id, "USER_DELETED", f"Utilisateur supprimé: {email}", request)
     return {"ok": True}
 
 
@@ -112,7 +112,7 @@ def reset_password(user_id: int, body: dict, request: Request,
         raise HTTPException(status_code=400, detail="Mot de passe trop court")
     user.hashed_password = auth_utils.hash_password(new_pw)
     db.commit()
-    _audit(db, admin.id, "PASSWORD_RESET", f"Mot de passe réinitialisé pour: {user.email}", request)
+    log_audit(db, admin.id, "PASSWORD_RESET", f"Mot de passe réinitialisé pour: {user.email}", request)
     return {"ok": True}
 
 
@@ -135,7 +135,7 @@ def create_coffre(data: CoffreCreate, request: Request, db: Session = Depends(ge
     db.add(coffre)
     db.commit()
     db.refresh(coffre)
-    _audit(db, admin.id, "COFFRE_CREATED", f"Coffre créé: {coffre.name}", request)
+    log_audit(db, admin.id, "COFFRE_CREATED", f"Coffre créé: {coffre.name}", request)
     return {"id": coffre.id, "name": coffre.name}
 
 
@@ -152,7 +152,7 @@ def update_coffre(coffre_id: int, data: CoffreUpdate, request: Request,
     if data.is_active is not None:
         coffre.is_active = data.is_active
     db.commit()
-    _audit(db, admin.id, "COFFRE_UPDATED", f"Coffre modifié: {coffre.name}", request)
+    log_audit(db, admin.id, "COFFRE_UPDATED", f"Coffre modifié: {coffre.name}", request)
     return {"ok": True}
 
 
@@ -169,7 +169,7 @@ def delete_coffre(coffre_id: int, request: Request, db: Session = Depends(get_db
         raise HTTPException(status_code=400, detail=f"Solde non nul ({bal:.2f} €) — videz le coffre avant suppression")
     db.delete(coffre)
     db.commit()
-    _audit(db, admin.id, "COFFRE_DELETED", f"Coffre supprimé: {coffre.name}", request)
+    log_audit(db, admin.id, "COFFRE_DELETED", f"Coffre supprimé: {coffre.name}", request)
     return {"ok": True}
 
 
@@ -192,13 +192,3 @@ def get_logs(limit: int = 100, offset: int = 0,
     ]
 
 
-# ── Private helpers ───────────────────────────────────────
-
-def _audit(db: Session, user_id: int, action: str, description: str, request: Request):
-    log = AuditLog(
-        user_id=user_id, action=action, description=description,
-        ip_address=request.client.host if request.client else None,
-        user_agent=request.headers.get("user-agent"),
-    )
-    db.add(log)
-    db.commit()
