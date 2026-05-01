@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import get_db
-from dependencies import get_current_user
+from dependencies import get_current_user, require_admin_csrf
 from models import AuditLog, Reserve, User
 
 router = APIRouter(prefix="/api/reserves", tags=["reserves"])
@@ -52,9 +52,7 @@ def list_reserves(db: Session = Depends(get_db), user: User = Depends(get_curren
 
 @router.post("", status_code=201)
 def create_reserve(data: ReserveCreate, db: Session = Depends(get_db),
-                   user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+                   user: User = Depends(require_admin_csrf)):
     existing = db.query(Reserve).filter(
         Reserve.user_id == user.id, Reserve.year == data.year, Reserve.month == data.month
     ).first()
@@ -68,10 +66,8 @@ def create_reserve(data: ReserveCreate, db: Session = Depends(get_db),
 
 
 @router.post("/initialize")
-def initialize_reserves(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+def initialize_reserves(db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     """Auto-create empty rows for 2013–2035 if they don't exist."""
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
     created = 0
     for year in range(2013, 2036):
         for month in range(1, 13):
@@ -87,9 +83,7 @@ def initialize_reserves(db: Session = Depends(get_db), user: User = Depends(get_
 
 @router.put("/{reserve_id}")
 def update_reserve(reserve_id: int, data: ReserveUpdate,
-                   db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+                   db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     r = db.query(Reserve).filter(Reserve.id == reserve_id, Reserve.user_id == user.id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Réserve introuvable")
@@ -101,9 +95,7 @@ def update_reserve(reserve_id: int, data: ReserveUpdate,
 
 @router.delete("/{reserve_id}")
 def delete_reserve(reserve_id: int, db: Session = Depends(get_db),
-                   user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+                   user: User = Depends(require_admin_csrf)):
     r = db.query(Reserve).filter(Reserve.id == reserve_id, Reserve.user_id == user.id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Réserve introuvable")

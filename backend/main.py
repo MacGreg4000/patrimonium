@@ -103,6 +103,11 @@ async def lifespan(app: FastAPI):
         db2.close()
 
     sched.start_scheduler(SessionLocal)
+
+    secure_cookies = os.getenv("SECURE_COOKIES", "false").lower() == "true"
+    if not secure_cookies:
+        logger.warning("SECURE_COOKIES is disabled — cookies will be sent over HTTP. Set SECURE_COOKIES=true in production.")
+
     yield
     sched.stop_scheduler()
 

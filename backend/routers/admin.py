@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 import auth as auth_utils
 from database import get_db
-from dependencies import require_admin
+from dependencies import require_admin, require_admin_csrf
 from models import AuditLog, Coffre, Movement, User
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
@@ -49,7 +49,7 @@ def list_users(db: Session = Depends(get_db), admin: User = Depends(require_admi
 
 @router.post("/users", status_code=201)
 def create_user(data: UserCreate, request: Request, db: Session = Depends(get_db),
-                admin: User = Depends(require_admin)):
+                admin: User = Depends(require_admin_csrf)):
     if db.query(User).filter(User.email == data.email.lower()).first():
         raise HTTPException(status_code=400, detail="Email déjà utilisé")
     if data.role not in ("ADMIN", "USER"):
@@ -69,7 +69,7 @@ def create_user(data: UserCreate, request: Request, db: Session = Depends(get_db
 
 @router.put("/users/{user_id}")
 def update_user(user_id: int, data: UserUpdate, request: Request,
-                db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+                db: Session = Depends(get_db), admin: User = Depends(require_admin_csrf)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable")
@@ -88,7 +88,7 @@ def update_user(user_id: int, data: UserUpdate, request: Request,
 
 @router.delete("/users/{user_id}")
 def delete_user(user_id: int, request: Request, db: Session = Depends(get_db),
-                admin: User = Depends(require_admin)):
+                admin: User = Depends(require_admin_csrf)):
     if user_id == admin.id:
         raise HTTPException(status_code=400, detail="Impossible de supprimer son propre compte")
     user = db.query(User).filter(User.id == user_id).first()
@@ -103,7 +103,7 @@ def delete_user(user_id: int, request: Request, db: Session = Depends(get_db),
 
 @router.post("/users/{user_id}/reset-password")
 def reset_password(user_id: int, body: dict, request: Request,
-                   db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+                   db: Session = Depends(get_db), admin: User = Depends(require_admin_csrf)):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable")
@@ -130,7 +130,7 @@ def list_coffres(db: Session = Depends(get_db), admin: User = Depends(require_ad
 
 @router.post("/coffres", status_code=201)
 def create_coffre(data: CoffreCreate, request: Request, db: Session = Depends(get_db),
-                  admin: User = Depends(require_admin)):
+                  admin: User = Depends(require_admin_csrf)):
     coffre = Coffre(name=data.name, description=data.description)
     db.add(coffre)
     db.commit()
@@ -141,7 +141,7 @@ def create_coffre(data: CoffreCreate, request: Request, db: Session = Depends(ge
 
 @router.put("/coffres/{coffre_id}")
 def update_coffre(coffre_id: int, data: CoffreUpdate, request: Request,
-                  db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+                  db: Session = Depends(get_db), admin: User = Depends(require_admin_csrf)):
     coffre = db.query(Coffre).filter(Coffre.id == coffre_id).first()
     if not coffre:
         raise HTTPException(status_code=404, detail="Coffre introuvable")
@@ -158,7 +158,7 @@ def update_coffre(coffre_id: int, data: CoffreUpdate, request: Request,
 
 @router.delete("/coffres/{coffre_id}")
 def delete_coffre(coffre_id: int, request: Request, db: Session = Depends(get_db),
-                  admin: User = Depends(require_admin)):
+                  admin: User = Depends(require_admin_csrf)):
     coffre = db.query(Coffre).filter(Coffre.id == coffre_id).first()
     if not coffre:
         raise HTTPException(status_code=404, detail="Coffre introuvable")

@@ -36,6 +36,12 @@ def verify_csrf(request: Request, current_user: User = Depends(get_current_user)
     return current_user
 
 
+def require_admin_csrf(user: User = Depends(verify_csrf)) -> User:
+    if user.role != "ADMIN":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accès administrateur requis")
+    return user
+
+
 def audit(action: str, description: str = "", metadata: dict = None):
     """Helper to create an audit log entry (use inside routes)."""
     import json

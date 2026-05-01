@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 import calculations
 import market_data as md
 from database import get_db
-from dependencies import get_current_user, require_admin
+from dependencies import get_current_user, require_admin_csrf
 from models import AuditLog, Position, PortfolioSnapshot, Purchase, User
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
@@ -116,10 +116,8 @@ def list_positions(db: Session = Depends(get_db), user: User = Depends(get_curre
 
 
 @router.post("/positions", status_code=201)
-def create_position(data: PositionCreate, request: Request,
-                    db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+def create_position(data: PositionCreate,
+                    db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     pos = Position(**data.model_dump())
     db.add(pos)
     db.commit()
@@ -128,10 +126,8 @@ def create_position(data: PositionCreate, request: Request,
 
 
 @router.put("/positions/{pos_id}")
-def update_position(pos_id: int, data: PositionUpdate, request: Request,
-                    db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+def update_position(pos_id: int, data: PositionUpdate,
+                    db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     pos = db.query(Position).filter(Position.id == pos_id).first()
     if not pos:
         raise HTTPException(status_code=404, detail="Position introuvable")
@@ -142,9 +138,7 @@ def update_position(pos_id: int, data: PositionUpdate, request: Request,
 
 
 @router.delete("/positions/{pos_id}")
-def archive_position(pos_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+def archive_position(pos_id: int, db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     pos = db.query(Position).filter(Position.id == pos_id).first()
     if not pos:
         raise HTTPException(status_code=404, detail="Position introuvable")
@@ -164,10 +158,8 @@ def list_purchases(pos_id: int, db: Session = Depends(get_db), user: User = Depe
 
 
 @router.post("/positions/{pos_id}/purchases", status_code=201)
-def add_purchase(pos_id: int, data: PurchaseCreate, request: Request,
-                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+def add_purchase(pos_id: int, data: PurchaseCreate,
+                 db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     pos = db.query(Position).filter(Position.id == pos_id).first()
     if not pos:
         raise HTTPException(status_code=404, detail="Position introuvable")
@@ -186,9 +178,7 @@ def add_purchase(pos_id: int, data: PurchaseCreate, request: Request,
 
 @router.put("/positions/{pos_id}/purchases/{pid}")
 def update_purchase(pos_id: int, pid: int, data: PurchaseCreate,
-                    db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+                    db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     p = db.query(Purchase).filter(Purchase.id == pid, Purchase.position_id == pos_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Achat introuvable")
@@ -204,9 +194,7 @@ def update_purchase(pos_id: int, pid: int, data: PurchaseCreate,
 
 @router.delete("/positions/{pos_id}/purchases/{pid}")
 def delete_purchase(pos_id: int, pid: int, db: Session = Depends(get_db),
-                    user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+                    user: User = Depends(require_admin_csrf)):
     p = db.query(Purchase).filter(Purchase.id == pid, Purchase.position_id == pos_id).first()
     if not p:
         raise HTTPException(status_code=404, detail="Achat introuvable")
@@ -217,9 +205,7 @@ def delete_purchase(pos_id: int, pid: int, db: Session = Depends(get_db),
 
 @router.post("/positions/{pos_id}/manual-price")
 def set_manual_price(pos_id: int, data: ManualPriceUpdate,
-                     db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+                     db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     pos = db.query(Position).filter(Position.id == pos_id).first()
     if not pos or pos.ticker != "MANUAL":
         raise HTTPException(status_code=404, detail="Position introuvable ou non-manuelle")

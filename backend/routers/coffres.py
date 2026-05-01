@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from database import get_db
-from dependencies import get_current_user, require_admin
+from dependencies import get_current_user, require_admin_csrf
 from models import AuditLog, Coffre, Inventory, InventoryDetail, Movement, MovementDetail, User
 
 router = APIRouter(prefix="/api", tags=["coffres"])
@@ -115,9 +115,7 @@ def list_movements(
 
 @router.post("/movements", status_code=201)
 def create_movement(data: MovementCreate, request: Request,
-                    db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+                    db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     if data.type not in ("ENTRY", "EXIT"):
         raise HTTPException(status_code=400, detail="Type invalide")
     coffre = db.query(Coffre).filter(Coffre.id == data.coffre_id, Coffre.is_active == True).first()  # noqa: E712
@@ -138,27 +136,27 @@ def create_movement(data: MovementCreate, request: Request,
 
 @router.put("/movements/{movement_id}")
 def update_movement(movement_id: int, data: MovementUpdate, request: Request,
-                    db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+                    db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     mv = db.query(Movement).filter(Movement.id == movement_id, Movement.deleted_at.is_(None)).first()
     if not mv:
         raise HTTPException(status_code=404, detail="Mouvement introuvable")
     mv.amount = data.amount
     mv.description = data.description
     db.commit()
-    _audit(db, admin.id, "MOVEMENT_UPDATED", f"Mouvement #{movement_id} modifié", request)
+    _audit(db, user.id, "MOVEMENT_UPDATED", f"Mouvement #{movement_id} modifié", request)
     return {"ok": True}
 
 
 @router.delete("/movements/{movement_id}")
 def delete_movement(movement_id: int, request: Request,
-                    db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+                    db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     mv = db.query(Movement).filter(Movement.id == movement_id, Movement.deleted_at.is_(None)).first()
     if not mv:
         raise HTTPException(status_code=404, detail="Mouvement introuvable")
     from datetime import datetime, timezone
     mv.deleted_at = datetime.now(timezone.utc)
     db.commit()
-    _audit(db, admin.id, "MOVEMENT_DELETED", f"Mouvement #{movement_id} supprimé", request)
+    _audit(db, user.id, "MOVEMENT_DELETED", f"Mouvement #{movement_id} supprimé", request)
     return {"ok": True}
 
 
@@ -184,9 +182,7 @@ def list_inventories(
 
 @router.post("/inventories", status_code=201)
 def create_inventory(data: InventoryCreate, request: Request,
-                     db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+                     db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     coffre = db.query(Coffre).filter(Coffre.id == data.coffre_id, Coffre.is_active == True).first()  # noqa: E712
     if not coffre:
         raise HTTPException(status_code=404, detail="Coffre introuvable")
@@ -207,14 +203,14 @@ def create_inventory(data: InventoryCreate, request: Request,
 
 @router.delete("/inventories/{inventory_id}")
 def delete_inventory(inventory_id: int, request: Request,
-                     db: Session = Depends(get_db), admin: User = Depends(require_admin)):
+                     db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     inv = db.query(Inventory).filter(Inventory.id == inventory_id, Inventory.deleted_at.is_(None)).first()
     if not inv:
         raise HTTPException(status_code=404, detail="Inventaire introuvable")
     from datetime import datetime, timezone
     inv.deleted_at = datetime.now(timezone.utc)
     db.commit()
-    _audit(db, admin.id, "INVENTORY_DELETED", f"Inventaire #{inventory_id} supprimé", request)
+    _audit(db, user.id, "INVENTORY_DELETED", f"Inventaire #{inventory_id} supprimé", request)
     return {"ok": True}
 
 

@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 import encryption as enc
 from database import get_db
-from dependencies import get_current_user
+from dependencies import get_current_user, require_admin_csrf
 from models import AuditLog, PasswordFile, User
 
 router = APIRouter(prefix="/api/password-files", tags=["password_files"])
@@ -29,10 +29,8 @@ async def upload_file(
     file: UploadFile = File(...),
     request: Request = None,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin_csrf),
 ):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
     data = await file.read()
     if len(data) > MAX_FILE_BYTES:
         raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 50 MB)")
@@ -64,9 +62,7 @@ def download_file(file_id: int, db: Session = Depends(get_db), user: User = Depe
 
 @router.delete("/{file_id}")
 def delete_file(file_id: int, request: Request,
-                db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+                db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     pf = db.query(PasswordFile).filter(PasswordFile.id == file_id, PasswordFile.user_id == user.id).first()
     if not pf:
         raise HTTPException(status_code=404, detail="Fichier introuvable")

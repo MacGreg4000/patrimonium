@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 import encryption as enc
 from database import get_db
-from dependencies import get_current_user
+from dependencies import get_current_user, require_admin_csrf
 from models import AssetDocument, AssetEvent, AuditLog, PhysicalAsset, User
 
 router = APIRouter(prefix="/api/assets", tags=["assets"])
@@ -73,9 +73,7 @@ def list_assets(
 
 @router.post("", status_code=201)
 def create_asset(data: AssetCreate, request: Request,
-                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+                 db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     asset = PhysicalAsset(**data.model_dump(), user_id=user.id)
     db.add(asset)
     db.commit()
@@ -94,9 +92,7 @@ def get_asset(asset_id: int, db: Session = Depends(get_db), user: User = Depends
 
 @router.put("/{asset_id}")
 def update_asset(asset_id: int, data: AssetUpdate, request: Request,
-                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+                 db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     asset = db.query(PhysicalAsset).filter(PhysicalAsset.id == asset_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Actif introuvable")
@@ -108,9 +104,7 @@ def update_asset(asset_id: int, data: AssetUpdate, request: Request,
 
 @router.delete("/{asset_id}")
 def delete_asset(asset_id: int, request: Request,
-                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+                 db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     asset = db.query(PhysicalAsset).filter(PhysicalAsset.id == asset_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Actif introuvable")
@@ -124,9 +118,7 @@ def delete_asset(asset_id: int, request: Request,
 
 @router.post("/{asset_id}/events", status_code=201)
 def add_event(asset_id: int, data: EventCreate, request: Request,
-              db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+              db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     asset = db.query(PhysicalAsset).filter(PhysicalAsset.id == asset_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Actif introuvable")
@@ -144,9 +136,7 @@ def add_event(asset_id: int, data: EventCreate, request: Request,
 
 @router.delete("/{asset_id}/events/{event_id}")
 def delete_event(asset_id: int, event_id: int, request: Request,
-                 db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+                 db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     ev = db.query(AssetEvent).filter(AssetEvent.id == event_id, AssetEvent.asset_id == asset_id).first()
     if not ev:
         raise HTTPException(status_code=404, detail="Événement introuvable")
@@ -171,10 +161,8 @@ async def upload_document(
     notes: str = Form(default=""),
     request: Request = None,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin_csrf),
 ):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
     asset = db.query(PhysicalAsset).filter(PhysicalAsset.id == asset_id).first()
     if not asset:
         raise HTTPException(status_code=404, detail="Actif introuvable")
@@ -213,9 +201,7 @@ def download_document(asset_id: int, doc_id: int,
 
 @router.delete("/{asset_id}/documents/{doc_id}")
 def delete_document(asset_id: int, doc_id: int, request: Request,
-                    db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if user.role == "USER":
-        raise HTTPException(status_code=403, detail="Lecture seule")
+                    db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
     doc = db.query(AssetDocument).filter(AssetDocument.id == doc_id, AssetDocument.asset_id == asset_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="Document introuvable")
