@@ -178,7 +178,12 @@ def add_purchase(pos_id: int, data: PurchaseCreate, request: Request,
     db.refresh(purchase)
     log_audit(db, user.id, "PURCHASE_CREATED",
               f"Achat {data.quantity} x {pos.ticker} à {data.unit_price}", request)
-    return purchase
+    return {
+        "id": purchase.id, "position_id": purchase.position_id,
+        "purchase_date": str(purchase.purchase_date),
+        "quantity": purchase.quantity, "unit_price": purchase.unit_price,
+        "fees": purchase.fees, "note": purchase.note,
+    }
 
 
 @router.put("/positions/{pos_id}/purchases/{pid}")
@@ -197,7 +202,12 @@ def update_purchase(pos_id: int, pid: int, data: PurchaseCreate, request: Reques
     db.commit()
     log_audit(db, user.id, "PURCHASE_UPDATED",
               f"Achat #{pid} modifié sur {pos.ticker if pos else pos_id}", request)
-    return p
+    return {
+        "id": p.id, "position_id": p.position_id,
+        "purchase_date": str(p.purchase_date),
+        "quantity": p.quantity, "unit_price": p.unit_price,
+        "fees": p.fees, "note": p.note,
+    }
 
 
 @router.delete("/positions/{pos_id}/purchases/{pid}")
