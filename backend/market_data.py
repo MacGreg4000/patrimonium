@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from typing import Dict, Optional, Tuple
 from zoneinfo import ZoneInfo
 
-import requests
 import yfinance as yf
 
 logger = logging.getLogger(__name__)
@@ -19,18 +18,6 @@ CACHE_TTL = 300  # secondes
 # Verrous par ticker pour éviter les fetches parallèles
 _locks: Dict[str, threading.Lock] = {}
 _locks_meta = threading.Lock()
-
-# Session HTTP avec User-Agent navigateur
-_session = requests.Session()
-_session.headers.update({
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/122.0.0.0 Safari/537.36"
-    ),
-    "Accept": "application/json, text/html, */*",
-    "Accept-Language": "fr-BE,fr;q=0.9,en;q=0.8",
-})
 
 
 def _ticker_lock(ticker: str) -> threading.Lock:
@@ -56,11 +43,10 @@ def get_eurusd_rate() -> float:
         return _eurusd_cache[0]
 
     with _ticker_lock("EURUSD"):
-        # Re-check après acquisition du verrou
         if _eurusd_cache and (now - _eurusd_cache[1]) < CACHE_TTL:
             return _eurusd_cache[0]
         try:
-            rate = float(yf.Ticker("EURUSD=X", session=_session).fast_info.last_price)
+            rate = float(yf.Ticker("EURUSD=X").fast_info.last_price)
             if rate > 0:
                 _eurusd_cache = (rate, time.time())
                 return rate
@@ -76,13 +62,12 @@ def fetch_price(ticker: str) -> Optional[dict]:
         return cached
 
     with _ticker_lock(ticker):
-        # Re-check après acquisition du verrou (un autre thread a peut-être déjà fetchée)
         cached = _price_cache.get(ticker)
         now = time.time()
         if cached and (now - cached.get("fetched_at", 0)) < CACHE_TTL:
             return cached
         try:
-            info = yf.Ticker(ticker, session=_session).fast_info
+            info = yf.Ticker(ticker).fast_info
             price = float(info.last_price)
             prev = float(info.previous_close) if info.previous_close else price
             data = {
@@ -116,7 +101,6 @@ def get_price_eur(ticker: str, currency: str) -> Tuple[Optional[float], Optional
 
 def refresh_all_prices(tickers: list) -> None:
     global _last_refresh
-    # Invalide le cache pour forcer le re-fetch
     for t in tickers:
         if t in _price_cache:
             _price_cache[t]["fetched_at"] = 0
@@ -126,7 +110,7 @@ def refresh_all_prices(tickers: list) -> None:
     get_eurusd_rate()
     for t in set(t for t in tickers if t != "MANUAL"):
         fetch_price(t)
-        time.sleep(1)  # 1s entre chaque ticker pour éviter le rate-limiting
+        time.sleep(1)
 
     _last_refresh = datetime.now(timezone.utc)
 

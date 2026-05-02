@@ -20,6 +20,12 @@ data/
 backups/*.sql.gz
 backups/backup.log
 
+# Tests
+*.db
+.coverage
+htmlcov/
+.pytest_cache/
+
 # OS
 .DS_Store
 Thumbs.db

@@ -1,4 +1,5 @@
 """Authentication helpers: JWT, bcrypt, TOTP."""
+import hashlib
 import io
 import json
 import os
@@ -6,10 +7,10 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import bcrypt
 import pyotp
 import qrcode
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 import encryption as enc
 
@@ -18,15 +19,16 @@ ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 # ── Passwords ─────────────────────────────────────────────
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(plain.encode(), hashed.encode())
+    except Exception:
+        return False
 
 # ── JWT ───────────────────────────────────────────────────
 
@@ -40,9 +42,19 @@ def create_access_token(user_id: int, role: str) -> str:
 def create_refresh_token(user_id: int) -> str:
     expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
     return jwt.encode(
-        {"sub": str(user_id), "exp": expire, "type": "refresh"},
+        {"sub": str(user_id), "exp": expire, "type": "refresh", "jti": secrets.token_hex(16)},
         SECRET_KEY, algorithm=ALGORITHM,
     )
+
+def hash_token(token: str) -> str:
+    """SHA-256 hex of a raw JWT — used as DB key for refresh token rotation."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+def refresh_token_expires_at() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+
+def password_reset_expires_at() -> datetime:
+    return datetime.now(timezone.utc) + timedelta(hours=1)
 
 def decode_token(token: str) -> Optional[dict]:
     try:
@@ -74,14 +86,18 @@ def generate_backup_codes(n: int = 10) -> list[str]:
     return [secrets.token_hex(4).upper() for _ in range(n)]
 
 def hash_backup_codes(codes: list[str]) -> str:
-    hashed = [pwd_context.hash(c) for c in codes]
+    hashed = [bcrypt.hashpw(c.encode(), bcrypt.gensalt()).decode() for c in codes]
     return json.dumps(hashed)
 
 def verify_backup_code(code: str, hashed_json: str) -> tuple[bool, Optional[str]]:
     """Returns (matched, updated_hashed_json) — removes used code."""
     codes = json.loads(hashed_json)
     for i, h in enumerate(codes):
-        if pwd_context.verify(code.upper(), h):
+        try:
+            matched = bcrypt.checkpw(code.upper().encode(), h.encode())
+        except Exception:
+            matched = False
+        if matched:
             codes.pop(i)
             return True, json.dumps(codes)
     return False, None

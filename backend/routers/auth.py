@@ -2,6 +2,7 @@
 import base64
 import json
 import os
+import secrets
 from datetime import datetime, timezone
 
 SECURE_COOKIES = os.getenv("SECURE_COOKIES", "false").lower() == "true"
@@ -14,9 +15,10 @@ from sqlalchemy.orm import Session
 
 import auth as auth_utils
 import encryption as enc
+import mailer
 from database import get_db
 from dependencies import get_current_user, log_audit
-from models import User
+from models import PasswordResetToken, RefreshToken, User
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 limiter = Limiter(key_func=get_remote_address)
@@ -70,6 +72,13 @@ def login(data: LoginRequest, request: Request, response: Response, db: Session 
     access = auth_utils.create_access_token(user.id, user.role)
     refresh = auth_utils.create_refresh_token(user.id)
 
+    db.add(RefreshToken(
+        user_id=user.id,
+        token_hash=auth_utils.hash_token(refresh),
+        expires_at=auth_utils.refresh_token_expires_at(),
+    ))
+    db.commit()
+
     _set_cookies(response, access, refresh)
     log_audit(db, user.id, "LOGIN", f"Connexion de {user.email}", request)
 
@@ -77,7 +86,13 @@ def login(data: LoginRequest, request: Request, response: Response, db: Session 
 
 
 @router.post("/logout")
-def logout(response: Response, access_token: str = Cookie(default=None), db: Session = Depends(get_db)):
+def logout(response: Response, refresh_token: str = Cookie(default=None), db: Session = Depends(get_db)):
+    if refresh_token:
+        token_hash = auth_utils.hash_token(refresh_token)
+        rt = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
+        if rt:
+            rt.revoked = True
+            db.commit()
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token")
     return {"ok": True}
@@ -90,11 +105,27 @@ def refresh(response: Response, refresh_token: str = Cookie(default=None), db: S
     payload = auth_utils.decode_token(refresh_token)
     if not payload or payload.get("type") != "refresh":
         raise HTTPException(status_code=401, detail="Token invalide")
+
+    token_hash = auth_utils.hash_token(refresh_token)
+    rt = db.query(RefreshToken).filter(RefreshToken.token_hash == token_hash).first()
+    if not rt or rt.revoked:
+        raise HTTPException(status_code=401, detail="Token révoqué ou inconnu")
+
     user = db.query(User).filter(User.id == int(payload["sub"]), User.is_active == True).first()  # noqa: E712
     if not user:
         raise HTTPException(status_code=401, detail="Utilisateur introuvable")
+
+    # Rotate: revoke old, issue new
+    rt.revoked = True
     access = auth_utils.create_access_token(user.id, user.role)
     new_refresh = auth_utils.create_refresh_token(user.id)
+    db.add(RefreshToken(
+        user_id=user.id,
+        token_hash=auth_utils.hash_token(new_refresh),
+        expires_at=auth_utils.refresh_token_expires_at(),
+    ))
+    db.commit()
+
     _set_cookies(response, access, new_refresh)
     return {"ok": True}
 
@@ -214,6 +245,71 @@ def change_password(body: dict, request: Request, db: Session = Depends(get_db),
     current_user.hashed_password = auth_utils.hash_password(new_pw)
     db.commit()
     log_audit(db, current_user.id, "PASSWORD_CHANGED", "Mot de passe modifié", request)
+    return {"ok": True}
+
+
+# ── Password reset ────────────────────────────────────────
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+
+
+@router.post("/forgot-password")
+def forgot_password(data: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == data.email.lower(), User.is_active == True).first()  # noqa: E712
+    # Always return 200 to avoid email enumeration
+    if not user:
+        return {"ok": True}
+
+    raw_token = secrets.token_urlsafe(32)
+    token_hash = auth_utils.hash_token(raw_token)
+    expires_at = auth_utils.password_reset_expires_at()
+
+    # Invalidate any existing unused tokens for this user
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == user.id,
+        PasswordResetToken.used == False,  # noqa: E712
+    ).update({"used": True})
+
+    db.add(PasswordResetToken(user_id=user.id, token_hash=token_hash, expires_at=expires_at))
+    db.commit()
+
+    try:
+        mailer.send_password_reset(user.email, raw_token)
+    except Exception:
+        pass  # Don't leak SMTP errors to the client
+
+    log_audit(db, user.id, "PASSWORD_RESET_REQUESTED", f"Demande de reset pour {user.email}", request)
+    return {"ok": True}
+
+
+@router.post("/reset-password")
+def reset_password(data: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    if len(data.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Mot de passe trop court (8 caractères minimum)")
+
+    token_hash = auth_utils.hash_token(data.token)
+    rt = db.query(PasswordResetToken).filter(
+        PasswordResetToken.token_hash == token_hash,
+        PasswordResetToken.used == False,  # noqa: E712
+    ).first()
+
+    if not rt or rt.expires_at.replace(tzinfo=timezone.utc) < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Token invalide ou expiré")
+
+    user = db.query(User).filter(User.id == rt.user_id, User.is_active == True).first()  # noqa: E712
+    if not user:
+        raise HTTPException(status_code=400, detail="Utilisateur introuvable")
+
+    user.hashed_password = auth_utils.hash_password(data.new_password)
+    rt.used = True
+    db.commit()
+
+    log_audit(db, user.id, "PASSWORD_RESET_DONE", f"Mot de passe réinitialisé pour {user.email}", request)
     return {"ok": True}
 
 
