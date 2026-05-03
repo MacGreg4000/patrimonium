@@ -473,12 +473,29 @@ body{
   color:var(--text-secondary);padding:8px 14px;border-bottom:1px solid var(--border);
 }
 .reserves-inline-input{
-  background:transparent;border:none;color:var(--text-primary);
-  font-family:var(--font-display);font-size:13px;text-align:right;width:100%;padding:0;
+  background:var(--bg-hover);border:1px solid var(--border-light);border-radius:4px;
+  color:var(--text-primary);font-family:var(--font-display);font-size:13px;padding:3px 8px;
 }
 .reserves-inline-input:focus{
-  outline:none;background:var(--bg-hover);border-radius:4px;padding:2px 6px;
+  outline:none;border-color:var(--accent-blue);
 }
+.editable-cell{
+  cursor:pointer;padding:2px 6px;border-radius:4px;transition:background .15s;display:inline-block;
+}
+.editable-cell:hover{
+  background:var(--bg-hover);color:var(--accent-blue);
+}
+
+/* ── Caisse mode selector buttons ────────────────────────── */
+.btn-caisse-mode{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:12px 28px;border-radius:var(--radius-md);
+  font-size:15px;font-weight:600;border:2px solid;
+  cursor:pointer;transition:.2s;background:transparent;
+  font-family:var(--font-ui);letter-spacing:.01em;
+}
+.btn-caisse-mode:hover{ filter:brightness(1.15); }
+.btn-caisse-mode.active{ box-shadow:0 0 16px rgba(0,0,0,.4); }
 
 /* ── CSV viewer ───────────────────────────────────────────── */
 .csv-table-wrap{max-height:400px;overflow:auto;border:1px solid var(--border-strong);border-radius:var(--radius-sm)}

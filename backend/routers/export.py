@@ -37,7 +37,7 @@ def _encrypt_blob(data: bytes, passphrase: str) -> str:
     key = kdf.derive(passphrase.encode("utf-8"))
     nonce = os.urandom(12)
     ciphertext = AESGCM(key).encrypt(nonce, data, None)
-    return base64.b64encode(salt + nonce + ciphertext).decode()
+    return b64_stdlib.b64encode(salt + nonce + ciphertext).decode()
 
 
 # ── Data collection ───────────────────────────────────────

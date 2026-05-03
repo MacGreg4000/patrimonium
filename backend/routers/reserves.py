@@ -16,7 +16,7 @@ MONTHS_FR = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun",
 
 class ReserveCreate(BaseModel):
     year: int
-    month: int
+    month: int = 1
     amount: float = 0.0
     release_year: Optional[int] = None
     released: float = 0.0

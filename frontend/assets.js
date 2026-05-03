@@ -225,15 +225,21 @@ function addAssetModals() {
         <form onsubmit="submitAssetModal(event)" class="form-grid">
           <div class="form-group full"><label class="form-label">Nom</label><input type="text" class="form-input" id="assetName" required/></div>
           <div class="form-group"><label class="form-label">Catégorie</label>
-            <select class="form-select" id="assetCategory" onchange="toggleVehicleFields(this.value)">
+            <select class="form-select" id="assetCategory" onchange="toggleCatFields(this.value)">
               ${Object.entries(ASSET_CAT_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
             </select>
           </div>
           <div class="form-group"><label class="form-label">Valeur estimée (€)</label><input type="number" class="form-input" id="assetValue" step="0.01" placeholder="0.00"/></div>
-          <div class="form-group"><label class="form-label">Coffre (localisation)</label>
+          <div class="form-group"><label class="form-label">Coffre</label>
             <select class="form-select" id="assetCoffre"><option value="">—</option>${coffreOptions}</select>
           </div>
           <div class="form-group full"><label class="form-label">Description</label><textarea class="form-textarea" id="assetDesc" rows="2"></textarea></div>
+
+          <!-- Champs immobilier (masqués par défaut) -->
+          <div id="immoFields" style="display:none;grid-column:1/-1">
+            <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin:8px 0 12px;border-top:1px solid var(--border);padding-top:12px">🏠 Localisation du bien</div>
+            <div class="form-group full"><label class="form-label">Adresse</label><input type="text" class="form-input" id="assetLocation" placeholder="ex: 12 rue de la Paix, 75001 Paris"/></div>
+          </div>
 
           <!-- Champs véhicule (masqués par défaut) -->
           <div id="vehicleFields" style="display:none;grid-column:1/-1">
@@ -307,10 +313,15 @@ function addAssetModals() {
     </div>`;
 }
 
-function toggleVehicleFields(cat) {
-  const el = document.getElementById('vehicleFields');
-  if (el) el.style.display = cat === 'vehicule' ? 'block' : 'none';
+function toggleCatFields(cat) {
+  const vf = document.getElementById('vehicleFields');
+  const imf = document.getElementById('immoFields');
+  if (vf)  vf.style.display  = cat === 'vehicule' ? 'block' : 'none';
+  if (imf) imf.style.display = cat === 'immo'     ? 'block' : 'none';
 }
+
+// Legacy alias kept for any inline onchange still using it
+function toggleVehicleFields(cat) { toggleCatFields(cat); }
 
 function openAddAssetModal() {
   document.getElementById('assetModalTitle').textContent = 'Ajouter un actif';
@@ -321,8 +332,9 @@ function openAddAssetModal() {
   document.getElementById('assetValue').value = '';
   document.getElementById('assetCoffre').value = '';
   document.getElementById('assetDesc').value = '';
+  document.getElementById('assetLocation').value = '';
   _clearVehicleFields();
-  toggleVehicleFields('autre');
+  toggleCatFields('autre');
   openModal('assetModal');
 }
 
@@ -344,6 +356,7 @@ function openEditAssetModal(assetId) {
   document.getElementById('assetValue').value = a.estimated_value ?? '';
   document.getElementById('assetCoffre').value = a.coffre_id ?? '';
   document.getElementById('assetDesc').value = a.description ?? '';
+  document.getElementById('assetLocation').value = a.location ?? '';
   // Vehicle fields
   _clearVehicleFields();
   if (a.category === 'vehicule') {
@@ -355,7 +368,7 @@ function openEditAssetModal(assetId) {
     document.getElementById('vKm').value = a.vehicle_km ?? '';
     document.getElementById('vVin').value = a.vehicle_vin ?? '';
   }
-  toggleVehicleFields(a.category || 'autre');
+  toggleCatFields(a.category || 'autre');
   openModal('assetModal');
 }
 
@@ -369,6 +382,7 @@ async function submitAssetModal(e) {
     estimated_value: parseFloat(document.getElementById('assetValue').value) || null,
     coffre_id: parseInt(document.getElementById('assetCoffre').value) || null,
     description: document.getElementById('assetDesc').value || null,
+    location: cat === 'immo' ? (document.getElementById('assetLocation').value || null) : null,
     // Vehicle fields (null if not vehicule category)
     vehicle_make: cat === 'vehicule' ? (document.getElementById('vMake').value || null) : null,
     vehicle_model: cat === 'vehicule' ? (document.getElementById('vModel').value || null) : null,

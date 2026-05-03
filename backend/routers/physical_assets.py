@@ -30,6 +30,7 @@ class AssetCreate(BaseModel):
     description: Optional[str] = None
     estimated_value: Optional[float] = None
     coffre_id: Optional[int] = None
+    location: Optional[str] = None
     vehicle_make: Optional[str] = None
     vehicle_model: Optional[str] = None
     vehicle_year: Optional[int] = None
@@ -223,7 +224,7 @@ def _fmt_asset(a: PhysicalAsset) -> dict:
     return {
         "id": a.id, "name": a.name, "category": a.category,
         "description": a.description, "estimated_value": a.estimated_value,
-        "coffre_id": a.coffre_id, "user_id": a.user_id,
+        "coffre_id": a.coffre_id, "location": a.location, "user_id": a.user_id,
         "created_at": a.created_at, "updated_at": a.updated_at,
         "vehicle_make": a.vehicle_make,
         "vehicle_model": a.vehicle_model,

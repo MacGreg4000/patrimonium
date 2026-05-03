@@ -161,10 +161,11 @@ class PhysicalAsset(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(150), nullable=False)
-    category = Column(String(50), nullable=True)   # bijou|immo|vehicule|art|autre
+    category = Column(String(50), nullable=True)   # bijou|immo|vehicule|art|metal|autre
     description = Column(Text, nullable=True)
     estimated_value = Column(Float, nullable=True)
     coffre_id = Column(Integer, ForeignKey("coffres.id"), nullable=True)
+    location = Column(String(300), nullable=True)  # adresse libre (ex: immo)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

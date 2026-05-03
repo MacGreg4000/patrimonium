@@ -239,8 +239,8 @@ const ICONS = {
 
 const ASSET_TYPE_LABELS = { action: 'Action', etf: 'ETF', commodity: 'Or', bond_manual: 'Obligation' };
 const ASSET_TYPE_ICONS  = { action: ICONS.chartUp, etf: ICONS.layers, commodity: ICONS.coins, bond_manual: ICONS.bank };
-const ASSET_CAT_LABELS  = { bijou: 'Bijou', immo: 'Immobilier', vehicule: 'Véhicule', art: 'Art', autre: 'Autre' };
-const ASSET_CAT_ICONS   = { bijou: ICONS.gemSm, immo: ICONS.home, vehicule: ICONS.car, art: ICONS.frame, autre: ICONS.box };
+const ASSET_CAT_LABELS  = { bijou: 'Bijou', immo: 'Immobilier', vehicule: 'Véhicule', art: 'Art', metal: 'Métaux précieux', autre: 'Autre' };
+const ASSET_CAT_ICONS   = { bijou: ICONS.gemSm, immo: ICONS.home, vehicule: ICONS.car, art: ICONS.frame, metal: ICONS.coins, autre: ICONS.box };
 
 const CHART_COLORS = [
   '#3B82F6','#00D68F','#F59E0B','#FF4757',

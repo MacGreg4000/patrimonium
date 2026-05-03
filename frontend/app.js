@@ -85,7 +85,7 @@ function updateLiveBadge(isOpen, lastRefresh) {
     badge.classList.toggle('offline', !isOpen);
   }
   if (text) text.textContent = isOpen ? 'LIVE' : 'FERMÉ';
-  if (lastEl && lastRefresh) lastEl.textContent = fmtDateTime(lastRefresh);
+  // lastUpdate span removed from header
 }
 
 // ── User menu toggle ──────────────────────────────────────
@@ -279,7 +279,11 @@ async function submitExport(e) {
       credentials: 'include',
       body: JSON.stringify({ passphrase: pass }),
     });
-    if (!res.ok) { const err = await res.json(); throw new Error(err.detail); }
+    if (!res.ok) {
+      let detail = 'Erreur serveur';
+      try { const e = await res.json(); detail = e.detail || detail; } catch {}
+      throw new Error(detail);
+    }
 
     const blob = await res.blob();
     const today = new Date().toISOString().slice(0, 10);
