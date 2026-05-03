@@ -33,6 +33,12 @@ services:
       - FIRST_ADMIN_PASSWORD=${FIRST_ADMIN_PASSWORD:-}
       - SECURE_COOKIES=${SECURE_COOKIES:-false}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+      - SMTP_HOST=${SMTP_HOST:-localhost}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM=${SMTP_FROM:-noreply@patrimonium.local}
+      - APP_URL=${APP_URL:-http://localhost:8080}
       - TZ=Europe/Brussels
     volumes:
       - ./data:/app/data
