@@ -5,22 +5,22 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap');
 
 :root {
-  /* ── Backgrounds (3 niveaux clairement distincts) ─────── */
-  --bg-primary:      #060912;   /* fond page  — quasi-noir bleuté       */
-  --bg-secondary:    #0D1525;   /* cartes     — +15 luma, différence nette */
-  --bg-tertiary:     #141E33;   /* sous-zones — headers table, inputs   */
-  --bg-hover:        #1C293F;   /* survol     */
-  --bg-active:       #1F2E47;   /* sélection  */
+  /* ── Backgrounds — 3 niveaux bien distincts ───────────── */
+  --bg-primary:      #05080F;   /* fond page — quasi-noir bleuté        */
+  --bg-secondary:    #0C1628;   /* cartes — saut net de +20 luma        */
+  --bg-tertiary:     #132035;   /* section headers, inputs, th          */
+  --bg-hover:        #1A2B46;   /* survol ligne / élément               */
+  --bg-active:       #1E3050;   /* sélection active                     */
 
-  /* ── Borders (visibles, pas fantômes) ────────────────── */
-  --border:          #1E2E4A;   /* séparations normales   */
-  --border-light:    #243659;   /* séparations secondaires */
-  --border-strong:   #2E4470;   /* accents structurants   */
+  /* ── Borders — clairement visibles ───────────────────── */
+  --border:          #1C3050;   /* séparateurs normaux                  */
+  --border-light:    #233A62;   /* séparateurs secondaires              */
+  --border-strong:   #2C4878;   /* accents structurants, card border    */
 
-  /* ── Texte (hiérarchie WCAG AA) ──────────────────────── */
-  --text-primary:    #E4ECF7;   /* ~13:1 sur bg-secondary  */
-  --text-secondary:  #7B93B4;   /* ~5.2:1 — lisible        */
-  --text-muted:      #3D5270;   /* labels 10px uppercase   */
+  /* ── Texte — hiérarchie WCAG AA ──────────────────────── */
+  --text-primary:    #E6EDF8;   /* ~14:1 sur bg-secondary               */
+  --text-secondary:  #7D97BA;   /* ~5.5:1 — WCAG AA ✓                  */
+  --text-muted:      #3D567A;   /* labels uppercase 10px                */
 
   /* ── Accents ──────────────────────────────────────────── */
   --accent-green:    #10D98A;
@@ -44,8 +44,8 @@
   --radius-sm:  6px;
   --radius-md:  10px;
   --radius-lg:  14px;
-  --shadow-card:0 2px 12px rgba(0,0,0,.45), 0 0 0 1px var(--border);
-  --shadow-lg:  0 8px 40px rgba(0,0,0,.6);
+  --shadow-card:0 4px 24px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.04) inset;
+  --shadow-lg:  0 12px 48px rgba(0,0,0,.7), 0 2px 8px rgba(0,0,0,.4);
   --transition: .18s cubic-bezier(.4,0,.2,1);
 }
 
@@ -166,6 +166,7 @@ body{
   border:1px solid var(--border-strong);
   border-radius:var(--radius-lg);
   padding:24px;
+  box-shadow:var(--shadow-card);
 }
 .card-sm{padding:16px 20px}
 .card-title{
@@ -187,16 +188,21 @@ body{
   transition:var(--transition);
   position:relative;overflow:hidden;
 }
-/* Ligne colorée en haut pour différencier les cartes */
+/* Bordure gauche colorée selon l'accent de la carte */
 .hero-card::before{
-  content:'';position:absolute;top:0;left:0;right:0;height:2px;
-  background:linear-gradient(90deg,var(--accent-blue),transparent);
-  opacity:.5;
+  content:'';position:absolute;top:0;left:0;bottom:0;width:3px;
+  border-radius:var(--radius-lg) 0 0 var(--radius-lg);
+  background:var(--accent-blue);opacity:.7;
 }
+.hero-card:has(.gold)::before  {background:var(--accent-gold)}
+.hero-card:has(.green)::before {background:var(--accent-green)}
+.hero-card:has(.purple)::before{background:var(--accent-purple)}
+.hero-card:has(.red)::before   {background:var(--accent-red)}
+.hero-card:has(.blue)::before  {background:var(--accent-blue)}
 .hero-card:hover{
-  transform:translateY(-2px);
+  transform:translateY(-1px);
   border-color:var(--border-light);
-  box-shadow:0 6px 24px rgba(0,0,0,.4);
+  box-shadow:0 8px 32px rgba(0,0,0,.5);
 }
 .hero-card-value{
   font-family:var(--font-display);font-size:26px;font-weight:500;

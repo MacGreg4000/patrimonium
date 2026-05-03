@@ -7,7 +7,7 @@
 
   <!-- PWA -->
   <link rel="manifest" href="/static/manifest.json"/>
-  <meta name="theme-color" content="#0A0B0E"/>
+  <meta name="theme-color" content="#05080F"/>
   <meta name="mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-capable" content="yes"/>
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
@@ -24,7 +24,12 @@
 <div id="authScreen" class="auth-screen" style="display:none">
   <div class="auth-card">
     <div class="auth-logo">
-      <div class="auth-logo-icon">◈</div>
+      <div class="auth-logo-icon">
+        <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+          <polyline points="3,19 9,12 14,15 23,6" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <polyline points="17,6 23,6 23,12" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
       <div class="auth-logo-name">Patrimonium</div>
       <div class="auth-logo-sub">Gestion de patrimoine</div>
     </div>
@@ -71,31 +76,43 @@
     <div class="container">
       <div class="header-inner">
         <a class="logo" href="#" onclick="navigate('dashboard')">
-          <div class="logo-icon">◈</div>
+          <div class="logo-icon">
+            <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+              <polyline points="2,15 7,9 12,12 18,5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              <polyline points="13,5 18,5 18,10" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
           Patrimonium
         </a>
 
         <nav class="nav" id="mainNav">
           <button class="nav-item active" data-page="dashboard" onclick="navigate('dashboard')">
-            <span class="nav-icon">⬡</span> <span>Tableau de bord</span>
+            <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg></span>
+            <span>Tableau de bord</span>
           </button>
           <button class="nav-item" data-page="portfolio" onclick="navigate('portfolio')">
-            <span class="nav-icon">📈</span> <span>Portefeuille</span>
+            <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span>
+            <span>Portefeuille</span>
           </button>
           <button class="nav-item" data-page="coffres" onclick="navigate('coffres')">
-            <span class="nav-icon">🏦</span> <span>Coffres</span>
+            <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></span>
+            <span>Coffres</span>
           </button>
           <button class="nav-item" data-page="assets" onclick="navigate('assets')">
-            <span class="nav-icon">💎</span> <span>Actifs physiques</span>
+            <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 18 3 22 9 12 22 2 9"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="12" y1="3" x2="6" y2="9"/><line x1="12" y1="3" x2="18" y2="9"/></svg></span>
+            <span>Actifs physiques</span>
           </button>
           <button class="nav-item" data-page="reserves" onclick="navigate('reserves')">
-            <span class="nav-icon">🏦</span> <span>Réserves</span>
+            <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4z"/></svg></span>
+            <span>Réserves</span>
           </button>
           <button class="nav-item" data-page="passwords" onclick="navigate('passwords')">
-            <span class="nav-icon">🔐</span> <span>Coffre mots de passe</span>
+            <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+            <span>Coffre mots de passe</span>
           </button>
           <button class="nav-item admin-only" data-page="admin" onclick="navigate('admin')" style="display:none">
-            <span class="nav-icon">⚙️</span> <span>Admin</span>
+            <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="21" y1="4" x2="14" y2="4"/><line x1="10" y1="4" x2="3" y2="4"/><line x1="21" y1="12" x2="12" y2="12"/><line x1="8" y1="12" x2="3" y2="12"/><line x1="21" y1="20" x2="16" y2="20"/><line x1="12" y1="20" x2="3" y2="20"/><line x1="14" y1="2" x2="14" y2="6"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="16" y1="18" x2="16" y2="22"/></svg></span>
+            <span>Admin</span>
           </button>
         </nav>
 
@@ -124,9 +141,9 @@
         <div style="font-size:13px;font-weight:500" id="ddUserName">—</div>
         <div style="font-size:11px;color:var(--text-secondary)" id="ddUserEmail">—</div>
       </div>
-      <button class="nav-item" style="width:100%;justify-content:flex-start" onclick="openProfileModal()">👤 Mon profil &amp; 2FA</button>
-      <button class="nav-item" style="width:100%;justify-content:flex-start" onclick="openExportModal()">💾 Export clé USB</button>
-      <button class="nav-item" style="width:100%;justify-content:flex-start;color:var(--accent-red)" onclick="logout()">⬡ Déconnexion</button>
+      <button class="nav-item" style="width:100%;justify-content:flex-start;gap:8px" onclick="openProfileModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> Mon profil &amp; 2FA</button>
+      <button class="nav-item" style="width:100%;justify-content:flex-start;gap:8px" onclick="openExportModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Export clé USB</button>
+      <button class="nav-item" style="width:100%;justify-content:flex-start;gap:8px;color:var(--accent-red)" onclick="logout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Déconnexion</button>
     </div>
   </header>
 

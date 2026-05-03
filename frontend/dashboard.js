@@ -32,23 +32,23 @@ function renderDashboard(d) {
   page.innerHTML = `
     <!-- Hero row -->
     <div class="hero-grid" style="grid-template-columns:repeat(4,1fr)">
-      <div class="hero-card" style="grid-column:span 1">
-        <div class="card-label">⬡ Patrimoine total</div>
+      <div class="hero-card">
+        <div class="card-label">${ICONS.pieChart} Patrimoine total</div>
         <div class="hero-card-value gold" id="dHeroTotal">${fmtEur(grandTotal)}</div>
         <div class="hero-card-sub">${d.is_market_open ? '<span style="color:var(--accent-green)">● Marché ouvert</span>' : '<span style="color:var(--text-muted)">● Marché fermé</span>'}</div>
       </div>
       <div class="hero-card">
-        <div class="card-label">📈 Portefeuille boursier</div>
+        <div class="card-label">${ICONS.trendingUp} Portefeuille boursier</div>
         <div class="hero-card-value blue" id="dHeroPort">${fmtEur(port.total_value_eur)}</div>
         <div class="hero-card-sub ${pnlClass(port.total_pnl_eur)}">${pnlSign(port.total_pnl_eur)}${fmtEur(port.total_pnl_eur)} (${pnlSign(port.total_pnl_pct)}${fmtPct(port.total_pnl_pct)})</div>
       </div>
       <div class="hero-card">
-        <div class="card-label">🏦 Liquidités coffres</div>
+        <div class="card-label">${ICONS.landmark} Liquidités coffres</div>
         <div class="hero-card-value green" id="dHeroCash">${fmtEur(cash.total_eur)}</div>
         <div class="hero-card-sub">${cash.coffre_count} coffre${cash.coffre_count > 1 ? 's' : ''}</div>
       </div>
       <div class="hero-card">
-        <div class="card-label">💎 Actifs physiques</div>
+        <div class="card-label">${ICONS.gem} Actifs physiques</div>
         <div class="hero-card-value purple" id="dHeroAssets">${fmtEur(assets.total_value_eur)}</div>
         <div class="hero-card-sub">${assets.count} actif${assets.count > 1 ? 's' : ''}</div>
       </div>
