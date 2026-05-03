@@ -20,6 +20,8 @@ function renderPortfolioPage(data) {
   if (!page) return;
 
   const positions = data.positions || [];
+  const held    = positions.filter(p => p.total_quantity > 0);
+  const watched = positions.filter(p => p.total_quantity === 0);
 
   page.innerHTML = `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
@@ -48,8 +50,8 @@ function renderPortfolioPage(data) {
       </div>
       <div class="hero-card">
         <div class="card-label">📦 Positions</div>
-        <div class="hero-card-value blue">${positions.length}</div>
-        <div class="hero-card-sub">${data.is_market_open ? '<span style="color:var(--accent-green)">● Marché ouvert</span>' : '<span style="color:var(--text-muted)">● Marché fermé</span>'}</div>
+        <div class="hero-card-value blue">${held.length}</div>
+        <div class="hero-card-sub">${watched.length > 0 ? `${watched.length} suivi${watched.length > 1 ? 's' : ''} · ` : ''}${data.is_market_open ? '<span style="color:var(--accent-green)">● Marché ouvert</span>' : '<span style="color:var(--text-muted)">● Marché fermé</span>'}</div>
       </div>
     </div>
 
@@ -66,10 +68,10 @@ function renderPortfolioPage(data) {
       </div>
     </div>
 
-    <!-- Positions table -->
-    <div class="card" style="padding:0;overflow:hidden">
+    <!-- Held positions table -->
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:20px">
       <div class="section-header">
-        <div class="section-title">Positions <span class="section-count">${positions.length}</span></div>
+        <div class="section-title">Positions détenues <span class="section-count">${held.length}</span></div>
       </div>
       <div class="table-wrap">
         <table class="data-table">
@@ -79,14 +81,31 @@ function renderPortfolioPage(data) {
             <th>Investi</th><th>Valeur</th><th>P&L €</th><th>P&L %</th>
             <th>Alloc.</th><th>⚡</th><th>Actions</th>
           </tr></thead>
-          <tbody id="positionsBody">${renderPositionRows(positions, data.total_value_eur)}</tbody>
+          <tbody id="positionsBody">${renderHeldRows(held)}</tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Watched positions table -->
+    <div class="card" style="padding:0;overflow:hidden">
+      <div class="section-header">
+        <div class="section-title">Suivis <span class="section-count">${watched.length}</span></div>
+        ${isAdmin() ? `<button class="btn btn-ghost btn-sm" style="margin-right:12px" onclick="openAddPositionModal()">+ Ajouter</button>` : ''}
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr>
+            <th class="left" style="padding-left:24px">Actif</th>
+            <th>Cours</th><th>Var. j.</th><th>⚡</th><th>Actions</th>
+          </tr></thead>
+          <tbody id="watchedBody">${renderWatchedRows(watched)}</tbody>
         </table>
       </div>
     </div>`;
 
-  // Charts
+  // Charts (only held positions that have value)
   requestAnimationFrame(() => {
-    const visiblePos = positions.filter(p => p.current_value > 0);
+    const visiblePos = held.filter(p => p.current_value > 0);
     renderDonut('portDonut', visiblePos.map(p => p.display_name), visiblePos.map(p => p.current_value), 'portDonutLegend');
     loadPortfolioHistory();
   });
@@ -105,8 +124,10 @@ async function loadPortfolioHistory() {
   } catch (_) {}
 }
 
-function renderPositionRows(positions, portfolioTotal) {
-  if (!positions.length) return `<tr><td colspan="12"><div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">Aucune position</div>${isAdmin() ? `<button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="openAddPositionModal()">+ Ajouter une position</button>` : ''}</div></td></tr>`;
+// ── Held positions (with purchases) ──────────────────────
+
+function renderHeldRows(positions) {
+  if (!positions.length) return `<tr><td colspan="12"><div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">Aucune position détenue</div>${isAdmin() ? `<button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="openAddPositionModal()">+ Ajouter une position</button>` : ''}</div></td></tr>`;
   return positions.map(pos => buildPositionRow(pos)).join('');
 }
 
@@ -115,9 +136,8 @@ function buildPositionRow(pos) {
   const priceStr = hasPrice ? fmtNum(pos.current_price_eur ?? pos.manual_price) + ' €' : '—';
   const dayStr = pos.asset_type === 'bond_manual' ? '—' : (pos.day_change_pct != null
     ? `<span class="${pnlClass(pos.day_change_eur)}">${pnlSign(pos.day_change_eur)}${fmtPct(pos.day_change_pct)}</span>` : '—');
-  const pnlEurStr = pos.total_quantity > 0
-    ? `<span class="${pnlClass(pos.pnl_eur)}">${pnlSign(pos.pnl_eur)}${fmtEur(pos.pnl_eur)}</span>` : '—';
-  const pnlPctStr = pos.pnl_pct != null && pos.total_quantity > 0
+  const pnlEurStr = `<span class="${pnlClass(pos.pnl_eur)}">${pnlSign(pos.pnl_eur)}${fmtEur(pos.pnl_eur)}</span>`;
+  const pnlPctStr = pos.pnl_pct != null
     ? `<span class="${pnlClass(pos.pnl_pct)}">${pnlSign(pos.pnl_pct)}${fmtPct(pos.pnl_pct)}</span>` : '—';
   const alertDot = (pos.alert_gain_pct || pos.alert_loss_pct)
     ? `<span class="alert-dot" title="+${pos.alert_gain_pct ?? '—'}% / -${pos.alert_loss_pct ?? '—'}%"></span>` : '—';
@@ -157,6 +177,44 @@ function buildPositionRow(pos) {
           ${buildDCAContent(pos)}
         </div>
       </td>
+    </tr>`;
+}
+
+// ── Watched positions (no purchases) ─────────────────────
+
+function renderWatchedRows(positions) {
+  if (!positions.length) return `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">👁</div><div class="empty-text">Aucun titre suivi</div>${isAdmin() ? `<button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="openAddPositionModal()">+ Ajouter un suivi</button>` : ''}</div></td></tr>`;
+  return positions.map(pos => buildWatchedRow(pos)).join('');
+}
+
+function buildWatchedRow(pos) {
+  const hasPrice = pos.current_price_eur != null || pos.manual_price != null;
+  const priceStr = hasPrice ? fmtNum(pos.current_price_eur ?? pos.manual_price) + ' €' : '—';
+  const dayStr = pos.day_change_pct != null
+    ? `<span class="${pnlClass(pos.day_change_pct)}">${pnlSign(pos.day_change_pct)}${fmtPct(pos.day_change_pct)}</span>` : '—';
+  const alertDot = (pos.alert_gain_pct || pos.alert_loss_pct)
+    ? `<span class="alert-dot" title="+${pos.alert_gain_pct ?? '—'}% / -${pos.alert_loss_pct ?? '—'}%"></span>` : '—';
+  const adminActions = isAdmin() ? `
+    <button class="btn btn-ghost" onclick="openAlertModal(${pos.id})" title="Alertes">⚡</button>
+    <button class="btn btn-ghost primary" onclick="openAddPurchaseModal(${pos.id})" title="Acheter">💰 Acheter</button>
+    <button class="btn btn-ghost" onclick="openEditPositionModal(${pos.id})" title="Modifier">✏️</button>
+    <button class="btn btn-ghost danger" onclick="archivePosition(${pos.id},'${escHtml(pos.display_name).replace(/'/g,"\\'")}')">🗑</button>` : '';
+
+  return `
+    <tr id="pos-row-${pos.id}">
+      <td class="left" style="padding-left:24px">
+        <div class="asset-name-cell">
+          <div class="pos-icon ${pos.asset_type}">${ASSET_TYPE_ICONS[pos.asset_type] ?? '?'}</div>
+          <div>
+            <div class="asset-name">${escHtml(pos.display_name)}</div>
+            <div class="asset-sub">${escHtml(pos.ticker)} <span class="badge badge-${pos.asset_type}" style="margin-left:4px">${ASSET_TYPE_LABELS[pos.asset_type] ?? pos.asset_type}</span>${pos.currency !== 'EUR' ? ` <span style="font-size:10px;color:var(--text-muted)">${pos.currency}</span>` : ''}</div>
+          </div>
+        </div>
+      </td>
+      <td>${priceStr}</td>
+      <td>${dayStr}</td>
+      <td>${alertDot}</td>
+      <td><div style="display:flex;justify-content:flex-end;gap:4px">${adminActions}</div></td>
     </tr>`;
 }
 
