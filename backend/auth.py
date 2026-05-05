@@ -108,7 +108,7 @@ def generate_csrf_token() -> str:
     return secrets.token_urlsafe(32)
 
 def sign_csrf_token(user_id: int) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(hours=1)
+    expire = datetime.now(timezone.utc) + timedelta(hours=8)
     return jwt.encode(
         {"sub": str(user_id), "exp": expire, "type": "csrf"},
         SECRET_KEY, algorithm=ALGORITHM,

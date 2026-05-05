@@ -97,18 +97,34 @@ function animateNumber(el, target, formatter) {
 
 let _csrfToken = null;
 
-async function apiFetch(url, options = {}) {
-  const headers = { 'Content-Type': 'application/json', ...options.headers };
+async function apiFetch(url, options = {}, _retry = false) {
+  const isFormData = options.body instanceof FormData;
+  // Ne pas forcer Content-Type pour FormData — le navigateur le pose avec la boundary
+  const headers = isFormData
+    ? { ...options.headers }
+    : { 'Content-Type': 'application/json', ...options.headers };
   if (_csrfToken && ['POST','PUT','DELETE','PATCH'].includes((options.method || 'GET').toUpperCase())) {
     headers['X-CSRF-Token'] = _csrfToken;
   }
   const res = await fetch(url, { ...options, headers, credentials: 'include' });
-  if (res.status === 401) {
-    // Try token refresh
+
+  // Access token expiré → refresh puis retry une fois
+  if (res.status === 401 && !_retry) {
     const refreshed = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' });
     if (!refreshed.ok) { showLogin(); throw new Error('Session expirée'); }
-    return apiFetch(url, options);
+    return apiFetch(url, options, true);
   }
+
+  // CSRF token expiré → refresh CSRF puis retry une fois
+  if (res.status === 403 && !_retry) {
+    const body = await res.json().catch(() => ({}));
+    if (body.detail === 'Token CSRF invalide') {
+      await refreshCsrf();
+      return apiFetch(url, options, true);
+    }
+    throw new Error(body.detail || res.statusText);
+  }
+
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || res.statusText);

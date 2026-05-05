@@ -459,13 +459,18 @@ async function submitUploadDoc(e) {
   fd.append('file', file);
   fd.append('document_type', document.getElementById('docType').value);
   fd.append('notes', document.getElementById('docNotes').value);
+  const btn = e.target.querySelector('[type=submit]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Envoi…'; }
   try {
-    const res = await fetch(`/api/assets/${assetId}/documents`, { method: 'POST', body: fd, credentials: 'include', headers: { 'X-CSRF-Token': _csrfToken || '' } });
-    if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
+    await apiFetch(`/api/assets/${assetId}/documents`, { method: 'POST', body: fd });
     showToast('Document chiffré et enregistré', 'success');
     closeModal('uploadDocModal');
     await loadAssets();
-  } catch (err) { showToast(err.message, 'error'); }
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'Chiffrer et envoyer'; }
+  }
 }
 
 function deleteDocConfirm(assetId, docId) {
