@@ -274,6 +274,7 @@ body{
 .badge-inventory {background:rgba(79,142,247,.18); color:var(--accent-blue)}
 .badge-success   {background:rgba(16,217,138,.18); color:var(--accent-green)}
 .badge-inactive  {background:rgba(123,147,180,.12);color:var(--text-secondary)}
+.badge-metal     {background:rgba(212,175,55,.18);  color:#d4af37}
 
 /* ── Icônes de position ───────────────────────────────────── */
 .pos-icon{
@@ -289,6 +290,7 @@ body{
 .pos-icon.immo      {background:rgba(79,142,247,.18); color:var(--accent-blue)}
 .pos-icon.vehicule  {background:rgba(31,207,192,.18); color:var(--accent-teal)}
 .pos-icon.art       {background:rgba(169,112,247,.18);color:var(--accent-purple)}
+.pos-icon.metal     {background:rgba(212,175,55,.18);  color:#d4af37}
 .pos-icon.autre     {background:rgba(123,147,180,.12);color:var(--text-secondary)}
 
 /* ── Cellule nom d'actif ──────────────────────────────────── */

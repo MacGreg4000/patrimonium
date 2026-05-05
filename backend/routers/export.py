@@ -233,6 +233,7 @@ tr:hover td{{background:var(--bg3)}}
 .badge-immo{{background:rgba(59,130,246,.15);color:var(--accent)}}
 .badge-vehicule{{background:rgba(20,184,166,.15);color:var(--teal)}}
 .badge-art{{background:rgba(245,158,11,.15);color:var(--yellow)}}
+.badge-metal{{background:rgba(209,162,68,.15);color:#c9a227}}
 .badge-autre{{background:rgba(139,144,160,.15);color:var(--text2)}}
 /* Vehicle card */
 .v-grid{{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:12px 0}}
@@ -373,8 +374,8 @@ function fmtDate(iso) {{
   return d.toLocaleDateString('fr-BE', {{day:'2-digit',month:'2-digit',year:'numeric'}});
 }}
 
-const CAT_LABELS = {{bijou:'Bijou',immo:'Immobilier',vehicule:'Véhicule',art:'Art',autre:'Autre'}};
-const CAT_ICONS  = {{bijou:'💎',immo:'🏠',vehicule:'🚗',art:'🎨',autre:'📦'}};
+const CAT_LABELS = {{bijou:'Bijou',immo:'Immobilier',vehicule:'Véhicule',art:'Art',metal:'Métaux précieux',autre:'Autre'}};
+const CAT_ICONS  = {{bijou:'💎',immo:'🏠',vehicule:'🚗',art:'🎨',metal:'🪙',autre:'📦'}};
 const TYPE_LABELS = {{action:'Action',etf:'ETF',commodity:'Or',bond_manual:'Obligation'}};
 
 function renderAll(data) {{
