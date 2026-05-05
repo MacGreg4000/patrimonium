@@ -486,6 +486,17 @@ body{
   background:var(--bg-hover);color:var(--accent-blue);
 }
 
+/* ── Denomination breakdown ──────────────────────────────── */
+.breakdown-row{
+  display:grid;grid-template-columns:60px 50px 1fr 100px;
+  align-items:center;gap:10px;padding:5px 0;
+}
+.breakdown-denom{font-family:var(--font-display);font-size:14px;font-weight:600}
+.breakdown-qty{font-size:13px;color:var(--text-secondary);text-align:center}
+.breakdown-bar-wrap{height:6px;background:var(--bg-hover);border-radius:3px;overflow:hidden}
+.breakdown-bar{height:100%;background:var(--accent-gold);border-radius:3px;transition:width .4s ease}
+.breakdown-subtotal{font-family:var(--font-display);font-size:13px;color:var(--accent-gold);text-align:right}
+
 /* ── Caisse mode selector buttons ────────────────────────── */
 .btn-caisse-mode{
   display:inline-flex;align-items:center;gap:8px;

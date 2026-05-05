@@ -9,13 +9,30 @@ let _selectedCoffreId = null;
 let _caissMode = 'entry'; // entry | exit | inventory
 let _editMovementId = null;
 
+let _breakdowns = {}; // coffre_id → breakdown data
+
 async function loadCoffres() {
   try {
     _coffresData = await apiGet('/api/coffres');
     renderCoffresPage();
+    // Load breakdowns in parallel after render
+    await loadBreakdowns();
   } catch (err) {
     showToast('Erreur coffres: ' + err.message, 'error');
   }
+}
+
+async function loadBreakdowns() {
+  await Promise.all(_coffresData.map(async c => {
+    try {
+      _breakdowns[c.id] = await apiGet(`/api/coffres/${c.id}/breakdown`);
+    } catch (_) {}
+  }));
+  // Inject breakdown panels without full re-render
+  _coffresData.forEach(c => {
+    const el = document.getElementById(`breakdown-${c.id}`);
+    if (el && _breakdowns[c.id]) renderBreakdownPanel(el, _breakdowns[c.id]);
+  });
 }
 
 function renderCoffresPage() {
@@ -108,6 +125,14 @@ function renderCaisseInterface() {
         <div style="color:var(--text-secondary);font-size:13px;text-align:center;padding:24px">
           Accès en lecture seule — solde actuel : <strong style="color:var(--accent-gold)">${fmtEur(coffre.balance)}</strong>
         </div>`}
+
+      <!-- Denomination breakdown panel -->
+      <div id="breakdown-${coffre.id}" style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+        <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">
+          Composition actuelle
+        </div>
+        <div style="color:var(--text-muted);font-size:13px">Chargement…</div>
+      </div>
     </div>`;
 }
 
@@ -178,6 +203,14 @@ function setCaisseMode(mode) {
 function selectCoffre(coffreId) {
   _selectedCoffreId = coffreId;
   renderCoffresPage();
+  // Re-inject breakdown for newly selected coffre
+  const el = document.getElementById(`breakdown-${coffreId}`);
+  if (el && _breakdowns[coffreId]) renderBreakdownPanel(el, _breakdowns[coffreId]);
+  else if (el) apiGet(`/api/coffres/${coffreId}/breakdown`).then(data => {
+    _breakdowns[coffreId] = data;
+    const el2 = document.getElementById(`breakdown-${coffreId}`);
+    if (el2) renderBreakdownPanel(el2, data);
+  }).catch(() => {});
 }
 
 async function submitCaisse(e) {
@@ -243,32 +276,108 @@ async function loadHistory() {
       <tbody>${items.map(item => {
         const date = fmtDateTime(item.created_at || item.date);
         const coffreName = coffreMap[item.coffre_id] || `#${item.coffre_id}`;
+        const rowId = `hist-${item.kind}-${item.id}`;
+        const detailsHtml = _renderBilletDetails(item.details || []);
+        const hasDetails = (item.details || []).length > 0;
+        const expandBtn = hasDetails
+          ? `<button class="btn btn-ghost btn-sm" onclick="toggleHistRow('${rowId}')" title="Voir les billets">≡</button>`
+          : '';
+
         if (item.kind === 'inventory') {
-          return `<tr class="no-cursor">
+          return `
+          <tr class="no-cursor" onclick="${hasDetails ? `toggleHistRow('${rowId}')` : ''}" style="${hasDetails ? 'cursor:pointer' : ''}">
             <td class="left">${date}</td>
             <td class="left">${escHtml(coffreName)}</td>
             <td class="left"><span class="badge badge-inventory">Inventaire</span></td>
             <td class="pos">${fmtEur(item.total_amount)}</td>
             <td class="left" style="color:var(--text-secondary)">${escHtml(item.notes || '—')}</td>
-            ${isAdmin() ? `<td><button class="btn btn-ghost danger btn-sm" onclick="deleteInventory(${item.id})">🗑</button></td>` : ''}
-          </tr>`;
+            ${isAdmin() ? `<td style="display:flex;gap:4px">${expandBtn}<button class="btn btn-ghost danger btn-sm" onclick="event.stopPropagation();deleteInventory(${item.id})">🗑</button></td>` : ''}
+          </tr>
+          ${hasDetails ? `<tr id="${rowId}" class="expand-row" style="display:none"><td colspan="${isAdmin() ? 6 : 5}"><div class="expand-content">${detailsHtml}</div></td></tr>` : ''}`;
         } else {
-          return `<tr class="no-cursor">
+          return `
+          <tr class="no-cursor" onclick="${hasDetails ? `toggleHistRow('${rowId}')` : ''}" style="${hasDetails ? 'cursor:pointer' : ''}">
             <td class="left">${date}</td>
             <td class="left">${escHtml(coffreName)}</td>
             <td class="left"><span class="badge badge-${item.type.toLowerCase()}">${item.type === 'ENTRY' ? 'Entrée' : 'Sortie'}</span></td>
             <td class="${item.type === 'ENTRY' ? 'pos' : 'neg'}">${item.type === 'EXIT' ? '-' : '+'}${fmtEur(item.amount)}</td>
             <td class="left" style="color:var(--text-secondary)">${escHtml(item.description || '—')}</td>
-            ${isAdmin() ? `<td style="display:flex;gap:4px">
-              <button class="btn btn-ghost btn-sm" onclick="openEditMovementModal(${item.id},${item.amount},${JSON.stringify(item.description||'')})">✏</button>
-              <button class="btn btn-ghost danger btn-sm" onclick="deleteMovement(${item.id})">🗑</button>
+            ${isAdmin() ? `<td style="display:flex;gap:4px">${expandBtn}
+              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openEditMovementModal(${item.id},${item.amount},${JSON.stringify(item.description||'')})">✏</button>
+              <button class="btn btn-ghost danger btn-sm" onclick="event.stopPropagation();deleteMovement(${item.id})">🗑</button>
             </td>` : ''}
-          </tr>`;
+          </tr>
+          ${hasDetails ? `<tr id="${rowId}" class="expand-row" style="display:none"><td colspan="${isAdmin() ? 6 : 5}"><div class="expand-content">${detailsHtml}</div></td></tr>` : ''}`;
         }
       }).join('')}</tbody></table>`;
   } catch (err) {
     showToast('Erreur historique: ' + err.message, 'error');
   }
+}
+
+function _renderBilletDetails(details) {
+  if (!details.length) return '';
+  const total = details.reduce((s, d) => s + d.denomination * d.quantity, 0);
+  const rows = details
+    .slice().sort((a, b) => b.denomination - a.denomination)
+    .map(d => `
+      <div style="display:flex;align-items:center;gap:12px;padding:4px 0">
+        <span style="font-family:var(--font-display);font-size:13px;min-width:50px;color:var(--text-secondary)">${d.denomination} €</span>
+        <span style="color:var(--text-muted);font-size:12px">×</span>
+        <span style="font-family:var(--font-display);font-size:14px;font-weight:600;min-width:30px">${d.quantity}</span>
+        <span style="color:var(--text-muted);font-size:12px">=</span>
+        <span style="font-family:var(--font-display);font-size:13px;color:var(--accent-gold)">${fmtEur(d.denomination * d.quantity)}</span>
+      </div>`).join('');
+  return `
+    <div style="padding:8px 16px">
+      <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Détail des billets</div>
+      ${rows}
+      <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;display:flex;justify-content:flex-end">
+        <span style="font-family:var(--font-display);font-size:13px;font-weight:600;color:var(--accent-gold)">${fmtEur(total)}</span>
+      </div>
+    </div>`;
+}
+
+function toggleHistRow(id) {
+  const row = document.getElementById(id);
+  if (!row) return;
+  row.style.display = row.style.display === 'none' ? '' : 'none';
+}
+
+function renderBreakdownPanel(el, data) {
+  if (!data.has_data) {
+    el.innerHTML = `
+      <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Composition actuelle</div>
+      <div style="color:var(--text-muted);font-size:13px">Aucun inventaire enregistré — faites un inventaire pour voir la composition en billets.</div>`;
+    return;
+  }
+  if (!data.breakdown.length) {
+    el.innerHTML = `
+      <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">Composition actuelle</div>
+      <div style="color:var(--text-muted);font-size:13px">Coffre vide.</div>`;
+    return;
+  }
+
+  const lastDate = data.last_inventory_date ? `<span style="color:var(--text-muted);font-size:11px;margin-left:8px">depuis inventaire du ${fmtDate(data.last_inventory_date)}</span>` : '';
+
+  const rows = data.breakdown.map(b => `
+    <div class="breakdown-row">
+      <div class="breakdown-denom">${b.denomination} €</div>
+      <div class="breakdown-qty">× ${b.quantity}</div>
+      <div class="breakdown-bar-wrap">
+        <div class="breakdown-bar" style="width:${Math.round(b.subtotal / data.total * 100)}%"></div>
+      </div>
+      <div class="breakdown-subtotal">${fmtEur(b.subtotal)}</div>
+    </div>`).join('');
+
+  el.innerHTML = `
+    <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px">
+      Composition actuelle${lastDate}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px">${rows}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+      <span style="font-family:var(--font-display);font-size:15px;color:var(--accent-gold)">${fmtEur(data.total)}</span>
+    </div>`;
 }
 
 function openEditMovementModal(id, amount, description) {

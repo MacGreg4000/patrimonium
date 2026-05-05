@@ -207,6 +207,59 @@ def delete_inventory(inventory_id: int, request: Request,
     return {"ok": True}
 
 
+# ── Denomination breakdown ────────────────────────────────
+
+@router.get("/coffres/{coffre_id}/breakdown")
+def get_breakdown(coffre_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Current denomination breakdown: last inventory + movements since."""
+    coffre = db.query(Coffre).filter(Coffre.id == coffre_id).first()
+    if not coffre:
+        raise HTTPException(status_code=404, detail="Coffre introuvable")
+
+    last_inv = (
+        db.query(Inventory)
+        .filter(Inventory.coffre_id == coffre_id, Inventory.deleted_at.is_(None))
+        .order_by(Inventory.date.desc())
+        .first()
+    )
+
+    counts: dict[float, int] = {float(d): 0 for d in DENOMINATIONS}
+    base_date = None
+
+    if last_inv:
+        base_date = last_inv.date
+        for d in last_inv.details:
+            if d.denomination in counts:
+                counts[d.denomination] = d.quantity
+
+    q = db.query(Movement).filter(
+        Movement.coffre_id == coffre_id,
+        Movement.deleted_at.is_(None),
+    )
+    if base_date:
+        q = q.filter(Movement.created_at > base_date)
+
+    for mv in q.order_by(Movement.created_at).all():
+        sign = 1 if mv.type == "ENTRY" else -1
+        for d in mv.details:
+            if d.denomination in counts:
+                counts[d.denomination] += sign * d.quantity
+
+    breakdown = [
+        {"denomination": int(d), "quantity": counts[d], "subtotal": d * counts[d]}
+        for d in sorted(counts.keys(), reverse=True)
+        if counts[d] > 0
+    ]
+
+    return {
+        "coffre_id": coffre_id,
+        "has_data": last_inv is not None,
+        "last_inventory_date": last_inv.date if last_inv else None,
+        "breakdown": breakdown,
+        "total": sum(b["subtotal"] for b in breakdown),
+    }
+
+
 # ── History (unified movements + inventories) ─────────────
 
 @router.get("/coffres/{coffre_id}/history")
