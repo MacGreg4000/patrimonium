@@ -83,8 +83,35 @@ def seed(db):
     db.commit()
 
 
+_INSECURE_SECRET_KEYS = {
+    "change-this-in-production",
+    "change-this-secret-key-in-production",
+    "",
+}
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # ── Startup security guards ───────────────────────────────
+    secret_key = os.getenv("SECRET_KEY", "change-this-in-production")
+    if secret_key in _INSECURE_SECRET_KEYS:
+        raise RuntimeError(
+            "SECRET_KEY is set to an insecure default value. "
+            "Set a strong random SECRET_KEY in your .env file before starting."
+        )
+
+    enc_key = os.getenv("ENCRYPTION_KEY", "")
+    if not enc_key:
+        raise RuntimeError(
+            "ENCRYPTION_KEY is not set. "
+            "Set a valid Fernet key in your .env file before starting."
+        )
+    # Validate ENCRYPTION_KEY is well-formed (will raise if not)
+    try:
+        import encryption as _enc_check
+        _enc_check.encrypt(b"test")
+    except Exception as e:
+        raise RuntimeError(f"ENCRYPTION_KEY is invalid: {e}") from e
+
     init_db()
     db = SessionLocal()
     try:

@@ -31,7 +31,7 @@ services:
       - OFFMARKET_REFRESH_MINUTES=${OFFMARKET_REFRESH_MINUTES:-30}
       - FIRST_ADMIN_EMAIL=${FIRST_ADMIN_EMAIL:-}
       - FIRST_ADMIN_PASSWORD=${FIRST_ADMIN_PASSWORD:-}
-      - SECURE_COOKIES=${SECURE_COOKIES:-false}
+      - SECURE_COOKIES=${SECURE_COOKIES:-true}
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - SMTP_HOST=${SMTP_HOST:-localhost}
       - SMTP_PORT=${SMTP_PORT:-587}
@@ -70,6 +70,7 @@ services:
 
   adminer:
     image: adminer:latest
+    profiles: ["dev"]          # Ne démarre PAS en production — lancer avec: docker compose --profile dev up -d adminer
     restart: unless-stopped
     ports:
       - "${ADMINER_PORT:-8082}:8080"

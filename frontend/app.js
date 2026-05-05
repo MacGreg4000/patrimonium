@@ -68,7 +68,7 @@ function startAutoRefresh() {
   _refreshInterval = setInterval(async () => {
     try {
       const data = await apiGet('/api/portfolio/summary');
-      updateLiveBadge(data.market_open, data.last_refresh);
+      updateLiveBadge(data.is_market_open, data.last_updated);
       if (_currentPage === 'dashboard') loadDashboard();
       else if (_currentPage === 'portfolio') loadPortfolio();
     } catch (_) {}

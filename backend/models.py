@@ -59,7 +59,7 @@ class Movement(Base):
 
     id = Column(Integer, primary_key=True)
     coffre_id = Column(Integer, ForeignKey("coffres.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     type = Column(String(10), nullable=False)   # ENTRY | EXIT
     amount = Column(Float, nullable=False)
     description = Column(Text, nullable=True)
@@ -87,7 +87,7 @@ class Inventory(Base):
 
     id = Column(Integer, primary_key=True)
     coffre_id = Column(Integer, ForeignKey("coffres.id"), nullable=False, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     total_amount = Column(Float, nullable=False)
     notes = Column(Text, nullable=True)
     date = Column(DateTime(timezone=True), default=utcnow, index=True)
@@ -223,7 +223,7 @@ class Reserve(Base):
     __table_args__ = (UniqueConstraint("user_id", "year", "month", name="uq_reserve_user_year_month"),)
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     year = Column(Integer, nullable=False)
     month = Column(Integer, nullable=False)
     amount = Column(Float, default=0.0)
@@ -242,7 +242,7 @@ class PasswordFile(Base):
     __tablename__ = "password_files"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     filename = Column(String(255), nullable=False)
     mime_type = Column(String(100), nullable=False)
     size_bytes = Column(Integer, nullable=False)
@@ -259,7 +259,7 @@ class RefreshToken(Base):
     __tablename__ = "refresh_tokens"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     token_hash = Column(String(64), nullable=False, unique=True, index=True)  # SHA-256 hex
     expires_at = Column(DateTime(timezone=True), nullable=False)
     revoked = Column(Boolean, default=False, nullable=False)
@@ -274,7 +274,7 @@ class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
 
     id = Column(Integer, primary_key=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     token_hash = Column(String(64), nullable=False, unique=True, index=True)  # SHA-256 hex
     expires_at = Column(DateTime(timezone=True), nullable=False)
     used = Column(Boolean, default=False, nullable=False)

@@ -275,6 +275,14 @@ body{
 .badge-success   {background:rgba(16,217,138,.18); color:var(--accent-green)}
 .badge-inactive  {background:rgba(123,147,180,.12);color:var(--text-secondary)}
 .badge-metal     {background:rgba(212,175,55,.18);  color:#d4af37}
+.badge-bijou     {background:rgba(249,168,37,.18);  color:var(--accent-gold)}
+.badge-immo      {background:rgba(79,142,247,.18);  color:var(--accent-blue)}
+.badge-vehicule  {background:rgba(31,207,192,.18);  color:var(--accent-teal)}
+.badge-art       {background:rgba(169,112,247,.18); color:var(--accent-purple)}
+.badge-autre     {background:rgba(123,147,180,.12); color:var(--text-secondary)}
+.badge-purchase  {background:rgba(79,142,247,.18);  color:var(--accent-blue)}
+.badge-sale      {background:rgba(245,70,93,.18);   color:var(--accent-red)}
+.badge-valuation {background:rgba(16,217,138,.18);  color:var(--accent-green)}
 
 /* ── Icônes de position ───────────────────────────────────── */
 .pos-icon{

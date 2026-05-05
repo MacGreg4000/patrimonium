@@ -6,7 +6,10 @@ from sqlalchemy.orm import Session
 import auth as auth_utils
 from database import get_db
 from dependencies import log_audit, require_admin, require_admin_csrf
-from models import AuditLog, Coffre, Movement, User
+from models import (
+    AuditLog, Coffre, Inventory, Movement, PasswordFile,
+    PasswordResetToken, PhysicalAsset, RefreshToken, Reserve, User,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
@@ -95,6 +98,21 @@ def delete_user(user_id: int, request: Request, db: Session = Depends(get_db),
     if not user:
         raise HTTPException(status_code=404, detail="Utilisateur introuvable")
     email = user.email
+
+    # Suppression explicite dans le bon ordre pour respecter les FK
+    # Tokens de sécurité → CASCADE
+    db.query(RefreshToken).filter(RefreshToken.user_id == user_id).delete()
+    db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user_id).delete()
+    # Données personnelles → CASCADE
+    db.query(PasswordFile).filter(PasswordFile.user_id == user_id).delete()
+    db.query(Reserve).filter(Reserve.user_id == user_id).delete()
+    db.query(PhysicalAsset).filter(PhysicalAsset.user_id == user_id).delete()
+    # Historique coffres → SET NULL (on garde l'historique)
+    db.query(Movement).filter(Movement.user_id == user_id).update({"user_id": None})
+    db.query(Inventory).filter(Inventory.user_id == user_id).update({"user_id": None})
+    # Audit logs → SET NULL (on garde la trace)
+    db.query(AuditLog).filter(AuditLog.user_id == user_id).update({"user_id": None})
+
     db.delete(user)
     db.commit()
     log_audit(db, admin.id, "USER_DELETED", f"Utilisateur supprimé: {email}", request)

@@ -33,6 +33,12 @@ async def upload_file(
     db: Session = Depends(get_db),
     user: User = Depends(require_admin_csrf),
 ):
+    if file.content_type not in ALLOWED_MIME:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Type de fichier non autorisé : {file.content_type}. "
+                   f"Types acceptés : CSV, TXT, JSON, ZIP."
+        )
     data = await file.read()
     if len(data) > MAX_FILE_BYTES:
         raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 50 MB)")

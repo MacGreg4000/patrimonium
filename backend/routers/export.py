@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 import encryption as enc
 import market_data as md
 from database import get_db
-from dependencies import get_current_user
+from dependencies import get_current_user, verify_csrf
 from models import Coffre, PasswordFile, PhysicalAsset, Position, Reserve, User
 from routers.coffres import compute_balance
 from calculations import calc_position_metrics
@@ -619,7 +619,7 @@ function renderVault(data) {{
 def generate_export(
     body: ExportRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(verify_csrf),
 ):
     if not body.passphrase or len(body.passphrase) < 6:
         raise HTTPException(status_code=400, detail="Passphrase trop courte (6 caractères minimum)")

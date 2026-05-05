@@ -291,7 +291,7 @@ async function loadHistory() {
             <td class="left"><span class="badge badge-inventory">Inventaire</span></td>
             <td class="pos">${fmtEur(item.total_amount)}</td>
             <td class="left" style="color:var(--text-secondary)">${escHtml(item.notes || '—')}</td>
-            ${isAdmin() ? `<td style="display:flex;gap:4px">${expandBtn}<button class="btn btn-ghost danger btn-sm" onclick="event.stopPropagation();deleteInventory(${item.id})">🗑</button></td>` : ''}
+            ${isAdmin() ? `<td style="display:flex;gap:4px">${expandBtn}<button class="btn btn-ghost danger btn-sm btn-del-inv" data-id="${item.id}">🗑</button></td>` : ''}
           </tr>
           ${hasDetails ? `<tr id="${rowId}" class="expand-row" style="display:none"><td colspan="${isAdmin() ? 6 : 5}"><div class="expand-content">${detailsHtml}</div></td></tr>` : ''}`;
         } else {
@@ -303,13 +303,35 @@ async function loadHistory() {
             <td class="${item.type === 'ENTRY' ? 'pos' : 'neg'}">${item.type === 'EXIT' ? '-' : '+'}${fmtEur(item.amount)}</td>
             <td class="left" style="color:var(--text-secondary)">${escHtml(item.description || '—')}</td>
             ${isAdmin() ? `<td style="display:flex;gap:4px">${expandBtn}
-              <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openEditMovementModal(${item.id},${item.amount},${JSON.stringify(item.description||'')})">✏</button>
-              <button class="btn btn-ghost danger btn-sm" onclick="event.stopPropagation();deleteMovement(${item.id})">🗑</button>
+              <button class="btn btn-ghost btn-sm btn-edit-mvt" data-id="${item.id}" data-amount="${item.amount}" data-desc="${escHtml(item.description||'')}">✏</button>
+              <button class="btn btn-ghost danger btn-sm btn-del-mvt" data-id="${item.id}">🗑</button>
             </td>` : ''}
           </tr>
           ${hasDetails ? `<tr id="${rowId}" class="expand-row" style="display:none"><td colspan="${isAdmin() ? 6 : 5}"><div class="expand-content">${detailsHtml}</div></td></tr>` : ''}`;
         }
       }).join('')}</tbody></table>`;
+
+    // Event delegation — évite tout inline JS avec données utilisateur
+    body.addEventListener('click', function _histDelegate(e) {
+      const editBtn = e.target.closest('.btn-edit-mvt');
+      const delMvt  = e.target.closest('.btn-del-mvt');
+      const delInv  = e.target.closest('.btn-del-inv');
+      if (editBtn) {
+        e.stopPropagation();
+        openEditMovementModal(
+          parseInt(editBtn.dataset.id),
+          parseFloat(editBtn.dataset.amount),
+          editBtn.dataset.desc
+        );
+      } else if (delMvt) {
+        e.stopPropagation();
+        deleteMovement(parseInt(delMvt.dataset.id));
+      } else if (delInv) {
+        e.stopPropagation();
+        deleteInventory(parseInt(delInv.dataset.id));
+      }
+    }, { once: true });
+
   } catch (err) {
     showToast('Erreur historique: ' + err.message, 'error');
   }
