@@ -1,5 +1,6 @@
 """Export router: génère un fichier HTML autonome chiffré pour clé USB."""
 import base64 as b64_stdlib
+import gzip
 import json
 import os
 from datetime import datetime, timezone
@@ -31,13 +32,21 @@ class ExportRequest(BaseModel):
 
 # ── Encryption ────────────────────────────────────────────
 
-def _encrypt_blob(data: bytes, passphrase: str) -> str:
+def _derive_and_encrypt(data: bytes, passphrase: str) -> tuple[str, bytes]:
+    """Dérive la clé et chiffre data. Retourne (blob_b64, raw_key_bytes)."""
     salt = os.urandom(32)
     kdf = PBKDF2HMAC(algorithm=hashes.SHA256(), length=32, salt=salt, iterations=PBKDF2_ITERATIONS)
     key = kdf.derive(passphrase.encode("utf-8"))
     nonce = os.urandom(12)
-    ciphertext = AESGCM(key).encrypt(nonce, data, None)
-    return b64_stdlib.b64encode(salt + nonce + ciphertext).decode()
+    ct = AESGCM(key).encrypt(nonce, data, None)
+    return b64_stdlib.b64encode(salt + nonce + ct).decode(), key
+
+
+def _encrypt_doc(data: bytes, key: bytes) -> str:
+    """Chiffre un document avec une clé déjà dérivée. Retourne base64(nonce+ct)."""
+    nonce = os.urandom(12)
+    ct = AESGCM(key).encrypt(nonce, data, None)
+    return b64_stdlib.b64encode(nonce + ct).decode()
 
 
 # ── Data collection ───────────────────────────────────────
@@ -113,8 +122,7 @@ def _collect_data(db: Session, user: User) -> dict:
                     "size_bytes": d.size_bytes,
                     "mime_type": d.mime_type,
                     "created_at": str(d.created_at),
-                    # Contenu déchiffré en base64 pour téléchargement offline
-                    "data_b64": b64_stdlib.b64encode(enc.decrypt(d.encrypted_data)).decode(),
+                    "doc_key": f"d{d.id}",
                 }
                 for d in a.documents
             ],
@@ -128,7 +136,7 @@ def _collect_data(db: Session, user: User) -> dict:
             "mime_type": f.mime_type,
             "size_bytes": f.size_bytes,
             "created_at": str(f.created_at),
-            "data_b64": b64_stdlib.b64encode(enc.decrypt(f.encrypted_data)).decode(),
+            "doc_key": f"v{f.id}",
         })
 
     # Réserves
@@ -166,7 +174,7 @@ def _collect_data(db: Session, user: User) -> dict:
 
 # ── HTML template ─────────────────────────────────────────
 
-def _build_html(encrypted_blob: str, exported_at: str, iterations: int) -> str:
+def _build_html(main_blob: str, doc_blobs_json: str, exported_at: str, iterations: int) -> str:
     return f"""<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -294,7 +302,9 @@ footer{{padding:16px 24px;text-align:center;color:var(--text2);font-size:11px;bo
 </div>
 
 <script>
-const BLOB = "{encrypted_blob}";
+const BLOB = "{main_blob}";
+const DOC_BLOBS = {doc_blobs_json};
+let _cryptoKey = null;
 const ITERATIONS = {iterations};
 
 function b64ToBytes(b64) {{
@@ -304,15 +314,28 @@ function b64ToBytes(b64) {{
   return bytes;
 }}
 
-function downloadFile(filename, mimeType, b64data) {{
-  const bytes = b64ToBytes(b64data);
-  const blob = new Blob([bytes], {{ type: mimeType || 'application/octet-stream' }});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = filename;
-  document.body.appendChild(a); a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+async function downloadFile(docKey, filename, mimeType) {{
+  if (!_cryptoKey) return;
+  const btn = event.currentTarget;
+  btn.disabled = true; btn.textContent = '⏳';
+  try {{
+    const raw = b64ToBytes(DOC_BLOBS[docKey]);
+    const nonce = raw.slice(0, 12);
+    const ct = raw.slice(12);
+    const plain = await crypto.subtle.decrypt({{name:'AES-GCM',iv:nonce}}, _cryptoKey, ct);
+    const blob = new Blob([plain], {{type: mimeType || 'application/octet-stream'}});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    btn.textContent = '✓';
+    setTimeout(() => {{ btn.disabled = false; btn.textContent = '⬇ Télécharger'; }}, 2000);
+  }} catch(e) {{
+    btn.disabled = false; btn.textContent = '⬇ Télécharger';
+    alert('Erreur de déchiffrement du document.');
+  }}
 }}
 
 document.getElementById('exportDateDisplay').textContent = "{exported_at}";
@@ -333,8 +356,14 @@ async function unlock() {{
       {{ name: 'PBKDF2', salt, iterations: ITERATIONS, hash: 'SHA-256' }},
       keyMat, {{ name: 'AES-GCM', length: 256 }}, false, ['decrypt']
     );
-    const plain = await crypto.subtle.decrypt({{ name: 'AES-GCM', iv: nonce }}, key, ct);
-    const data = JSON.parse(new TextDecoder().decode(plain));
+    const plain = await crypto.subtle.decrypt({{name:'AES-GCM',iv:nonce}}, key, ct);
+    const ds = new DecompressionStream('gzip');
+    const writer = ds.writable.getWriter();
+    writer.write(new Uint8Array(plain));
+    writer.close();
+    const decompressed = await new Response(ds.readable).arrayBuffer();
+    const data = JSON.parse(new TextDecoder().decode(decompressed));
+    _cryptoKey = key;
     document.getElementById('lockScreen').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
     renderAll(data);
@@ -500,7 +529,7 @@ function renderAssets(data) {{
                 <div style="font-size:11px;color:var(--text2);margin-top:2px">${{DOC_LABELS[d.document_type]||d.document_type||'—'}} · ${{fmtSize(d.size_bytes)}} · ${{fmtDate(d.created_at)}}</div>
                 ${{d.notes?`<div style="font-size:11px;color:var(--text2);font-style:italic">${{esc(d.notes)}}</div>`:''}}
               </div>
-              <button onclick="downloadFile('${{esc(d.filename)}}','${{d.mime_type}}','${{d.data_b64}}')"
+              <button onclick="downloadFile('${{esc(d.doc_key)}}','${{esc(d.filename)}}','${{esc(d.mime_type)}}')"
                 style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0">
                 ⬇ Télécharger
               </button>
@@ -592,7 +621,7 @@ function renderVault(data) {{
         <div style="font-size:14px;font-weight:600;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${{esc(f.filename)}}</div>
         <div style="font-size:12px;color:var(--text2)">${{fmtSize(f.size_bytes)}} · Ajouté le ${{fmtDate(f.created_at)}}</div>
       </div>
-      <button onclick="downloadFile('${{esc(f.filename)}}','${{f.mime_type}}','${{f.data_b64}}')"
+      <button onclick="downloadFile('${{esc(f.doc_key)}}','${{esc(f.filename)}}','${{esc(f.mime_type)}}')"
         style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:500;cursor:pointer;flex-shrink:0;display:flex;align-items:center;gap:6px">
         ⬇ Télécharger
       </button>
@@ -625,11 +654,23 @@ def generate_export(
         raise HTTPException(status_code=400, detail="Passphrase trop courte (6 caractères minimum)")
 
     data = _collect_data(db, user)
-    json_bytes = json.dumps(data, ensure_ascii=False, default=str).encode("utf-8")
-    blob = _encrypt_blob(json_bytes, body.passphrase)
+    json_bytes = gzip.compress(
+        json.dumps(data, ensure_ascii=False, default=str).encode("utf-8"),
+        compresslevel=6,
+    )
+    main_blob, key = _derive_and_encrypt(json_bytes, body.passphrase)
 
+    # Chiffrer chaque document séparément
+    doc_blobs: dict[str, str] = {}
+    for asset in db.query(PhysicalAsset).filter(PhysicalAsset.user_id == user.id).all():
+        for doc in asset.documents:
+            doc_blobs[f"d{doc.id}"] = _encrypt_doc(enc.decrypt(doc.encrypted_data), key)
+    for vf in db.query(PasswordFile).filter(PasswordFile.user_id == user.id).all():
+        doc_blobs[f"v{vf.id}"] = _encrypt_doc(enc.decrypt(vf.encrypted_data), key)
+
+    doc_blobs_json = json.dumps(doc_blobs)
     exported_at = data["meta"]["exported_at"][:10]  # YYYY-MM-DD
-    html = _build_html(blob, exported_at, PBKDF2_ITERATIONS)
+    html = _build_html(main_blob, doc_blobs_json, exported_at, PBKDF2_ITERATIONS)
 
     filename = f"patrimonium-export-{exported_at}.html"
     return Response(
