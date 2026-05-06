@@ -36,7 +36,7 @@ function renderPasswordsPage() {
             <th class="left" style="padding-left:24px">Fichier</th>
             <th class="left">Type</th>
             <th>Taille</th>
-            <th>SHA-256</th>
+            <th class="col-hide-mobile">SHA-256</th>
             <th>Date</th>
             <th>Actions</th>
           </tr></thead>
@@ -97,7 +97,7 @@ function renderPwFileRows() {
         </td>
         <td class="left"><span class="badge">${ext.toUpperCase()}</span></td>
         <td>${fmtSize(f.size_bytes)}</td>
-        <td style="font-family:var(--font-display);font-size:11px;color:var(--text-muted)">${sha}</td>
+        <td class="col-hide-mobile" style="font-family:var(--font-display);font-size:11px;color:var(--text-muted)">${sha}</td>
         <td>${fmtDate(f.created_at)}</td>
         <td>
           <div style="display:flex;justify-content:flex-end;gap:4px">

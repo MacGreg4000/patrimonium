@@ -577,20 +577,100 @@ body{
 hr.divider{border:none;border-top:1px solid var(--border);margin:16px 0}
 
 /* ── Responsive ───────────────────────────────────────────── */
+
+/* Tablette large */
 @media(max-width:1100px){
   .grid-chart{grid-template-columns:1fr}
   .hero-grid{grid-template-columns:repeat(2,1fr)}
+  .hero-card-value{font-size:22px}
 }
+
+/* Tablette */
 @media(max-width:900px){
   .grid-3{grid-template-columns:1fr}
-  .hero-grid{grid-template-columns:1fr}
+  .grid-2{grid-template-columns:1fr}
+  .hero-grid{grid-template-columns:repeat(2,1fr)}
   .form-grid{grid-template-columns:1fr}
   .billet-grid{grid-template-columns:repeat(2,1fr)}
+
+  /* Tables : cacher les colonnes secondaires */
+  .data-table td, .data-table th { font-size:12px; padding:10px 10px }
+  .modal{padding:20px}
+  .card{padding:16px}
+  .expand-content{padding:14px 16px}
 }
+
+/* Mobile */
 @media(max-width:600px){
-  .container{padding:0 14px}
-  .last-update{display:none}
-  .main{padding:18px 0 36px}
-  .hero-card-value{font-size:22px}
-  .nav-item span:not(.nav-icon){display:none}
+  .container{padding:0 12px}
+  .main{padding:14px 0 32px}
+
+  /* Header compact */
+  .header-inner{height:52px;gap:8px}
+  .logo span:last-child{display:none}          /* cacher le texte "PATRIMONIUM", garder l'icône */
+  .live-badge{display:none}                    /* cacher le badge marché */
+  .nav-item span:not(.nav-icon){display:none}  /* nav : icônes seulement */
+  .nav-item{padding:6px 10px}
+
+  /* Héros */
+  .hero-grid{grid-template-columns:1fr 1fr;gap:10px}
+  .hero-card{padding:14px 12px}
+  .hero-card-value{font-size:19px}
+  .hero-card-sub{font-size:10px}
+
+  /* Titres de page */
+  .page-title{font-size:16px;flex-wrap:wrap;gap:6px}
+  .page-subtitle{font-size:12px}
+
+  /* Sections header avec titre + bouton */
+  .section-header{flex-wrap:wrap;gap:8px;padding:12px 14px}
+  .section-title{font-size:13px}
+
+  /* Tables : scroll horizontal, padding réduit */
+  .data-table td, .data-table th{padding:9px 8px;font-size:12px}
+  .table-wrap{-webkit-overflow-scrolling:touch}
+
+  /* Toasts : pleine largeur en bas */
+  .toast-container{left:12px;right:12px;bottom:16px}
+  .toast{min-width:0;width:100%}
+
+  /* Modals : plein écran sur mobile */
+  .modal-overlay{padding:0;align-items:flex-end}
+  .modal{
+    max-width:100%;max-height:92vh;border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+    padding:20px 16px;
+  }
+
+  /* Formulaires */
+  .form-grid{grid-template-columns:1fr}
+  .form-actions{flex-direction:column-reverse;gap:8px}
+  .form-actions .btn{width:100%;justify-content:center}
+
+  /* Billets */
+  .billet-grid{grid-template-columns:repeat(2,1fr);gap:8px}
+  .billet-denom{font-size:15px}
+
+  /* Coffres : boutons de mode */
+  .btn-caisse-mode{padding:10px 16px;font-size:14px}
+
+  /* Cartes : moins de padding */
+  .card{padding:14px 12px}
+  .card-title{font-size:12px}
+  .expand-content{padding:12px}
+
+  /* Grilles */
+  .grid-3,.grid-2,.grid-chart{grid-template-columns:1fr}
+
+  /* Boutons dans les tableaux : plus petits */
+  .btn-sm{padding:4px 8px;font-size:11px}
+
+  /* Cacher colonnes peu importantes dans les tableaux sur mobile */
+  .col-hide-mobile{display:none}
+}
+
+/* Très petit (320px) */
+@media(max-width:380px){
+  .hero-grid{grid-template-columns:1fr}
+  .hero-card-value{font-size:18px}
+  .billet-grid{grid-template-columns:repeat(2,1fr)}
 }
