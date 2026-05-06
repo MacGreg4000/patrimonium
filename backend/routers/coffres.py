@@ -269,22 +269,24 @@ def get_history(coffre_id: int, page: int = 1, limit: int = 50,
     if not coffre:
         raise HTTPException(status_code=404, detail="Coffre introuvable")
 
+    # Charger tous les enregistrements puis paginer sur le résultat fusionné
     mvs = (db.query(Movement)
            .filter(Movement.coffre_id == coffre_id, Movement.deleted_at.is_(None))
-           .order_by(Movement.created_at.desc())
-           .offset((page - 1) * limit).limit(min(limit, 100)).all())
+           .order_by(Movement.created_at.desc()).all())
 
     invs = (db.query(Inventory)
             .filter(Inventory.coffre_id == coffre_id, Inventory.deleted_at.is_(None))
-            .order_by(Inventory.date.desc())
-            .offset((page - 1) * limit).limit(min(limit, 100)).all())
+            .order_by(Inventory.date.desc()).all())
 
     items = (
         [{"kind": "movement", **_fmt_movement(m)} for m in mvs]
         + [{"kind": "inventory", **_fmt_inventory(i)} for i in invs]
     )
     items.sort(key=lambda x: x.get("created_at") or x.get("date") or "", reverse=True)
-    return {"items": items[:limit]}
+
+    total = len(items)
+    offset = (page - 1) * limit
+    return {"total": total, "page": page, "limit": limit, "items": items[offset:offset + limit]}
 
 
 # ── Formatters ────────────────────────────────────────────

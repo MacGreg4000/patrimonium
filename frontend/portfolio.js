@@ -167,7 +167,7 @@ function buildPositionRow(pos) {
       <td><strong>${fmtEur(pos.current_value)}</strong></td>
       <td>${pnlEurStr}</td>
       <td>${pnlPctStr}</td>
-      <td style="font-family:var(--font-display);font-size:12px">${pos.allocation_pct.toFixed(1)}%</td>
+      <td style="font-family:var(--font-display);font-size:12px">${(pos.allocation_pct ?? 0).toFixed(1)}%</td>
       <td>${alertDot}</td>
       <td><div style="display:flex;justify-content:flex-end;gap:4px" onclick="event.stopPropagation()">${adminActions}</div></td>
     </tr>

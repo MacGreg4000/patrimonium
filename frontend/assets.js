@@ -118,7 +118,7 @@ function renderAssetRows(assets, filter = '', catFilter = '') {
           <button class="btn btn-ghost primary" onclick="openAddEventModal(${a.id})" title="Ajouter événement">+ Év.</button>
           <button class="btn btn-ghost primary" onclick="openUploadDocModal(${a.id})" title="Joindre document">📎</button>
           <button class="btn btn-ghost" onclick="openEditAssetModal(${a.id})" title="Modifier">✏️</button>
-          <button class="btn btn-ghost danger" onclick="deleteAssetConfirm(${a.id},'${escHtml(a.name).replace(/'/g,"\\'")}')">🗑</button>
+          <button class="btn btn-ghost danger btn-del-asset" data-id="${a.id}" data-name="${escHtml(a.name)}">🗑</button>
         </div></td>` : ''}
       </tr>
       <tr class="expand-row"><td colspan="${isAdmin() ? 7 : 6}">
@@ -153,7 +153,7 @@ function buildAssetDetails(a) {
           <div style="font-size:12px;font-weight:500">${escHtml(d.filename)}</div>
           <div style="font-size:11px;color:var(--text-secondary)">${d.document_type ? (DOC_TYPE_LABELS[d.document_type] ?? d.document_type) + ' · ' : ''}${fmtSize(d.size_bytes)} · ${fmtDate(d.created_at)}</div>
         </div>
-        <a href="/api/assets/${a.id}/documents/${d.id}/download" class="btn btn-ghost btn-sm" download>⬇</a>
+        <button class="btn btn-ghost btn-sm btn-download-doc" data-asset="${a.id}" data-doc="${d.id}" data-filename="${escHtml(d.filename)}">⬇</button>
         ${isAdmin() ? `<button class="btn btn-ghost danger btn-sm" onclick="deleteDocConfirm(${a.id},${d.id})">🗑</button>` : ''}
       </div>`).join('')}
     </div>`;
@@ -479,3 +479,25 @@ function deleteDocConfirm(assetId, docId) {
     catch (err) { showToast(err.message, 'error'); }
   });
 }
+
+async function downloadDoc(assetId, docId, filename) {
+  try {
+    const res = await apiFetchRaw(`/api/assets/${assetId}/documents/${docId}/download`);
+    if (!res.ok) { showToast('Erreur téléchargement', 'error'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename || 'document';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+// Délégation pour les boutons de téléchargement de documents
+document.addEventListener('click', e => {
+  const dlBtn = e.target.closest('.btn-download-doc');
+  if (dlBtn) { downloadDoc(parseInt(dlBtn.dataset.asset), parseInt(dlBtn.dataset.doc), dlBtn.dataset.filename); return; }
+  const delBtn = e.target.closest('.btn-del-asset');
+  if (delBtn) deleteAssetConfirm(parseInt(delBtn.dataset.id), delBtn.dataset.name);
+});

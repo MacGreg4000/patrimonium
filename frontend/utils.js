@@ -133,6 +133,29 @@ async function apiFetch(url, options = {}, _retry = false) {
   return res.json();
 }
 
+// Variante de apiFetch qui retourne la Response brute (pour Blob/text)
+async function apiFetchRaw(url, options = {}, _retry = false) {
+  const headers = { ...options.headers };
+  if (_csrfToken && ['POST','PUT','DELETE','PATCH'].includes((options.method || 'GET').toUpperCase())) {
+    headers['X-CSRF-Token'] = _csrfToken;
+  }
+  const res = await fetch(url, { ...options, headers, credentials: 'include' });
+  if (res.status === 401 && !_retry) {
+    const refreshed = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' });
+    if (!refreshed.ok) { showLogin(); throw new Error('Session expirée'); }
+    return apiFetchRaw(url, options, true);
+  }
+  if (res.status === 403 && !_retry) {
+    const clone = res.clone();
+    const body = await clone.json().catch(() => ({}));
+    if (body.detail === 'Token CSRF invalide') {
+      await refreshCsrf();
+      return apiFetchRaw(url, options, true);
+    }
+  }
+  return res; // retourne la Response brute — l'appelant vérifie res.ok
+}
+
 const apiGet    = url       => apiFetch(url);
 const apiPost   = (url, b)  => apiFetch(url, { method: 'POST',   body: JSON.stringify(b) });
 const apiPut    = (url, b)  => apiFetch(url, { method: 'PUT',    body: JSON.stringify(b) });

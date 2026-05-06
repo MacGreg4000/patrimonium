@@ -101,9 +101,9 @@ function renderPwFileRows() {
         <td>${fmtDate(f.created_at)}</td>
         <td>
           <div style="display:flex;justify-content:flex-end;gap:4px">
-            ${canPreview ? `<button class="btn btn-ghost primary btn-sm" onclick="previewCsv(${f.id},'${escHtml(f.filename).replace(/'/g,"\\'")}')">👁 Aperçu</button>` : ''}
-            <a href="/api/password-files/${f.id}/download" class="btn btn-ghost btn-sm" download="${escHtml(f.filename)}">⬇ Télécharger</a>
-            ${isAdmin() ? `<button class="btn btn-ghost danger btn-sm" onclick="deletePwFileConfirm(${f.id},'${escHtml(f.filename).replace(/'/g,"\\'")}')">🗑</button>` : ''}
+            ${canPreview ? `<button class="btn btn-ghost primary btn-sm btn-preview-csv" data-id="${f.id}" data-filename="${escHtml(f.filename)}">👁 Aperçu</button>` : ''}
+            <button class="btn btn-ghost btn-sm btn-dl-pwfile" data-id="${f.id}" data-filename="${escHtml(f.filename)}">⬇ Télécharger</button>
+            ${isAdmin() ? `<button class="btn btn-ghost danger btn-sm btn-del-pwfile" data-id="${f.id}" data-filename="${escHtml(f.filename)}">🗑</button>` : ''}
           </div>
         </td>
       </tr>`;
@@ -122,11 +122,7 @@ async function submitPwUpload(e) {
   const fd = new FormData();
   fd.append('file', file);
   try {
-    const res = await fetch('/api/password-files', {
-      method: 'POST', body: fd, credentials: 'include',
-      headers: { 'X-CSRF-Token': _csrfToken || '' },
-    });
-    if (!res.ok) { const e = await res.json(); throw new Error(e.detail); }
+    await apiFetch('/api/password-files', { method: 'POST', body: fd });
     showToast('Fichier chiffré et stocké', 'success');
     closeModal('pwUploadModal');
     await loadPasswords();
@@ -142,7 +138,8 @@ function deletePwFileConfirm(id, name) {
 
 async function previewCsv(fileId, filename) {
   try {
-    const res = await fetch(`/api/password-files/${fileId}/download`, { credentials: 'include' });
+    const res = await apiFetchRaw(`/api/password-files/${fileId}/download`);
+    if (!res.ok) { showToast('Erreur téléchargement', 'error'); return; }
     const text = await res.text();
     const rows = text.trim().split('\n').map(r => r.split(','));
     const headers = rows[0] || [];
@@ -165,3 +162,26 @@ async function previewCsv(fileId, filename) {
 function closeCsvViewer() {
   document.getElementById('csvViewerArea').style.display = 'none';
 }
+
+async function downloadPwFile(fileId, filename) {
+  try {
+    const res = await apiFetchRaw(`/api/password-files/${fileId}/download`);
+    if (!res.ok) { showToast('Erreur téléchargement', 'error'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename || 'fichier';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+document.addEventListener('click', e => {
+  const dlBtn = e.target.closest('.btn-dl-pwfile');
+  if (dlBtn) { downloadPwFile(parseInt(dlBtn.dataset.id), dlBtn.dataset.filename); return; }
+  const previewBtn = e.target.closest('.btn-preview-csv');
+  if (previewBtn) { previewCsv(parseInt(previewBtn.dataset.id), previewBtn.dataset.filename); return; }
+  const delBtn = e.target.closest('.btn-del-pwfile');
+  if (delBtn) deletePwFileConfirm(parseInt(delBtn.dataset.id), delBtn.dataset.filename);
+});

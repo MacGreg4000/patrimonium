@@ -185,6 +185,9 @@ def delete_coffre(coffre_id: int, request: Request, db: Session = Depends(get_db
     bal = compute_balance(coffre_id, db)
     if abs(bal) > 0.01:
         raise HTTPException(status_code=400, detail=f"Solde non nul ({bal:.2f} €) — videz le coffre avant suppression")
+    # Supprimer les mouvements et inventaires liés (soft-deleted et actifs)
+    db.query(Movement).filter(Movement.coffre_id == coffre_id).delete()
+    db.query(Inventory).filter(Inventory.coffre_id == coffre_id).delete()
     db.delete(coffre)
     db.commit()
     log_audit(db, admin.id, "COFFRE_DELETED", f"Coffre supprimé: {coffre.name}", request)

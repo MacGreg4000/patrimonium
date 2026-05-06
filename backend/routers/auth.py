@@ -166,13 +166,6 @@ def setup_2fa(current_user: User = Depends(get_current_user)):
     }
 
 
-@router.post("/2fa/activate")
-def activate_2fa(data: TwoFAVerifyRequest, request: Request, db: Session = Depends(get_db),
-                 current_user: User = Depends(get_current_user)):
-    # The secret was generated in setup — client sends it back with the code to confirm
-    raise HTTPException(status_code=400, detail="Envoyez secret + code via /2fa/confirm")
-
-
 @router.post("/2fa/confirm")
 def confirm_2fa(body: dict, request: Request, db: Session = Depends(get_db),
                 current_user: User = Depends(get_current_user)):

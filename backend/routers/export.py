@@ -276,12 +276,12 @@ footer{{padding:16px 24px;text-align:center;color:var(--text2);font-size:11px;bo
   </header>
   <main>
     <div class="tabs" id="mainTabs">
-      <button class="tab-btn active" onclick="showTab('summary')">📊 Résumé</button>
-      <button class="tab-btn" onclick="showTab('portfolio')">📈 Portefeuille</button>
-      <button class="tab-btn" onclick="showTab('coffres')">🏦 Coffres</button>
-      <button class="tab-btn" onclick="showTab('assets')">💎 Actifs physiques</button>
-      <button class="tab-btn" onclick="showTab('reserves')">📅 Réserves</button>
-      <button class="tab-btn" onclick="showTab('vault')">🔐 Fichiers</button>
+      <button class="tab-btn active" onclick="showTab('summary',this)">📊 Résumé</button>
+      <button class="tab-btn" onclick="showTab('portfolio',this)">📈 Portefeuille</button>
+      <button class="tab-btn" onclick="showTab('coffres',this)">🏦 Coffres</button>
+      <button class="tab-btn" onclick="showTab('assets',this)">💎 Actifs physiques</button>
+      <button class="tab-btn" onclick="showTab('reserves',this)">📅 Réserves</button>
+      <button class="tab-btn" onclick="showTab('vault',this)">🔐 Fichiers</button>
     </div>
     <div class="tab-panel active" id="tab-summary"></div>
     <div class="tab-panel" id="tab-portfolio"></div>
@@ -343,11 +343,11 @@ async function unlock() {{
   }}
 }}
 
-function showTab(id) {{
+function showTab(id, btn) {{
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + id).classList.add('active');
-  event.target.classList.add('active');
+  if (btn) btn.classList.add('active');
 }}
 
 function fmtSize(b) {{

@@ -88,23 +88,6 @@ function updateLiveBadge(isOpen, lastRefresh) {
   // lastUpdate span removed from header
 }
 
-// ── User menu toggle ──────────────────────────────────────
-
-function toggleUserMenu() {
-  const dd = document.getElementById('userDropdown');
-  if (!dd) return;
-  dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
-}
-
-// Close dropdown when clicking outside
-document.addEventListener('click', e => {
-  const btn = document.getElementById('userMenuBtn');
-  const dd = document.getElementById('userDropdown');
-  if (dd && btn && !btn.contains(e.target) && !dd.contains(e.target)) {
-    dd.style.display = 'none';
-  }
-});
-
 // ── Portfolio modals injection ────────────────────────────
 
 function injectPortfolioModals() {
@@ -273,11 +256,10 @@ async function submitExport(e) {
   btn.textContent = '⏳ Génération en cours…';
 
   try {
-    const res = await fetch('/api/export', {
+    const res = await apiFetchRaw('/api/export', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': _csrfToken || '' },
-      credentials: 'include',
       body: JSON.stringify({ passphrase: pass }),
+      headers: { 'Content-Type': 'application/json' },
     });
     if (!res.ok) {
       let detail = 'Erreur serveur';

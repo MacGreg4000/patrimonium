@@ -121,11 +121,13 @@ function updateHeaderUser() {
 
 function toggleUserMenu() {
   const dd = document.getElementById('userDropdown');
+  if (!dd) return;
   dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
 }
 
 function closeUserMenu() {
-  document.getElementById('userDropdown').style.display = 'none';
+  const dd = document.getElementById('userDropdown');
+  if (dd) dd.style.display = 'none';
 }
 
 document.addEventListener('click', e => {
