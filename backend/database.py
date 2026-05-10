@@ -1,6 +1,10 @@
+import logging
 import os
+
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
+
+logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
@@ -23,13 +27,38 @@ def get_db():
         db.close()
 
 
-def init_db():
-    import models  # noqa: F401
-    Base.metadata.create_all(bind=engine)
-    # Enable pgcrypto extension if available (PostgreSQL)
-    with engine.connect() as conn:
+# ── Migrations ────────────────────────────────────────────
+# Chaque entrée est (description, sql).
+# Toutes les instructions doivent être idempotentes (IF NOT EXISTS).
+# Ne jamais supprimer de colonnes ou de données ici.
+_MIGRATIONS: list[tuple[str, str]] = [
+    ("pgcrypto extension",
+     "CREATE EXTENSION IF NOT EXISTS pgcrypto"),
+    ("positions.isin column",
+     "ALTER TABLE positions ADD COLUMN IF NOT EXISTS isin VARCHAR(20)"),
+    ("positions.isin index",
+     "CREATE INDEX IF NOT EXISTS ix_positions_isin ON positions (isin)"),
+    ("physical_assets.location column",
+     "ALTER TABLE physical_assets ADD COLUMN IF NOT EXISTS location VARCHAR(300)"),
+]
+
+
+def run_migrations() -> None:
+    """Applique les migrations DDL avant que l'ORM ne charge les modèles.
+    Chaque migration est exécutée dans sa propre transaction pour éviter
+    qu'une erreur bloque les suivantes."""
+    for description, sql in _MIGRATIONS:
         try:
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS pgcrypto"))
-            conn.commit()
-        except Exception:
-            pass
+            with engine.begin() as conn:   # auto-commit à la sortie du bloc
+                conn.execute(text(sql))
+            logger.debug("Migration OK : %s", description)
+        except Exception as exc:
+            # Loggué mais non-bloquant (ex: extension déjà présente)
+            logger.warning("Migration ignorée (%s) : %s", description, exc)
+
+
+def init_db() -> None:
+    """Migrations d'abord, création des tables ensuite."""
+    run_migrations()           # DDL incrémental sur les tables existantes
+    import models  # noqa: F401  (enregistre les classes auprès de Base)
+    Base.metadata.create_all(bind=engine)  # crée les nouvelles tables
