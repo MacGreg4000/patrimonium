@@ -118,6 +118,8 @@ body{
 }
 
 /* ── Navigation ───────────────────────────────────────────── */
+.mobile-menu-btn{display:none;align-items:center;justify-content:center;background:transparent;border:1px solid var(--border-strong);border-radius:8px;padding:6px;color:var(--text-secondary);cursor:pointer}
+.mobile-menu-btn:hover{background:var(--bg-tertiary);color:var(--text-primary)}
 .nav{display:flex;align-items:center;gap:2px;flex:1;overflow-x:auto;padding:0 8px;scrollbar-width:none}
 .nav::-webkit-scrollbar{display:none}
 .nav-item{
@@ -620,12 +622,25 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:16px 0}
   .container{padding:0 12px}
   .main{padding:14px 0 32px}
 
-  /* Header compact */
+  /* Header compact — hamburger menu */
   .header-inner{height:52px;gap:8px}
-  .logo span:last-child{display:none}          /* cacher le texte "PATRIMONIUM", garder l'icône */
-  .live-badge{display:none}                    /* cacher le badge marché */
-  .nav-item span:not(.nav-icon){display:none}  /* nav : icônes seulement */
-  .nav-item{padding:6px 10px}
+  .live-badge{display:none}
+  .mobile-menu-btn{display:flex}
+  .nav{
+    display:none;
+    position:fixed;top:52px;left:0;right:0;z-index:999;
+    flex-direction:column;gap:0;padding:8px;
+    background:var(--bg-secondary);
+    border-bottom:1px solid var(--border-strong);
+    box-shadow:0 8px 24px rgba(0,0,0,.4);
+    overflow-x:unset;
+  }
+  .nav.mobile-open{display:flex}
+  .nav-item{
+    padding:12px 16px;border-radius:8px;
+    justify-content:flex-start;gap:10px;width:100%;font-size:14px;
+  }
+  .nav-item span:not(.nav-icon){display:inline}  /* texte visible dans le menu déroulant */
 
   /* Héros — 1 colonne sur mobile */
   .hero-grid{grid-template-columns:1fr;gap:8px}

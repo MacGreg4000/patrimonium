@@ -9,9 +9,33 @@ let _refreshInterval = null;
 
 // ── Navigation ────────────────────────────────────────────
 
+// ── Mobile menu ───────────────────────────────────────────
+
+function toggleMobileMenu() {
+  const nav = document.getElementById('mainNav');
+  const btn = document.getElementById('mobileMenuBtn');
+  const open = nav.classList.toggle('mobile-open');
+  btn.setAttribute('aria-expanded', open);
+}
+
+function closeMobileMenu() {
+  document.getElementById('mainNav')?.classList.remove('mobile-open');
+  document.getElementById('mobileMenuBtn')?.setAttribute('aria-expanded', 'false');
+}
+
+// Fermer le menu mobile si on clique en dehors
+document.addEventListener('click', e => {
+  if (!e.target.closest('#mainNav') && !e.target.closest('#mobileMenuBtn')) {
+    closeMobileMenu();
+  }
+});
+
+// ── Navigation ────────────────────────────────────────────
+
 function navigate(page) {
   if (!PAGES.includes(page)) page = 'dashboard';
   _currentPage = page;
+  closeMobileMenu();  // ferme le menu mobile après navigation
 
   // Show/hide page divs
   PAGES.forEach(p => {

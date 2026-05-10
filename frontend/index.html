@@ -77,14 +77,22 @@
   <header class="header">
     <div class="container">
       <div class="header-inner">
-        <a class="logo" href="#" onclick="navigate('dashboard')">
-          <div class="logo-icon">
-            <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
-              <polyline points="2,15 7,9 12,12 18,5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-              <polyline points="13,5 18,5 18,10" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <div style="display:flex;align-items:center;gap:10px">
+          <a class="logo" href="#" onclick="navigate('dashboard')">
+            <div class="logo-icon">
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
+                <polyline points="2,15 7,9 12,12 18,5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+                <polyline points="13,5 18,5 18,10" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            Patrimonium
+          </a>
+          <button class="mobile-menu-btn" id="mobileMenuBtn" onclick="toggleMobileMenu()" aria-label="Menu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
             </svg>
-          </div>
-          Patrimonium
+          </button>
+        </div>
         </a>
 
         <nav class="nav" id="mainNav">
