@@ -627,11 +627,11 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:16px 0}
   .nav-item span:not(.nav-icon){display:none}  /* nav : icônes seulement */
   .nav-item{padding:6px 10px}
 
-  /* Héros */
-  .hero-grid{grid-template-columns:1fr 1fr;gap:10px}
-  .hero-card{padding:14px 12px}
-  .hero-card-value{font-size:19px}
-  .hero-card-sub{font-size:10px}
+  /* Héros — 1 colonne sur mobile */
+  .hero-grid{grid-template-columns:1fr;gap:8px}
+  .hero-card{padding:14px 16px}
+  .hero-card-value{font-size:20px}
+  .hero-card-sub{font-size:11px}
 
   /* Titres de page */
   .page-title{font-size:16px;flex-wrap:wrap;gap:6px}
@@ -686,7 +686,6 @@ hr.divider{border:none;border-top:1px solid var(--border);margin:16px 0}
 
 /* Très petit (320px) */
 @media(max-width:380px){
-  .hero-grid{grid-template-columns:1fr}
-  .hero-card-value{font-size:18px}
+  .hero-card-value{font-size:17px}
   .billet-grid{grid-template-columns:repeat(2,1fr)}
 }
