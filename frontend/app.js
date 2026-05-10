@@ -91,10 +91,16 @@ function startAutoRefresh() {
   if (_refreshInterval) clearInterval(_refreshInterval);
   _refreshInterval = setInterval(async () => {
     try {
-      const data = await apiGet('/api/portfolio/summary');
-      updateLiveBadge(data.is_market_open, data.last_updated);
-      if (_currentPage === 'dashboard') loadDashboard();
-      else if (_currentPage === 'portfolio') loadPortfolio();
+      if (_currentPage === 'dashboard') {
+        // Mise à jour légère : chiffres uniquement, les graphiques ne sont pas recréés
+        const d = await apiGet('/api/dashboard');
+        refreshDashboardValues(d);
+      } else if (_currentPage === 'portfolio') {
+        loadPortfolio();
+      } else {
+        const data = await apiGet('/api/portfolio/summary');
+        updateLiveBadge(data.is_market_open, data.last_updated);
+      }
     } catch (_) {}
   }, 30_000);
 }

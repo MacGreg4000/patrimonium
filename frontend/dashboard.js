@@ -31,7 +31,7 @@ function renderDashboard(d) {
 
   page.innerHTML = `
     <!-- Hero row -->
-    <div class="hero-grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="hero-grid">
       <div class="hero-card">
         <div class="card-label">${ICONS.pieChart} Patrimoine total</div>
         <div class="hero-card-value gold" id="dHeroTotal">${fmtEur(grandTotal)}</div>
@@ -112,6 +112,17 @@ function renderDashboard(d) {
   updateLiveBadge(d.is_market_open, d.last_updated);
 }
 
+// Mise à jour légère : chiffres seulement, sans recréer le DOM ni les graphiques
+function refreshDashboardValues(d) {
+  const $ = id => document.getElementById(id);
+  if (!$('dHeroTotal')) return; // page pas encore rendue, on ignore
+  $('dHeroTotal').textContent  = fmtEur(d.grand_total_eur);
+  $('dHeroPort').textContent   = fmtEur(d.portfolio.total_value_eur);
+  $('dHeroCash').textContent   = fmtEur(d.cash.total_eur);
+  $('dHeroAssets').textContent = fmtEur(d.assets.total_value_eur);
+  updateLiveBadge(d.is_market_open, d.last_updated);
+}
+
 function renderTopMovers(port) {
   const gainers = (port.top_gainers || []).filter(p => (p.pnl_pct || 0) !== 0);
   const losers  = (port.top_losers  || []).filter(p => (p.pnl_pct || 0) !== 0);
@@ -119,9 +130,9 @@ function renderTopMovers(port) {
     return `<div class="empty-state" style="padding:20px"><div class="empty-icon">📊</div><div class="empty-text">Aucun achat enregistré</div></div>`;
   }
   const rows = [...gainers, ...losers].slice(0, 5).map(p => `
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
-      <div style="font-size:13px;font-weight:500">${escHtml(p.display_name)}</div>
-      <div class="${pnlClass(p.pnl_pct)}" style="font-family:var(--font-display);font-size:12px">${pnlSign(p.pnl_pct)}${fmtPct(p.pnl_pct)}</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <div style="font-size:13px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.display_name)}</div>
+      <div class="${pnlClass(p.pnl_pct)}" style="font-family:var(--font-display);font-size:12px;flex-shrink:0">${pnlSign(p.pnl_pct)}${fmtPct(p.pnl_pct)}</div>
     </div>`).join('');
   return `<div>${rows}</div>`;
 }
