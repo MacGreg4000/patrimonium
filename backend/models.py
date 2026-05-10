@@ -117,6 +117,7 @@ class Position(Base):
     id = Column(Integer, primary_key=True)
     display_name = Column(String(100), nullable=False)
     ticker = Column(String(20), nullable=False)        # "MANUAL" for manual positions
+    isin = Column(String(20), nullable=True, index=True)  # ISIN pour sync SaxoBank
     asset_type = Column(String(20), nullable=False)    # action|etf|commodity|bond_manual
     currency = Column(String(3), nullable=False, default="EUR")
     is_active = Column(Boolean, default=True)

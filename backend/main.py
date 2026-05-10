@@ -152,7 +152,7 @@ app.add_middleware(
 )
 
 # ── Register routers ──────────────────────────────────────
-from routers import auth, admin, coffres, portfolio, physical_assets, reserves, password_files, dashboard, export
+from routers import auth, admin, coffres, portfolio, physical_assets, reserves, password_files, dashboard, export, saxo_import
 
 app.include_router(auth.router)
 app.include_router(admin.router)
@@ -163,6 +163,7 @@ app.include_router(reserves.router)
 app.include_router(password_files.router)
 app.include_router(dashboard.router)
 app.include_router(export.router)
+app.include_router(saxo_import.router)
 
 # ── Health ────────────────────────────────────────────────
 

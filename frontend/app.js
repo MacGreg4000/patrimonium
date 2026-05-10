@@ -226,6 +226,31 @@ function injectPortfolioModals() {
           </div>
         </form>
       </div>
+    </div>
+
+    <!-- SaxoBank import modal -->
+    <div class="modal-overlay" id="saxoImportModal">
+      <div class="modal" style="max-width:460px">
+        <div class="modal-header">
+          <span class="modal-title">📥 Importer depuis SaxoBank</span>
+          <button class="modal-close" onclick="closeModal('saxoImportModal')">✕</button>
+        </div>
+        <div style="color:var(--text-secondary);font-size:12px;margin-bottom:16px;line-height:1.5">
+          Exportez le <strong>Relevé des transactions</strong> depuis SaxoBank (Portefeuille → Relevés → Relevé des transactions) et importez-le ici.<br/>
+          Les achats déjà importés ne seront pas dupliqués.
+        </div>
+        <form id="saxoImportForm" onsubmit="submitSaxoImport(event)">
+          <div class="form-group" style="margin-bottom:20px">
+            <label class="form-label">Fichier .xlsx SaxoBank</label>
+            <input type="file" class="form-input" id="saxoImportFile" required accept=".xlsx"/>
+          </div>
+          <div id="saxoImportResult" style="display:none;margin-bottom:16px;padding:12px;border-radius:8px;font-size:13px"></div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('saxoImportModal')">Fermer</button>
+            <button type="submit" class="btn btn-primary" id="saxoImportBtn">📥 Importer</button>
+          </div>
+        </form>
+      </div>
     </div>`;
 
   const container = document.createElement('div');
