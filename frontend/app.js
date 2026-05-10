@@ -235,9 +235,25 @@ function injectPortfolioModals() {
           <span class="modal-title">📥 Importer depuis SaxoBank</span>
           <button class="modal-close" onclick="closeModal('saxoImportModal')">✕</button>
         </div>
-        <div style="color:var(--text-secondary);font-size:12px;margin-bottom:16px;line-height:1.5">
-          Exportez le <strong>Relevé des transactions</strong> depuis SaxoBank (Portefeuille → Relevés → Relevé des transactions) et importez-le ici.<br/>
-          Les achats déjà importés ne seront pas dupliqués.
+        <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:10px;padding:14px 16px;margin-bottom:20px">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--accent-blue);margin-bottom:10px">📋 Où trouver le fichier ?</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px">
+              <span style="background:var(--accent-blue);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">1</span>
+              <span style="color:var(--text-secondary)">SaxoBank → <strong style="color:var(--text-primary)">Menu</strong></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px">
+              <span style="background:var(--accent-blue);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">2</span>
+              <span style="color:var(--text-secondary)"><strong style="color:var(--text-primary)">Relevés</strong> → Relevé des transactions</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px">
+              <span style="background:var(--accent-blue);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">3</span>
+              <span style="color:var(--text-secondary)">Choisir la période → <strong style="color:var(--text-primary)">Télécharger .xlsx</strong></span>
+            </div>
+          </div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(59,130,246,.2);font-size:11px;color:var(--text-muted)">
+            ✓ Les achats déjà importés ne seront jamais dupliqués — tu peux importer la même période plusieurs fois.
+          </div>
         </div>
         <form id="saxoImportForm" onsubmit="submitSaxoImport(event)">
           <div class="form-group" style="margin-bottom:20px">
