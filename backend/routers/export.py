@@ -92,7 +92,17 @@ def _collect_data(db: Session, user: User) -> dict:
     coffres_data = []
     for c in db.query(Coffre).filter(Coffre.is_active == True).all():  # noqa: E712
         balance = compute_balance(c.id, db)
-        coffres_data.append({"id": c.id, "name": c.name, "balance": balance})
+        combination = None
+        if c.encrypted_combination:
+            try:
+                combination = enc.decrypt(c.encrypted_combination).decode("utf-8")
+            except Exception:
+                combination = None
+        coffres_data.append({
+            "id": c.id, "name": c.name, "balance": balance,
+            "combination": combination,
+            "combination_hint": c.combination_hint,
+        })
 
     # Actifs physiques
     assets_data = []
@@ -508,15 +518,47 @@ function renderPortfolio(data) {{
 function renderCoffres(data) {{
   const total = (data.coffres||[]).reduce((s,c)=>s+c.balance,0);
   const cards = (data.coffres||[]).map(c=>`
-    <div class="card"><div class="card-label">🏦 ${{esc(c.name)}}</div><div class="card-value yellow">${{eur(c.balance)}}</div></div>`).join('');
+    <div class="card">
+      <div class="card-label">🏦 ${{esc(c.name)}}</div>
+      <div class="card-value yellow">${{eur(c.balance)}}</div>
+      ${{c.combination || c.combination_hint ? `
+      <div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">
+        <div style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">🔑 Code d'accès</div>
+        ${{c.combination_hint ? `<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Indice : ${{esc(c.combination_hint)}}</div>` : ''}}
+        ${{c.combination ? `
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="font-family:monospace;font-size:16px;letter-spacing:.2em;color:var(--text2)" id="combo-${{c.id}}">●●●●●●</div>
+          <button onclick="toggleCombo('${{c.id}}','${{esc(c.combination)}}')"
+            style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--text2);cursor:pointer"
+            id="combobtn-${{c.id}}">Révéler</button>
+        </div>` : '<div style="font-size:12px;color:var(--text2);font-style:italic">Indice uniquement</div>'}}
+      </div>` : ''}}
+    </div>`).join('');
   document.getElementById('tab-coffres').innerHTML = `
     <div class="summary-grid" style="margin-bottom:24px">
       <div class="card"><div class="card-label">Total liquidités</div><div class="card-value yellow">${{eur(total)}}</div></div>
       ${{cards}}
     </div>
     <div class="card" style="padding:16px">
-      <p style="color:var(--text2);font-size:13px">Les soldes affichés correspondent à l'état au moment de l'export.</p>
+      <p style="color:var(--text2);font-size:13px">Les soldes et codes affichés correspondent à l'état au moment de l'export.</p>
     </div>`;
+}}
+
+function toggleCombo(id, code) {{
+  const el = document.getElementById('combo-' + id);
+  const btn = document.getElementById('combobtn-' + id);
+  if (!el || !btn) return;
+  if (el.dataset.revealed === '1') {{
+    el.textContent = '●●●●●●';
+    el.style.color = 'var(--text2)';
+    el.dataset.revealed = '0';
+    btn.textContent = 'Révéler';
+  }} else {{
+    el.textContent = code;
+    el.style.color = 'var(--yellow)';
+    el.dataset.revealed = '1';
+    btn.textContent = 'Masquer';
+  }}
 }}
 
 function renderAssets(data) {{
