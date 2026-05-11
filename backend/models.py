@@ -47,6 +47,8 @@ class Coffre(Base):
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True)
+    encrypted_combination = Column(LargeBinary, nullable=True)   # AES-256-GCM
+    combination_hint = Column(String(200), nullable=True)        # indice mémo (non chiffré)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     movements = relationship("Movement", back_populates="coffre")

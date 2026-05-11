@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+import encryption as enc
 from database import get_db
 from dependencies import get_current_user, log_audit, require_admin_csrf
 from models import Coffre, Inventory, InventoryDetail, Movement, MovementDetail, User
@@ -287,6 +288,60 @@ def get_history(coffre_id: int, page: int = 1, limit: int = 50,
     total = len(items)
     offset = (page - 1) * limit
     return {"total": total, "page": page, "limit": limit, "items": items[offset:offset + limit]}
+
+
+# ── Combination (code d'accès chiffré) ───────────────────
+
+class CombinationSet(BaseModel):
+    combination: str          # le code en clair (chiffré côté serveur)
+    hint: Optional[str] = None  # indice mémo, stocké en clair
+
+
+@router.get("/coffres/{coffre_id}/combination")
+def get_combination(coffre_id: int, db: Session = Depends(get_db),
+                    user: User = Depends(get_current_user)):
+    """Retourne le code déchiffré du coffre (utilisateur authentifié)."""
+    c = db.query(Coffre).filter(Coffre.id == coffre_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Coffre introuvable")
+    if not c.encrypted_combination:
+        raise HTTPException(status_code=404, detail="Aucun code enregistré")
+    combination = enc.decrypt(c.encrypted_combination).decode("utf-8")
+    return {"combination": combination, "hint": c.combination_hint}
+
+
+@router.put("/coffres/{coffre_id}/combination")
+def set_combination(coffre_id: int, data: CombinationSet, request: Request,
+                    db: Session = Depends(get_db),
+                    user: User = Depends(require_admin_csrf)):
+    """Enregistre ou met à jour le code du coffre (chiffré AES-256)."""
+    c = db.query(Coffre).filter(Coffre.id == coffre_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Coffre introuvable")
+    if not data.combination.strip():
+        raise HTTPException(status_code=400, detail="Le code ne peut pas être vide")
+    c.encrypted_combination = enc.encrypt(data.combination.encode("utf-8"))
+    c.combination_hint = data.hint or None
+    db.commit()
+    log_audit(db, user.id, "COFFRE_COMBINATION_SET",
+              f"Code du coffre '{c.name}' mis à jour", request)
+    return {"ok": True, "hint": c.combination_hint}
+
+
+@router.delete("/coffres/{coffre_id}/combination")
+def delete_combination(coffre_id: int, request: Request,
+                       db: Session = Depends(get_db),
+                       user: User = Depends(require_admin_csrf)):
+    """Supprime le code enregistré du coffre."""
+    c = db.query(Coffre).filter(Coffre.id == coffre_id).first()
+    if not c:
+        raise HTTPException(status_code=404, detail="Coffre introuvable")
+    c.encrypted_combination = None
+    c.combination_hint = None
+    db.commit()
+    log_audit(db, user.id, "COFFRE_COMBINATION_DELETED",
+              f"Code du coffre '{c.name}' supprimé", request)
+    return {"ok": True}
 
 
 # ── Formatters ────────────────────────────────────────────

@@ -133,6 +133,46 @@ function renderCaisseInterface() {
         </div>
         <div style="color:var(--text-muted);font-size:13px">Chargement…</div>
       </div>
+
+      <!-- Code d'accès -->
+      <div style="margin-top:20px;border-top:1px solid var(--border);padding-top:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+          <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em">🔑 Code d'accès</div>
+          ${isAdmin() ? `<button class="btn btn-ghost btn-sm" onclick="openSetCombinationModal(${coffre.id})">✏️ Modifier</button>` : ''}
+        </div>
+        <div id="combinationDisplay-${coffre.id}" style="display:flex;align-items:center;gap:10px">
+          <div style="font-family:var(--font-display);font-size:20px;letter-spacing:.3em;color:var(--text-muted)" id="combinationValue-${coffre.id}">●●●●●●</div>
+          <button class="btn btn-ghost btn-sm" onclick="revealCombination(${coffre.id})" id="revealBtn-${coffre.id}" title="Révéler le code">👁</button>
+          ${isAdmin() ? `<button class="btn btn-ghost danger btn-sm" onclick="deleteCombination(${coffre.id})" id="delComboBtn-${coffre.id}" style="display:none">🗑</button>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal code d'accès -->
+    <div class="modal-overlay" id="combinationModal">
+      <div class="modal" style="max-width:380px">
+        <div class="modal-header">
+          <span class="modal-title">🔑 Code d'accès du coffre</span>
+          <button class="modal-close" onclick="closeModal('combinationModal')">✕</button>
+        </div>
+        <form onsubmit="submitSetCombination(event)" class="form-grid" style="grid-template-columns:1fr">
+          <div class="form-group">
+            <label class="form-label">Code / Combinaison</label>
+            <input type="text" class="form-input" id="combinationInput" required
+              placeholder="ex: A-23-B-07 ou 1234*"
+              style="font-family:var(--font-display);font-size:18px;letter-spacing:.15em"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Indice mémo <span style="color:var(--text-muted)">(non chiffré, visible sans révéler)</span></label>
+            <input type="text" class="form-input" id="combinationHint" placeholder="ex: Date anniversaire en chiffres"/>
+          </div>
+          <input type="hidden" id="combinationCoffreId"/>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('combinationModal')">Annuler</button>
+            <button type="submit" class="btn btn-primary">Enregistrer</button>
+          </div>
+        </form>
+      </div>
     </div>`;
 }
 
@@ -436,6 +476,80 @@ async function deleteInventory(id) {
     try {
       await apiDelete(`/api/inventories/${id}`);
       showToast('Inventaire supprimé', 'success');
+      await loadCoffres();
+    } catch (err) { showToast(err.message, 'error'); }
+  });
+}
+
+// ── Code d'accès du coffre ────────────────────────────────
+
+let _revealTimer = null;
+
+async function revealCombination(coffreId) {
+  const valEl = document.getElementById(`combinationValue-${coffreId}`);
+  const btnEl = document.getElementById(`revealBtn-${coffreId}`);
+  const delEl = document.getElementById(`delComboBtn-${coffreId}`);
+
+  // Si déjà révélé → masquer
+  if (btnEl && btnEl.dataset.revealed === '1') {
+    valEl.textContent = '●●●●●●';
+    valEl.style.color = 'var(--text-muted)';
+    valEl.style.letterSpacing = '.3em';
+    btnEl.dataset.revealed = '0';
+    btnEl.title = 'Révéler le code';
+    if (_revealTimer) clearTimeout(_revealTimer);
+    return;
+  }
+
+  try {
+    const data = await apiGet(`/api/coffres/${coffreId}/combination`);
+    valEl.textContent = data.combination;
+    valEl.style.color = 'var(--accent-gold)';
+    valEl.style.letterSpacing = '.1em';
+    if (btnEl) { btnEl.dataset.revealed = '1'; btnEl.title = 'Masquer le code'; }
+    if (delEl) delEl.style.display = '';
+    // Masquer automatiquement après 30s
+    if (_revealTimer) clearTimeout(_revealTimer);
+    _revealTimer = setTimeout(() => revealCombination(coffreId), 30_000);
+  } catch (err) {
+    if (err.message.includes('404') || err.message.includes('Aucun')) {
+      valEl.textContent = 'Aucun code enregistré';
+      valEl.style.color = 'var(--text-muted)';
+      valEl.style.fontSize = '13px';
+      valEl.style.letterSpacing = 'normal';
+    } else {
+      showToast(err.message, 'error');
+    }
+  }
+}
+
+function openSetCombinationModal(coffreId) {
+  document.getElementById('combinationCoffreId').value = coffreId;
+  document.getElementById('combinationInput').value = '';
+  document.getElementById('combinationHint').value = '';
+  openModal('combinationModal');
+  setTimeout(() => document.getElementById('combinationInput').focus(), 100);
+}
+
+async function submitSetCombination(e) {
+  e.preventDefault();
+  const coffreId = document.getElementById('combinationCoffreId').value;
+  const combination = document.getElementById('combinationInput').value.trim();
+  const hint = document.getElementById('combinationHint').value.trim();
+  if (!combination) return;
+  try {
+    await apiPut(`/api/coffres/${coffreId}/combination`, { combination, hint: hint || null });
+    showToast('Code enregistré', 'success');
+    closeModal('combinationModal');
+    await loadCoffres();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+function deleteCombination(coffreId) {
+  confirm('Supprimer le code', 'Supprimer le code d\'accès de ce coffre ?', async () => {
+    try {
+      await apiDelete(`/api/coffres/${coffreId}/combination`);
+      showToast('Code supprimé', 'success');
       await loadCoffres();
     } catch (err) { showToast(err.message, 'error'); }
   });
