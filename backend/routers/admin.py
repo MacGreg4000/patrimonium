@@ -141,7 +141,9 @@ def list_coffres(db: Session = Depends(get_db), admin: User = Depends(require_ad
     coffres = db.query(Coffre).order_by(Coffre.created_at).all()
     return [
         {"id": c.id, "name": c.name, "description": c.description,
-         "is_active": c.is_active, "created_at": c.created_at}
+         "is_active": c.is_active, "created_at": c.created_at,
+         "combination_hint": c.combination_hint,
+         "has_combination": c.encrypted_combination is not None}
         for c in coffres
     ]
 

@@ -213,6 +213,9 @@ function openAddCoffreModal() {
   document.getElementById('coffreModalId').value = '';
   document.getElementById('coffreName').value = '';
   document.getElementById('coffreDesc').value = '';
+  document.getElementById('coffreCombination').value = '';
+  document.getElementById('coffreHint').value = '';
+  document.getElementById('coffreComboStatus').textContent = '';
   openModal('adminCoffreModal');
 }
 
@@ -223,6 +226,11 @@ function openEditCoffreModal(coffreId) {
   document.getElementById('coffreModalId').value = coffreId;
   document.getElementById('coffreName').value = c.name;
   document.getElementById('coffreDesc').value = c.description || '';
+  document.getElementById('coffreCombination').value = '';
+  document.getElementById('coffreHint').value = c.combination_hint || '';
+  document.getElementById('coffreComboStatus').innerHTML = c.has_combination
+    ? `<span style="color:var(--accent-green)">✓ Code enregistré${c.combination_hint ? ` — indice : "${escHtml(c.combination_hint)}"` : ''}</span>`
+    : `<span style="color:var(--text-muted)">Aucun code enregistré</span>`;
   openModal('adminCoffreModal');
 }
 
@@ -230,9 +238,21 @@ async function submitCoffreModal(e) {
   e.preventDefault();
   const id = document.getElementById('coffreModalId').value;
   const body = { name: document.getElementById('coffreName').value, description: document.getElementById('coffreDesc').value || null };
+  const combination = document.getElementById('coffreCombination').value.trim();
+  const hint = document.getElementById('coffreHint').value.trim();
   try {
-    if (id) { await apiPut(`/api/admin/coffres/${id}`, body); showToast('Coffre mis à jour', 'success'); }
-    else { await apiPost('/api/admin/coffres', body); showToast('Coffre créé', 'success'); }
+    let coffreId = id;
+    if (id) {
+      await apiPut(`/api/admin/coffres/${id}`, body);
+    } else {
+      const res = await apiPost('/api/admin/coffres', body);
+      coffreId = res.id;
+    }
+    // Si un code est saisi, l'enregistrer via l'endpoint dédié (chiffré AES-256)
+    if (combination && coffreId) {
+      await apiPut(`/api/coffres/${coffreId}/combination`, { combination, hint: hint || null });
+    }
+    showToast(id ? 'Coffre mis à jour' : 'Coffre créé', 'success');
     closeModal('adminCoffreModal');
     await loadAdmin();
   } catch (err) { showToast(err.message, 'error'); }
@@ -280,6 +300,12 @@ function buildAdminModals() {
         <form onsubmit="submitCoffreModal(event)" class="form-grid">
           <div class="form-group full"><label class="form-label">Nom</label><input type="text" class="form-input" id="coffreName" required/></div>
           <div class="form-group full"><label class="form-label">Description</label><textarea class="form-textarea" id="coffreDesc" rows="2"></textarea></div>
+          <div class="form-group full" style="border-top:1px solid var(--border);padding-top:14px;margin-top:4px">
+            <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🔑 Code d'accès (chiffré AES-256)</div>
+            <div id="coffreComboStatus" style="font-size:12px;color:var(--text-muted);margin-bottom:8px"></div>
+          </div>
+          <div class="form-group full"><label class="form-label">Code / Combinaison <span style="color:var(--text-muted);font-weight:400">(laisser vide pour ne pas modifier)</span></label><input type="text" class="form-input" id="coffreCombination" placeholder="ex: A-23-B-07" autocomplete="off"/></div>
+          <div class="form-group full"><label class="form-label">Indice mémo <span style="color:var(--text-muted);font-weight:400">(stocké en clair)</span></label><input type="text" class="form-input" id="coffreHint" placeholder="ex: Date d'anniversaire"/></div>
           <input type="hidden" id="coffreModalId"/>
           <div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal('adminCoffreModal')">Annuler</button><button type="submit" class="btn btn-primary">Enregistrer</button></div>
         </form>
