@@ -25,9 +25,10 @@ function renderDashboard(d) {
   const res = d.reserves;
 
   // Allocation percentages
-  const portPct  = grandTotal > 0 ? port.total_value_eur  / grandTotal * 100 : 0;
-  const cashPct  = grandTotal > 0 ? cash.total_eur         / grandTotal * 100 : 0;
-  const assetPct = grandTotal > 0 ? assets.total_value_eur / grandTotal * 100 : 0;
+  const portPct  = grandTotal > 0 ? port.total_value_eur    / grandTotal * 100 : 0;
+  const cashPct  = grandTotal > 0 ? cash.total_eur           / grandTotal * 100 : 0;
+  const assetPct = grandTotal > 0 ? assets.total_value_eur   / grandTotal * 100 : 0;
+  const resPct   = grandTotal > 0 ? res.total_releasable     / grandTotal * 100 : 0;
 
   page.innerHTML = `
     <!-- Hero row -->
@@ -51,6 +52,11 @@ function renderDashboard(d) {
         <div class="card-label">${ICONS.gem} Actifs physiques</div>
         <div class="hero-card-value purple" id="dHeroAssets">${fmtEur(assets.total_value_eur)}</div>
         <div class="hero-card-sub">${assets.count} actif${assets.count > 1 ? 's' : ''}</div>
+      </div>
+      <div class="hero-card">
+        <div class="card-label">${ICONS.wallet} Réserves libérables</div>
+        <div class="hero-card-value gold" id="dHeroRes">${fmtEur(res.total_releasable)}</div>
+        <div class="hero-card-sub" style="color:var(--text-muted)">constitué ${fmtEur(res.total_amount)}</div>
       </div>
     </div>
 
@@ -95,9 +101,10 @@ function renderDashboard(d) {
     <div class="card card-sm">
       <div class="card-title">Allocation globale du patrimoine</div>
       <div style="display:grid;gap:10px">
-        ${renderAllocBar('Portefeuille boursier', portPct, '#3B82F6', port.total_value_eur)}
+        ${renderAllocBar('Portefeuille boursier', portPct,  '#3B82F6', port.total_value_eur)}
         ${renderAllocBar('Liquidités coffres',   cashPct,  '#00D68F', cash.total_eur)}
         ${renderAllocBar('Actifs physiques',     assetPct, '#a855f7', assets.total_value_eur)}
+        ${renderAllocBar('Réserves libérables',  resPct,   '#F59E0B', res.total_releasable)}
       </div>
     </div>
   `;
@@ -120,6 +127,7 @@ function refreshDashboardValues(d) {
   $('dHeroPort').textContent   = fmtEur(d.portfolio.total_value_eur);
   $('dHeroCash').textContent   = fmtEur(d.cash.total_eur);
   $('dHeroAssets').textContent = fmtEur(d.assets.total_value_eur);
+  if ($('dHeroRes')) $('dHeroRes').textContent = fmtEur(d.reserves.total_releasable);
   updateLiveBadge(d.is_market_open, d.last_updated);
 }
 

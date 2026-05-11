@@ -126,9 +126,14 @@ function renderMonthlyBar(canvasId, entries, exits) {
 // ── Patrimoine donut (dashboard grand total) ───────────────
 
 function renderPatrimoineDonut(canvasId, data) {
-  const { portfolio, cash, assets } = data;
-  const labels = ['Portefeuille', 'Liquidités', 'Actifs physiques'];
-  const values = [portfolio.total_value_eur, cash.total_eur, assets.total_value_eur];
+  const { portfolio, cash, assets, reserves } = data;
+  const labels = ['Portefeuille', 'Liquidités', 'Actifs physiques', 'Réserves'];
+  const values = [
+    portfolio.total_value_eur,
+    cash.total_eur,
+    assets.total_value_eur,
+    reserves?.total_releasable || 0,
+  ];
   renderDonut(canvasId, labels, values, canvasId + 'Legend');
 }
 

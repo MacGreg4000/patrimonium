@@ -39,6 +39,8 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
             price_eur = price_eur or 0.0
             prev_eur = prev_eur or price_eur
         m = calculations.calc_position_metrics(pos, price_eur, prev_eur, 1.0)
+        m["display_name"] = pos.display_name
+        m["ticker"] = pos.ticker
         pos_data.append(m)
         total_portfolio_value += m["current_value"]
         total_portfolio_invested += m["total_invested"]
