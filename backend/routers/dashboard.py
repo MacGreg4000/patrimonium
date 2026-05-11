@@ -6,7 +6,7 @@ import calculations
 import market_data as md
 from database import get_db
 from dependencies import get_current_user
-from models import Coffre, Inventory, Movement, PhysicalAsset, Position, Reserve, User
+from models import AssetDocument, Coffre, Inventory, Movement, PasswordFile, PhysicalAsset, Position, Reserve, User
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -100,7 +100,11 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
         else:
             monthly_exits[key] = monthly_exits.get(key, 0.0) + m.amount
 
-    # ── 7. Portfolio top movers ───────────────────────────
+    # ── 7. Fichiers chiffrés ──────────────────────────────
+    password_file_count = db.query(PasswordFile).filter(PasswordFile.user_id == user.id).count()
+    asset_doc_count     = db.query(AssetDocument).count()
+
+    # ── 8. Portfolio top movers ───────────────────────────
     movers = sorted(pos_data, key=lambda x: x.get("pnl_pct") or 0, reverse=True)
     top_gainers = movers[:3]
     top_losers = sorted(pos_data, key=lambda x: x.get("pnl_pct") or 0)[:3]
@@ -144,6 +148,13 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
             "total_precompte":  total_precompte,
             "total_releasable": total_releasable,
             "total_net_recu":   total_released - total_precompte,
+        },
+
+        # Fichiers
+        "files": {
+            "password_count": password_file_count,
+            "asset_doc_count": asset_doc_count,
+            "total_count": password_file_count + asset_doc_count,
         },
 
         # Cash flow chart data

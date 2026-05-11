@@ -19,20 +19,25 @@ function renderDashboard(d) {
   if (!page) return;
 
   const grandTotal = d.grand_total_eur;
-  const port = d.portfolio;
-  const cash = d.cash;
+  const port  = d.portfolio;
+  const cash  = d.cash;
   const assets = d.assets;
-  const res = d.reserves;
+  const res   = d.reserves;
+  const files = d.files || {};
 
   // Allocation percentages
-  const portPct  = grandTotal > 0 ? port.total_value_eur    / grandTotal * 100 : 0;
-  const cashPct  = grandTotal > 0 ? cash.total_eur           / grandTotal * 100 : 0;
-  const assetPct = grandTotal > 0 ? assets.total_value_eur   / grandTotal * 100 : 0;
-  const resPct   = grandTotal > 0 ? res.total_releasable     / grandTotal * 100 : 0;
+  const portPct  = grandTotal > 0 ? port.total_value_eur  / grandTotal * 100 : 0;
+  const cashPct  = grandTotal > 0 ? cash.total_eur         / grandTotal * 100 : 0;
+  const assetPct = grandTotal > 0 ? assets.total_value_eur / grandTotal * 100 : 0;
+  const resPct   = grandTotal > 0 ? res.total_releasable   / grandTotal * 100 : 0;
+
+  // Day change %
+  const prevTotal = port.total_value_eur - port.day_change_eur;
+  const dayChangePct = prevTotal > 0 ? port.day_change_eur / prevTotal * 100 : null;
 
   page.innerHTML = `
-    <!-- Hero row -->
-    <div class="hero-grid">
+    <!-- Ligne 1 : totaux patrimoine -->
+    <div class="hero-grid" style="margin-bottom:12px">
       <div class="hero-card">
         <div class="card-label">${ICONS.pieChart} Patrimoine total</div>
         <div class="hero-card-value gold" id="dHeroTotal">${fmtEur(grandTotal)}</div>
@@ -53,10 +58,29 @@ function renderDashboard(d) {
         <div class="hero-card-value purple" id="dHeroAssets">${fmtEur(assets.total_value_eur)}</div>
         <div class="hero-card-sub">${assets.count} actif${assets.count > 1 ? 's' : ''}</div>
       </div>
+    </div>
+
+    <!-- Ligne 2 : métriques -->
+    <div class="hero-grid" style="margin-bottom:20px">
       <div class="hero-card">
         <div class="card-label">${ICONS.wallet} Réserves libérables</div>
         <div class="hero-card-value gold" id="dHeroRes">${fmtEur(res.total_releasable)}</div>
         <div class="hero-card-sub" style="color:var(--text-muted)">constitué ${fmtEur(res.total_amount)}</div>
+      </div>
+      <div class="hero-card">
+        <div class="card-label">${ICONS.chartUp} Variation du jour</div>
+        <div class="hero-card-value ${pnlClass(port.day_change_eur)}" id="dHeroDayChange">${pnlSign(port.day_change_eur)}${fmtEur(port.day_change_eur)}</div>
+        <div class="hero-card-sub ${pnlClass(port.day_change_eur)}">${dayChangePct !== null ? pnlSign(dayChangePct) + fmtPct(dayChangePct) : '—'}</div>
+      </div>
+      <div class="hero-card">
+        <div class="card-label">${ICONS.trendingUp} Performance totale</div>
+        <div class="hero-card-value ${pnlClass(port.total_pnl_eur)}" id="dHeroPnl">${pnlSign(port.total_pnl_eur)}${fmtEur(port.total_pnl_eur)}</div>
+        <div class="hero-card-sub ${pnlClass(port.total_pnl_pct)}">${pnlSign(port.total_pnl_pct)}${fmtPct(port.total_pnl_pct)} sur le portefeuille</div>
+      </div>
+      <div class="hero-card">
+        <div class="card-label">🔐 Fichiers sécurisés</div>
+        <div class="hero-card-value" id="dHeroFiles" style="color:var(--text-primary)">${files.total_count ?? 0}</div>
+        <div class="hero-card-sub" style="color:var(--text-muted)">${files.password_count ?? 0} mots de passe · ${files.asset_doc_count ?? 0} doc${(files.asset_doc_count ?? 0) > 1 ? 's' : ''} actifs</div>
       </div>
     </div>
 
@@ -123,11 +147,14 @@ function renderDashboard(d) {
 function refreshDashboardValues(d) {
   const $ = id => document.getElementById(id);
   if (!$('dHeroTotal')) return; // page pas encore rendue, on ignore
-  $('dHeroTotal').textContent  = fmtEur(d.grand_total_eur);
-  $('dHeroPort').textContent   = fmtEur(d.portfolio.total_value_eur);
-  $('dHeroCash').textContent   = fmtEur(d.cash.total_eur);
-  $('dHeroAssets').textContent = fmtEur(d.assets.total_value_eur);
-  if ($('dHeroRes')) $('dHeroRes').textContent = fmtEur(d.reserves.total_releasable);
+  $('dHeroTotal').textContent      = fmtEur(d.grand_total_eur);
+  $('dHeroPort').textContent       = fmtEur(d.portfolio.total_value_eur);
+  $('dHeroCash').textContent       = fmtEur(d.cash.total_eur);
+  $('dHeroAssets').textContent     = fmtEur(d.assets.total_value_eur);
+  if ($('dHeroRes'))       $('dHeroRes').textContent       = fmtEur(d.reserves.total_releasable);
+  if ($('dHeroDayChange')) $('dHeroDayChange').textContent = pnlSign(d.portfolio.day_change_eur) + fmtEur(d.portfolio.day_change_eur);
+  if ($('dHeroPnl'))       $('dHeroPnl').textContent       = pnlSign(d.portfolio.total_pnl_eur) + fmtEur(d.portfolio.total_pnl_eur);
+  if ($('dHeroFiles'))     $('dHeroFiles').textContent     = (d.files?.total_count ?? 0);
   updateLiveBadge(d.is_market_open, d.last_updated);
 }
 
