@@ -142,15 +142,26 @@ def _collect_data(db: Session, user: User) -> dict:
     # Réserves
     reserves_data = []
     for r in db.query(Reserve).filter(Reserve.user_id == user.id).all():
+        precompte = r.precompte_paye or 0.0
+        released  = r.released or 0.0
         reserves_data.append({
             "year": r.year, "month": r.month, "amount": r.amount,
-            "release_year": r.release_year, "released": r.released, "notes": r.notes,
+            "release_year": r.release_year,
+            "released": released,
+            "precompte_paye": precompte,
+            "net_recu": released - precompte,
+            "releasable": max(0.0, r.amount - released),
+            "notes": r.notes,
         })
 
     # Totaux
-    total_portfolio = sum(p["value_eur"] or 0 for p in portfolio_items)
-    total_cash = sum(c["balance"] for c in coffres_data)
-    total_assets = sum((a["estimated_value"] or 0) for a in assets_data)
+    total_portfolio      = sum(p["value_eur"] or 0 for p in portfolio_items)
+    total_cash           = sum(c["balance"] for c in coffres_data)
+    total_assets         = sum((a["estimated_value"] or 0) for a in assets_data)
+    total_releasable_res = sum(r["releasable"] for r in reserves_data)
+    total_released_res   = sum(r["released"] for r in reserves_data)
+    total_precompte_res  = sum(r["precompte_paye"] for r in reserves_data)
+    total_amount_res     = sum(r["amount"] for r in reserves_data)
 
     return {
         "meta": {
@@ -159,10 +170,18 @@ def _collect_data(db: Session, user: User) -> dict:
             "owner_email": user.email,
         },
         "summary": {
-            "total_portfolio_eur": total_portfolio,
-            "total_cash_eur": total_cash,
-            "total_assets_eur": total_assets,
-            "grand_total_eur": total_portfolio + total_cash + total_assets,
+            "total_portfolio_eur":  total_portfolio,
+            "total_cash_eur":       total_cash,
+            "total_assets_eur":     total_assets,
+            "total_reserves_eur":   total_releasable_res,
+            "grand_total_eur":      total_portfolio + total_cash + total_assets + total_releasable_res,
+            "reserves_stats": {
+                "total_amount":     total_amount_res,
+                "total_releasable": total_releasable_res,
+                "total_released":   total_released_res,
+                "total_precompte":  total_precompte_res,
+                "total_net_recu":   total_released_res - total_precompte_res,
+            },
         },
         "portfolio": portfolio_items,
         "coffres": coffres_data,
@@ -429,6 +448,7 @@ function renderSummary(data) {{
       <div class="card"><div class="card-label">📈 Portefeuille</div><div class="card-value green">${{eur(s.total_portfolio_eur)}}</div></div>
       <div class="card"><div class="card-label">🏦 Liquidités</div><div class="card-value yellow">${{eur(s.total_cash_eur)}}</div></div>
       <div class="card"><div class="card-label">💎 Actifs physiques</div><div class="card-value purple">${{eur(s.total_assets_eur)}}</div></div>
+      <div class="card"><div class="card-label">📅 Réserves libérables</div><div class="card-value">${{eur(s.total_reserves_eur)}}</div></div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="card">
@@ -570,34 +590,57 @@ function renderAssets(data) {{
 
 function renderReserves(data) {{
   const reserves = data.reserves || [];
+  const rs = (data.summary && data.summary.reserves_stats) || {{}};
   const years = [...new Set(reserves.map(r=>r.year))].sort((a,b)=>b-a);
-  const MONTHS = ['Janv','Févr','Mars','Avr','Mai','Juin','Juil','Août','Sept','Oct','Nov','Déc'];
-  const totalAmt = reserves.reduce((s,r)=>s+r.amount,0);
-  const totalRel = reserves.reduce((s,r)=>s+r.released,0);
 
-  const blocks = years.map(yr => {{
-    const yReserves = reserves.filter(r=>r.year===yr).sort((a,b)=>a.month-b.month);
-    const rows = yReserves.map(r=>`
-      <tr><td class="left">${{MONTHS[r.month-1]}}</td><td>${{eur(r.amount)}}</td>
-      <td style="color:var(--text2)">${{r.release_year||'—'}}</td>
-      <td>${{eur(r.released)}}</td>
-      <td class="pos">${{eur(Math.max(0,r.amount-r.released))}}</td>
-      <td class="left" style="color:var(--text2)">${{esc(r.notes||'—')}}</td></tr>`).join('');
-    return `<div class="yr-block">
-      <div class="yr-title">${{yr}}</div>
-      <div class="table-wrap"><table>
-        <thead><tr><th class="left">Mois</th><th>Montant</th><th>Année libér.</th><th>Libéré</th><th>Libérable</th><th class="left">Note</th></tr></thead>
-        <tbody>${{rows}}</tbody>
-      </table></div></div>`;
+  // Aggregate by year
+  const byYear = {{}};
+  reserves.forEach(r => {{
+    if (!byYear[r.year]) byYear[r.year] = {{amount:0,released:0,precompte_paye:0,net_recu:0,releasable:0,release_year:r.release_year,notes:r.notes}};
+    const y = byYear[r.year];
+    y.amount        += r.amount        || 0;
+    y.released      += r.released      || 0;
+    y.precompte_paye+= r.precompte_paye|| 0;
+    y.net_recu      += r.net_recu      || 0;
+    y.releasable    += r.releasable    || 0;
+  }});
+
+  const rows = years.map(yr => {{
+    const y = byYear[yr];
+    return `<tr>
+      <td class="left" style="font-weight:600">${{yr}}</td>
+      <td>${{eur(y.amount)}}</td>
+      <td>${{eur(y.released)}}</td>
+      <td style="color:var(--text2)">${{eur(y.precompte_paye)}}</td>
+      <td class="${{y.net_recu>0?'pos':''}}">${{eur(y.net_recu)}}</td>
+      <td class="${{y.releasable>0?'pos':''}}">${{eur(y.releasable)}}</td>
+      <td class="left" style="color:var(--text2)">${{esc(y.notes||'—')}}</td>
+    </tr>`;
   }}).join('');
 
   document.getElementById('tab-reserves').innerHTML = `
     <div class="summary-grid" style="margin-bottom:24px">
-      <div class="card"><div class="card-label">Total constitué</div><div class="card-value">${{eur(totalAmt)}}</div></div>
-      <div class="card"><div class="card-label">Total libéré</div><div class="card-value">${{eur(totalRel)}}</div></div>
-      <div class="card"><div class="card-label">Libérable</div><div class="card-value green">${{eur(Math.max(0,totalAmt-totalRel))}}</div></div>
+      <div class="card"><div class="card-label">Total constitué</div><div class="card-value blue">${{eur(rs.total_amount||0)}}</div></div>
+      <div class="card"><div class="card-label">Encore libérable</div><div class="card-value yellow">${{eur(rs.total_releasable||0)}}</div></div>
+      <div class="card"><div class="card-label">Libéré (brut)</div><div class="card-value green">${{eur(rs.total_released||0)}}</div></div>
+      <div class="card">
+        <div class="card-label">Net reçu total</div>
+        <div class="card-value green">${{eur(rs.total_net_recu||0)}}</div>
+        <div style="font-size:11px;color:var(--text2);margin-top:2px">après précompte ${{eur(rs.total_precompte||0)}}</div>
+      </div>
     </div>
-    ${{blocks}}`;
+    <div class="card" style="padding:0"><div class="table-wrap"><table>
+      <thead><tr>
+        <th class="left">Année</th>
+        <th>Montant constitué</th>
+        <th>Libéré (brut)</th>
+        <th>Précompte payé</th>
+        <th>Net reçu</th>
+        <th>Encore libérable</th>
+        <th class="left">Note</th>
+      </tr></thead>
+      <tbody>${{rows || '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text2)">Aucune réserve</td></tr>'}}</tbody>
+    </table></div></div>`;
 }}
 
 function renderVault(data) {{
