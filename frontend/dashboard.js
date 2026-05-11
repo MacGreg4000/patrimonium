@@ -36,17 +36,12 @@ function renderDashboard(d) {
   const dayChangePct = prevTotal > 0 ? port.day_change_eur / prevTotal * 100 : null;
 
   page.innerHTML = `
-    <!-- Ligne 1 : totaux patrimoine -->
+    <!-- Ligne 1 : patrimoine global -->
     <div class="hero-grid" style="margin-bottom:12px">
       <div class="hero-card">
         <div class="card-label">${ICONS.pieChart} Patrimoine total</div>
         <div class="hero-card-value gold" id="dHeroTotal">${fmtEur(grandTotal)}</div>
         <div class="hero-card-sub">${d.is_market_open ? '<span style="color:var(--accent-green)">● Marché ouvert</span>' : '<span style="color:var(--text-muted)">● Marché fermé</span>'}</div>
-      </div>
-      <div class="hero-card">
-        <div class="card-label">${ICONS.trendingUp} Portefeuille boursier</div>
-        <div class="hero-card-value blue" id="dHeroPort">${fmtEur(port.total_value_eur)}</div>
-        <div class="hero-card-sub ${pnlClass(port.total_pnl_eur)}">${pnlSign(port.total_pnl_eur)}${fmtEur(port.total_pnl_eur)} (${pnlSign(port.total_pnl_pct)}${fmtPct(port.total_pnl_pct)})</div>
       </div>
       <div class="hero-card">
         <div class="card-label">${ICONS.landmark} Liquidités coffres</div>
@@ -58,24 +53,30 @@ function renderDashboard(d) {
         <div class="hero-card-value purple" id="dHeroAssets">${fmtEur(assets.total_value_eur)}</div>
         <div class="hero-card-sub">${assets.count} actif${assets.count > 1 ? 's' : ''}</div>
       </div>
-    </div>
-
-    <!-- Ligne 2 : métriques -->
-    <div class="hero-grid" style="margin-bottom:20px">
       <div class="hero-card">
         <div class="card-label">${ICONS.wallet} Réserves libérables</div>
         <div class="hero-card-value gold" id="dHeroRes">${fmtEur(res.total_releasable)}</div>
         <div class="hero-card-sub" style="color:var(--text-muted)">constitué ${fmtEur(res.total_amount)}</div>
       </div>
+    </div>
+
+    <!-- Ligne 2 : portefeuille boursier -->
+    <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;padding-left:2px">${ICONS.trendingUp} Portefeuille boursier</div>
+    <div class="hero-grid" style="margin-bottom:20px">
+      <div class="hero-card">
+        <div class="card-label">Valeur actuelle</div>
+        <div class="hero-card-value blue" id="dHeroPort">${fmtEur(port.total_value_eur)}</div>
+        <div class="hero-card-sub">${port.position_count} position${port.position_count > 1 ? 's' : ''}</div>
+      </div>
       <div class="hero-card">
         <div class="card-label">${ICONS.chartUp} Variation du jour</div>
         <div class="hero-card-value ${pnlClass(port.day_change_eur)}" id="dHeroDayChange">${pnlSign(port.day_change_eur)}${fmtEur(port.day_change_eur)}</div>
-        <div class="hero-card-sub ${pnlClass(port.day_change_eur)}">${dayChangePct !== null ? pnlSign(dayChangePct) + fmtPct(dayChangePct) : '—'}</div>
+        <div class="hero-card-sub ${pnlClass(dayChangePct)}">${dayChangePct !== null ? pnlSign(dayChangePct) + fmtPct(dayChangePct) : '—'}</div>
       </div>
       <div class="hero-card">
-        <div class="card-label">${ICONS.trendingUp} Performance totale</div>
+        <div class="card-label">Performance totale</div>
         <div class="hero-card-value ${pnlClass(port.total_pnl_eur)}" id="dHeroPnl">${pnlSign(port.total_pnl_eur)}${fmtEur(port.total_pnl_eur)}</div>
-        <div class="hero-card-sub ${pnlClass(port.total_pnl_pct)}">${pnlSign(port.total_pnl_pct)}${fmtPct(port.total_pnl_pct)} sur le portefeuille</div>
+        <div class="hero-card-sub ${pnlClass(port.total_pnl_pct)}">${pnlSign(port.total_pnl_pct)}${fmtPct(port.total_pnl_pct)}</div>
       </div>
       <div class="hero-card">
         <div class="card-label">🔐 Fichiers sécurisés</div>
