@@ -1,4 +1,4 @@
-"""Reserves router: annual/monthly financial reserves."""
+"""Reserves router: réserves de liquidation / dividendes société."""
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -20,13 +20,19 @@ class ReserveCreate(BaseModel):
     amount: float = 0.0
     release_year: Optional[int] = None
     released: float = 0.0
+    precompte_paye: float = 0.0
     notes: Optional[str] = None
 
 class ReserveUpdate(BaseModel):
     amount: Optional[float] = None
     release_year: Optional[int] = None
     released: Optional[float] = None
+    precompte_paye: Optional[float] = None
     notes: Optional[str] = None
+
+class ReserveLiberate(BaseModel):
+    montant: float          # montant brut libéré
+    precompte: float = 0.0  # précompte mobilier exact payé
 
 
 @router.get("")
@@ -37,14 +43,17 @@ def list_reserves(db: Session = Depends(get_db), user: User = Depends(get_curren
         .order_by(Reserve.year.desc(), Reserve.month.desc())
         .all()
     )
-    total_amount = sum(r.amount for r in reserves)
-    total_released = sum(r.released for r in reserves)
+    total_amount    = sum(r.amount for r in reserves)
+    total_released  = sum(r.released for r in reserves)
+    total_precompte = sum(r.precompte_paye for r in reserves)
     total_releasable = sum(r.amount - r.released for r in reserves if r.amount > r.released)
     return {
         "stats": {
-            "total_amount": total_amount,
-            "total_released": total_released,
+            "total_amount":     total_amount,
+            "total_released":   total_released,
+            "total_precompte":  total_precompte,
             "total_releasable": total_releasable,
+            "total_net_recu":   total_released - total_precompte,
         },
         "items": [_fmt(r) for r in reserves],
     }
@@ -63,7 +72,28 @@ def create_reserve(data: ReserveCreate, request: Request,
     db.commit()
     db.refresh(r)
     log_audit(db, user.id, "RESERVE_CREATED",
-              f"Réserve créée: {data.year}/{data.month:02d} — {data.amount}€", request)
+              f"Réserve créée: {data.year} — {data.amount}€", request)
+    return _fmt(r)
+
+
+@router.post("/{reserve_id}/liberate")
+def liberate_reserve(reserve_id: int, data: ReserveLiberate, request: Request,
+                     db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
+    """Enregistre une libération partielle ou totale avec le précompte exact payé."""
+    r = db.query(Reserve).filter(Reserve.id == reserve_id, Reserve.user_id == user.id).first()
+    if not r:
+        raise HTTPException(status_code=404, detail="Réserve introuvable")
+    releasable = max(0.0, r.amount - r.released)
+    if data.montant <= 0:
+        raise HTTPException(status_code=400, detail="Le montant doit être positif")
+    if data.montant > releasable + 0.01:
+        raise HTTPException(status_code=400,
+                            detail=f"Montant supérieur au solde libérable ({releasable:.2f} €)")
+    r.released       += data.montant
+    r.precompte_paye += data.precompte
+    db.commit()
+    log_audit(db, user.id, "RESERVE_LIBERATED",
+              f"Réserve {r.year} : {data.montant}€ libérés, précompte {data.precompte}€", request)
     return _fmt(r)
 
 
@@ -96,7 +126,7 @@ def update_reserve(reserve_id: int, data: ReserveUpdate, request: Request,
         setattr(r, k, v)
     db.commit()
     log_audit(db, user.id, "RESERVE_UPDATED",
-              f"Réserve modifiée: {r.year}/{r.month:02d}", request)
+              f"Réserve modifiée: {r.year}", request)
     return _fmt(r)
 
 
@@ -106,10 +136,9 @@ def delete_reserve(reserve_id: int, request: Request,
     r = db.query(Reserve).filter(Reserve.id == reserve_id, Reserve.user_id == user.id).first()
     if not r:
         raise HTTPException(status_code=404, detail="Réserve introuvable")
-    label = f"{r.year}/{r.month:02d}"
     db.delete(r)
     db.commit()
-    log_audit(db, user.id, "RESERVE_DELETED", f"Réserve supprimée: {label}", request)
+    log_audit(db, user.id, "RESERVE_DELETED", f"Réserve supprimée: {r.year}", request)
     return {"ok": True}
 
 
@@ -118,6 +147,8 @@ def _fmt(r: Reserve) -> dict:
         "id": r.id, "year": r.year, "month": r.month,
         "month_label": MONTHS_FR[r.month - 1],
         "amount": r.amount, "release_year": r.release_year,
-        "released": r.released, "releasable": max(0.0, r.amount - r.released),
+        "released": r.released, "precompte_paye": r.precompte_paye or 0.0,
+        "net_recu": (r.released or 0.0) - (r.precompte_paye or 0.0),
+        "releasable": max(0.0, r.amount - (r.released or 0.0)),
         "notes": r.notes, "updated_at": r.updated_at,
     }

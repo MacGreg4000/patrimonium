@@ -230,6 +230,7 @@ class Reserve(Base):
     amount = Column(Float, default=0.0)
     release_year = Column(Integer, nullable=True)
     released = Column(Float, default=0.0)
+    precompte_paye = Column(Float, default=0.0)   # précompte mobilier payé à la libération
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

@@ -72,13 +72,14 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
 
     # ── 4. Réserves ───────────────────────────────────────
     reserves = db.query(Reserve).filter(Reserve.user_id == user.id).all()
-    total_reserves = sum(r.amount for r in reserves)
-    total_released = sum(r.released for r in reserves)
-    total_releasable = sum(max(0.0, r.amount - r.released) for r in reserves)
+    total_reserves   = sum(r.amount for r in reserves)
+    total_released   = sum(r.released or 0.0 for r in reserves)
+    total_precompte  = sum(r.precompte_paye or 0.0 for r in reserves)
+    total_releasable = sum(max(0.0, r.amount - (r.released or 0.0)) for r in reserves)
 
     # ── 5. Grand total patrimoine ─────────────────────────
-    grand_total = total_portfolio_value + total_cash + total_assets_value
-    # Reserves aren't counted in grand total (they're part of other buckets)
+    # Les réserves sont incluses en valeur brute (= non encore libérées)
+    grand_total = total_portfolio_value + total_cash + total_assets_value + total_releasable
 
     # ── 6. Monthly cash flow (last 6 months) ─────────────
     from sqlalchemy import func, extract
@@ -134,11 +135,13 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
             "by_category": cat_totals,
         },
 
-        # Réserves
+        # Réserves de liquidation / dividendes société
         "reserves": {
-            "total_amount": total_reserves,
-            "total_released": total_released,
+            "total_amount":     total_reserves,
+            "total_released":   total_released,
+            "total_precompte":  total_precompte,
             "total_releasable": total_releasable,
+            "total_net_recu":   total_released - total_precompte,
         },
 
         # Cash flow chart data

@@ -40,6 +40,8 @@ _MIGRATIONS: list[tuple[str, str]] = [
      "CREATE INDEX IF NOT EXISTS ix_positions_isin ON positions (isin)"),
     ("physical_assets.location column",
      "ALTER TABLE physical_assets ADD COLUMN IF NOT EXISTS location VARCHAR(300)"),
+    ("reserves.precompte_paye column",
+     "ALTER TABLE reserves ADD COLUMN IF NOT EXISTS precompte_paye FLOAT DEFAULT 0.0"),
 ]
 
 
