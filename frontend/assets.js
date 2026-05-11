@@ -95,7 +95,9 @@ function renderAssetRows(assets, filter = '', catFilter = '') {
 
   return filtered.map(a => {
     const lastVal = a.events?.filter(e => e.type === 'VALUATION').sort((x, y) => y.date.localeCompare(x.date))[0];
-    const locStr = a.coffre_id ? `🏦 ${escHtml(coffreMap[a.coffre_id] || 'Coffre')}` : '—';
+    const locStr = a.category === 'immo' && a.location
+      ? `🏠 ${escHtml(a.location)}`
+      : a.coffre_id ? `🏦 ${escHtml(coffreMap[a.coffre_id] || 'Coffre')}` : '—';
     return `
       <tr onclick="toggleAssetExpand(${a.id})" id="asset-row-${a.id}">
         <td class="left" style="padding-left:24px">
@@ -140,6 +142,8 @@ function buildAssetDetails(a) {
     </tbody></table>`;
 
   const DOC_TYPE_LABELS = {
+    acte_notarie: '📜 Acte notarié', compromis: '🤝 Compromis', titre_propriete: '🏛 Titre de propriété',
+    peb: '⚡ PEB', plan: '📐 Plan/cadastre',
     facture: '🧾 Facture', carte_grise: '📋 Carte grise', assurance: '🛡 Assurance',
     controle_technique: '🔧 CT', certificat: '📜 Certificat', photo: '📷 Photo', autre: '📄 Autre',
   };
@@ -158,6 +162,13 @@ function buildAssetDetails(a) {
       </div>`).join('')}
     </div>`;
 
+  // Immo info panel
+  const immoHtml = a.category === 'immo' && a.location ? `
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">🏠 Localisation du bien</div>
+      <div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:13px">${escHtml(a.location)}</div>
+    </div>` : '';
+
   // Vehicle info panel
   const vehicleHtml = a.category === 'vehicule' ? `
     <div style="margin-bottom:20px">
@@ -175,6 +186,7 @@ function buildAssetDetails(a) {
 
   return `
     <div style="padding-bottom:4px">
+      ${immoHtml}
       ${vehicleHtml}
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px">
         <div>
@@ -230,7 +242,7 @@ function addAssetModals() {
             </select>
           </div>
           <div class="form-group"><label class="form-label">Valeur estimée (€)</label><input type="number" class="form-input" id="assetValue" step="0.01" placeholder="0.00"/></div>
-          <div class="form-group"><label class="form-label">Coffre</label>
+          <div class="form-group" id="assetCoffreRow"><label class="form-label">Coffre</label>
             <select class="form-select" id="assetCoffre"><option value="">—</option>${coffreOptions}</select>
           </div>
           <div class="form-group full"><label class="form-label">Description</label><textarea class="form-textarea" id="assetDesc" rows="2"></textarea></div>
@@ -296,13 +308,24 @@ function addAssetModals() {
           <div class="form-group" style="margin-bottom:14px"><label class="form-label">Fichier (max 20 MB)</label><input type="file" class="form-input" id="docFile" required/></div>
           <div class="form-group" style="margin-bottom:14px"><label class="form-label">Type de document</label>
             <select class="form-select" id="docType"><option value="">—</option>
-              <option value="facture">Facture d'achat</option>
-              <option value="carte_grise">Carte grise</option>
-              <option value="assurance">Assurance</option>
-              <option value="controle_technique">Contrôle technique</option>
-              <option value="certificat">Certificat</option>
-              <option value="photo">Photo</option>
-              <option value="autre">Autre</option>
+              <optgroup label="Immobilier">
+                <option value="acte_notarie">Acte notarié</option>
+                <option value="compromis">Compromis de vente</option>
+                <option value="titre_propriete">Titre de propriété</option>
+                <option value="peb">Certificat PEB</option>
+                <option value="plan">Plan / cadastre</option>
+              </optgroup>
+              <optgroup label="Véhicule">
+                <option value="carte_grise">Carte grise</option>
+                <option value="controle_technique">Contrôle technique</option>
+              </optgroup>
+              <optgroup label="Général">
+                <option value="facture">Facture d'achat</option>
+                <option value="assurance">Assurance</option>
+                <option value="certificat">Certificat</option>
+                <option value="photo">Photo</option>
+                <option value="autre">Autre</option>
+              </optgroup>
             </select>
           </div>
           <div class="form-group" style="margin-bottom:20px"><label class="form-label">Note</label><input type="text" class="form-input" id="docNotes"/></div>
@@ -314,10 +337,13 @@ function addAssetModals() {
 }
 
 function toggleCatFields(cat) {
-  const vf = document.getElementById('vehicleFields');
+  const vf  = document.getElementById('vehicleFields');
   const imf = document.getElementById('immoFields');
+  const coffreRow = document.getElementById('assetCoffreRow');
   if (vf)  vf.style.display  = cat === 'vehicule' ? 'block' : 'none';
   if (imf) imf.style.display = cat === 'immo'     ? 'block' : 'none';
+  // Le coffre n'a pas de sens pour un bien immobilier
+  if (coffreRow) coffreRow.style.display = cat === 'immo' ? 'none' : '';
 }
 
 // Legacy alias kept for any inline onchange still using it
