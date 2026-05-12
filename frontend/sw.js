@@ -5,7 +5,7 @@
    ═══════════════════════════════════════════════ */
 'use strict';
 
-const CACHE_NAME = 'patrimonium-v1';
+const CACHE_NAME = 'patrimonium-v2';
 
 // Assets statiques à mettre en cache lors de l'installation
 const STATIC_ASSETS = [
@@ -58,11 +58,9 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   if (!url.protocol.startsWith('http')) return;
 
-  // API calls → network-first (données toujours fraîches)
-  if (url.pathname.startsWith('/api/')) {
-    event.respondWith(networkFirst(event.request));
-    return;
-  }
+  // API calls → laisser le navigateur gérer directement
+  // (pas de cache, et Safari refuse les re-fetch authentifiés depuis un SW)
+  if (url.pathname.startsWith('/api/')) return;
 
   // Assets statiques → cache-first
   if (url.pathname.startsWith('/static/') || url.pathname === '/') {
@@ -96,15 +94,3 @@ async function cacheFirst(request) {
   }
 }
 
-async function networkFirst(request) {
-  try {
-    const response = await fetch(request);
-    return response;
-  } catch {
-    // En cas d'erreur réseau, on retourne une réponse JSON d'erreur
-    return new Response(
-      JSON.stringify({ detail: 'Hors ligne — données non disponibles.' }),
-      { status: 503, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
-}
