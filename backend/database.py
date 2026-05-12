@@ -46,6 +46,14 @@ _MIGRATIONS: list[tuple[str, str]] = [
      "ALTER TABLE coffres ADD COLUMN IF NOT EXISTS encrypted_combination BYTEA"),
     ("coffres.combination_hint column",
      "ALTER TABLE coffres ADD COLUMN IF NOT EXISTS combination_hint VARCHAR(200)"),
+    ("physical_assets.sold_at column",
+     "ALTER TABLE physical_assets ADD COLUMN IF NOT EXISTS sold_at TIMESTAMPTZ"),
+    ("physical_assets.sale_price column",
+     "ALTER TABLE physical_assets ADD COLUMN IF NOT EXISTS sale_price FLOAT"),
+    ("physical_assets.sale_destination column",
+     "ALTER TABLE physical_assets ADD COLUMN IF NOT EXISTS sale_destination VARCHAR(50)"),
+    ("physical_assets.sale_notes column",
+     "ALTER TABLE physical_assets ADD COLUMN IF NOT EXISTS sale_notes VARCHAR(500)"),
 ]
 
 

@@ -173,6 +173,12 @@ class PhysicalAsset(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
     updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
+    # ── Vente (archivage) ───────────────────────────────────
+    sold_at = Column(DateTime(timezone=True), nullable=True)           # null = non vendu
+    sale_price = Column(Float, nullable=True)
+    sale_destination = Column(String(50), nullable=True)               # portfolio|bank|coffre|cash|other
+    sale_notes = Column(String(500), nullable=True)
+
     # ── Véhicule (renseignés uniquement si category == 'vehicule') ──
     vehicle_make = Column(String(100), nullable=True)    # Marque (ex: BMW)
     vehicle_model = Column(String(100), nullable=True)   # Modèle (ex: Série 3)

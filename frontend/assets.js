@@ -4,12 +4,22 @@
 'use strict';
 
 let _assetsData = [];
+let _soldAssetsData = [];
 let _coffresList = [];
+
+const SALE_DEST_LABELS = {
+  portfolio: '📈 Investi en portefeuille boursier',
+  bank:      '🏧 Versé sur compte bancaire',
+  coffre:    '🔐 Déposé en coffre (espèces)',
+  cash:      '💵 Reçu en espèces (hors coffre)',
+  other:     '📦 Autre / Non précisé',
+};
 
 async function loadAssets() {
   try {
-    [_assetsData, _coffresList] = await Promise.all([
+    [_assetsData, _soldAssetsData, _coffresList] = await Promise.all([
       apiGet('/api/assets'),
+      apiGet('/api/assets?sold=true'),
       apiGet('/api/coffres'),
     ]);
     renderAssetsPage();
@@ -78,6 +88,9 @@ function renderAssetsPage() {
       </div>
     </div>
 
+    <!-- Historique des ventes -->
+    ${renderSoldAssetsSection()}
+
     <!-- Modals injected via addAssetModals() -->
     <div id="assetModals"></div>`;
 
@@ -120,6 +133,7 @@ function renderAssetRows(assets, filter = '', catFilter = '') {
           <button class="btn btn-ghost primary" onclick="openAddEventModal(${a.id})" title="Ajouter événement">+ Év.</button>
           <button class="btn btn-ghost primary" onclick="openUploadDocModal(${a.id})" title="Joindre document">📎</button>
           <button class="btn btn-ghost" onclick="openEditAssetModal(${a.id})" title="Modifier">✏️</button>
+          <button class="btn btn-ghost btn-sell-asset" data-id="${a.id}" data-name="${escHtml(a.name)}" data-value="${a.estimated_value ?? 0}" title="Vendre / Archiver" style="color:var(--accent-gold)">🏷️</button>
           <button class="btn btn-ghost danger btn-del-asset" data-id="${a.id}" data-name="${escHtml(a.name)}">🗑</button>
         </div></td>` : ''}
       </tr>
@@ -144,7 +158,8 @@ function buildAssetDetails(a) {
   const DOC_TYPE_LABELS = {
     acte_notarie: '📜 Acte notarié', compromis: '🤝 Compromis', titre_propriete: '🏛 Titre de propriété',
     peb: '⚡ PEB', plan: '📐 Plan/cadastre',
-    facture: '🧾 Facture', carte_grise: '📋 Carte grise', assurance: '🛡 Assurance',
+    facture: '🧾 Facture d\'achat', facture_vente: '🧾 Facture de vente',
+    carte_grise: '📋 Carte grise', assurance: '🛡 Assurance',
     controle_technique: '🔧 CT', certificat: '📜 Certificat', photo: '📷 Photo', autre: '📄 Autre',
   };
 
@@ -201,6 +216,62 @@ function buildAssetDetails(a) {
     </div>`;
 }
 
+function renderSoldAssetsSection() {
+  if (!_soldAssetsData.length) return '';
+  const totalSale = _soldAssetsData.reduce((s, a) => s + (a.sale_price || 0), 0);
+  const coffreMap = Object.fromEntries(_coffresList.map(c => [c.id, c.name]));
+
+  const rows = _soldAssetsData.map(a => {
+    const soldDate = a.sold_at ? fmtDate(a.sold_at) : '—';
+    const destLabel = SALE_DEST_LABELS[a.sale_destination] || (a.sale_destination || '—');
+    return `
+      <tr onclick="toggleAssetExpand('sold-${a.id}')" style="opacity:.85">
+        <td class="left" style="padding-left:24px">
+          <div class="asset-name-cell">
+            <div class="pos-icon ${a.category || 'autre'}">${ASSET_CAT_ICONS[a.category || 'autre'] ?? '📦'}</div>
+            <div>
+              <div class="asset-name">${escHtml(a.name)}</div>
+              ${a.description ? `<div class="asset-sub">${escHtml(a.description)}</div>` : ''}
+            </div>
+          </div>
+        </td>
+        <td class="left"><span class="badge badge-${a.category || 'autre'}">${ASSET_CAT_LABELS[a.category || 'autre'] ?? a.category}</span></td>
+        <td class="left" style="color:var(--text-secondary);font-size:12px">${soldDate}</td>
+        <td><strong style="color:var(--accent-green)">${a.sale_price != null ? fmtEur(a.sale_price) : '—'}</strong></td>
+        <td class="left" style="font-size:12px;color:var(--text-secondary)">${escHtml(destLabel)}</td>
+        <td style="color:var(--text-secondary)">${(a.documents || []).length}</td>
+        ${isAdmin() ? `<td><div style="display:flex;justify-content:flex-end;gap:4px" onclick="event.stopPropagation()">
+          <button class="btn btn-ghost primary" onclick="openUploadDocModal(${a.id})" title="Joindre document">📎</button>
+        </div></td>` : ''}
+      </tr>
+      <tr class="expand-row"><td colspan="${isAdmin() ? 7 : 6}">
+        <div class="expand-content" id="asset-expand-sold-${a.id}">${buildAssetDetails(a)}</div>
+      </td></tr>`;
+  }).join('');
+
+  return `
+    <div class="card" style="padding:0;overflow:hidden;margin-top:20px">
+      <div class="section-header">
+        <div class="section-title">🏷️ Historique des ventes <span class="section-count">${_soldAssetsData.length}</span></div>
+        <div style="font-family:var(--font-display);font-size:14px;color:var(--accent-green)">${fmtEur(totalSale)}</div>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <thead><tr>
+            <th class="left" style="padding-left:24px">Actif</th>
+            <th class="left">Catégorie</th>
+            <th class="left">Date de vente</th>
+            <th>Prix de vente</th>
+            <th class="left">Destination des fonds</th>
+            <th>Documents</th>
+            ${isAdmin() ? '<th>Actions</th>' : ''}
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
 function _vField(label, value) {
   if (!value && value !== 0) return '';
   return `<div style="background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:8px 10px">
@@ -210,6 +281,7 @@ function _vField(label, value) {
 }
 
 function toggleAssetExpand(assetId) {
+  // assetId peut être un nombre (actif actif) ou "sold-{id}" (actif vendu)
   const el = document.getElementById(`asset-expand-${assetId}`);
   if (el) el.classList.toggle('open');
 }
@@ -321,6 +393,7 @@ function addAssetModals() {
               </optgroup>
               <optgroup label="Général">
                 <option value="facture">Facture d'achat</option>
+                <option value="facture_vente">Facture de vente</option>
                 <option value="assurance">Assurance</option>
                 <option value="certificat">Certificat</option>
                 <option value="photo">Photo</option>
@@ -331,6 +404,45 @@ function addAssetModals() {
           <div class="form-group" style="margin-bottom:20px"><label class="form-label">Note</label><input type="text" class="form-input" id="docNotes"/></div>
           <input type="hidden" id="docAssetId"/>
           <div class="form-actions"><button type="button" class="btn btn-secondary" onclick="closeModal('uploadDocModal')">Annuler</button><button type="submit" class="btn btn-primary">Chiffrer et envoyer</button></div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Sell asset modal -->
+    <div class="modal-overlay" id="sellAssetModal">
+      <div class="modal" style="max-width:520px">
+        <div class="modal-header">
+          <span class="modal-title" id="sellModalTitle">🏷️ Vendre l'actif</span>
+          <button class="modal-close" onclick="closeModal('sellAssetModal')">✕</button>
+        </div>
+        <form onsubmit="submitSellModal(event)" class="form-grid">
+          <div class="form-group"><label class="form-label">Prix de vente (€)</label>
+            <input type="number" class="form-input" id="sellPrice" step="0.01" min="0" required placeholder="0.00"/>
+          </div>
+          <div class="form-group"><label class="form-label">Date de vente</label>
+            <input type="date" class="form-input" id="sellDate" required/>
+          </div>
+          <div class="form-group full"><label class="form-label">Destination des fonds</label>
+            <select class="form-select" id="sellDestination">
+              <option value="">— Non précisé —</option>
+              <option value="portfolio">📈 Investi en portefeuille boursier</option>
+              <option value="bank">🏧 Versé sur compte bancaire</option>
+              <option value="coffre">🔐 Déposé en coffre (espèces)</option>
+              <option value="cash">💵 Reçu en espèces (hors coffre)</option>
+              <option value="other">📦 Autre destination</option>
+            </select>
+          </div>
+          <div class="form-group full"><label class="form-label">Note (optionnel)</label>
+            <textarea class="form-textarea" id="sellNotes" rows="2" placeholder="Détails de la transaction…"></textarea>
+          </div>
+          <div style="grid-column:1/-1;font-size:12px;color:var(--text-muted);background:var(--bg-tertiary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px">
+            ℹ️ L'actif sera archivé (non supprimé). Vous pourrez toujours y joindre des documents (facture de vente, etc.) depuis l'historique.
+          </div>
+          <input type="hidden" id="sellAssetId"/>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('sellAssetModal')">Annuler</button>
+            <button type="submit" class="btn btn-primary" style="background:var(--accent-gold);border-color:var(--accent-gold)">Confirmer la vente</button>
+          </div>
         </form>
       </div>
     </div>`;
@@ -422,6 +534,35 @@ async function submitAssetModal(e) {
     if (id) { await apiPut(`/api/assets/${id}`, body); showToast('Actif mis à jour', 'success'); }
     else { await apiPost('/api/assets', body); showToast('Actif créé', 'success'); }
     closeModal('assetModal');
+    await loadAssets();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+// ── Sell asset ─────────────────────────────────────────────
+
+function openSellAssetModal(assetId, name, estimatedValue) {
+  document.getElementById('sellModalTitle').textContent = `🏷️ Vendre — ${name}`;
+  document.getElementById('sellAssetId').value = assetId;
+  document.getElementById('sellPrice').value = estimatedValue > 0 ? estimatedValue : '';
+  document.getElementById('sellDate').value = todayISO();
+  document.getElementById('sellDestination').value = '';
+  document.getElementById('sellNotes').value = '';
+  openModal('sellAssetModal');
+}
+
+async function submitSellModal(e) {
+  e.preventDefault();
+  const assetId = document.getElementById('sellAssetId').value;
+  const body = {
+    sale_price: parseFloat(document.getElementById('sellPrice').value),
+    sold_at: document.getElementById('sellDate').value,
+    sale_destination: document.getElementById('sellDestination').value || null,
+    sale_notes: document.getElementById('sellNotes').value || null,
+  };
+  try {
+    await apiPost(`/api/assets/${assetId}/sell`, body);
+    showToast('Actif archivé comme vendu', 'success');
+    closeModal('sellAssetModal');
     await loadAssets();
   } catch (err) { showToast(err.message, 'error'); }
 }
@@ -525,5 +666,7 @@ document.addEventListener('click', e => {
   const dlBtn = e.target.closest('.btn-download-doc');
   if (dlBtn) { downloadDoc(parseInt(dlBtn.dataset.asset), parseInt(dlBtn.dataset.doc), dlBtn.dataset.filename); return; }
   const delBtn = e.target.closest('.btn-del-asset');
-  if (delBtn) deleteAssetConfirm(parseInt(delBtn.dataset.id), delBtn.dataset.name);
+  if (delBtn) { deleteAssetConfirm(parseInt(delBtn.dataset.id), delBtn.dataset.name); return; }
+  const sellBtn = e.target.closest('.btn-sell-asset');
+  if (sellBtn) openSellAssetModal(parseInt(sellBtn.dataset.id), sellBtn.dataset.name, parseFloat(sellBtn.dataset.value) || 0);
 });

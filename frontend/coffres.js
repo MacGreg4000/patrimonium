@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════ */
 'use strict';
 
-const DENOMS = [500, 200, 100, 50, 20, 10, 5];
+const DENOMS = [5, 10, 20, 50, 100, 200, 500];
 let _coffresData = [];
 let _selectedCoffreId = null;
 let _caissMode = 'entry'; // entry | exit | inventory

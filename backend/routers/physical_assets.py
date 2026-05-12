@@ -48,6 +48,12 @@ class EventCreate(BaseModel):
     date: str         # ISO date
     notes: Optional[str] = None
 
+class SellAsset(BaseModel):
+    sale_price: float
+    sold_at: str                          # ISO date (YYYY-MM-DD)
+    sale_destination: Optional[str] = None  # portfolio|bank|coffre|cash|other
+    sale_notes: Optional[str] = None
+
 
 # ── Assets CRUD ───────────────────────────────────────────
 
@@ -56,10 +62,15 @@ def list_assets(
     search: Optional[str] = None,
     category: Optional[str] = None,
     coffre_id: Optional[int] = None,
+    sold: bool = False,   # False = actifs en cours, True = vendus archivés
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
     q = db.query(PhysicalAsset)
+    if sold:
+        q = q.filter(PhysicalAsset.sold_at.isnot(None))
+    else:
+        q = q.filter(PhysicalAsset.sold_at.is_(None))
     if search:
         q = q.filter(PhysicalAsset.name.ilike(f"%{search}%"))
     if category:
@@ -112,6 +123,32 @@ def delete_asset(asset_id: int, request: Request,
     db.commit()
     log_audit(db, user.id, "ASSET_DELETED", f"Actif supprimé: {name}", request)
     return {"ok": True}
+
+
+# ── Sell (archivage vente) ────────────────────────────────
+
+@router.post("/{asset_id}/sell")
+def sell_asset(asset_id: int, data: SellAsset, request: Request,
+               db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
+    asset = db.query(PhysicalAsset).filter(PhysicalAsset.id == asset_id).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Actif introuvable")
+    if asset.sold_at:
+        raise HTTPException(status_code=400, detail="Cet actif est déjà marqué comme vendu")
+    from datetime import date, datetime, timezone
+    sale_date = date.fromisoformat(data.sold_at)
+    asset.sold_at = datetime.combine(sale_date, datetime.min.time()).replace(tzinfo=timezone.utc)
+    asset.sale_price = data.sale_price
+    asset.sale_destination = data.sale_destination or None
+    asset.sale_notes = data.sale_notes or None
+    # Enregistrer un événement SALE automatique
+    ev = AssetEvent(asset_id=asset_id, type="SALE", amount=data.sale_price,
+                    date=sale_date, notes=data.sale_notes or None)
+    db.add(ev)
+    db.commit()
+    log_audit(db, user.id, "ASSET_SOLD",
+              f"Actif vendu: '{asset.name}' à {data.sale_price} € → {data.sale_destination or 'non précisé'}", request)
+    return _fmt_asset(asset)
 
 
 # ── Events ────────────────────────────────────────────────
@@ -233,6 +270,11 @@ def _fmt_asset(a: PhysicalAsset) -> dict:
         "vehicle_vin": a.vehicle_vin,
         "vehicle_fuel": a.vehicle_fuel,
         "vehicle_km": a.vehicle_km,
+        # Vente / archivage
+        "sold_at": a.sold_at,
+        "sale_price": a.sale_price,
+        "sale_destination": a.sale_destination,
+        "sale_notes": a.sale_notes,
         "events": [
             {"id": e.id, "type": e.type, "amount": e.amount, "date": str(e.date), "notes": e.notes}
             for e in a.events

@@ -62,7 +62,7 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
     total_cash = sum(c["balance"] for c in coffre_balances)
 
     # ── 3. Actifs physiques ────────────────────────────────
-    assets = db.query(PhysicalAsset).all()
+    assets = db.query(PhysicalAsset).filter(PhysicalAsset.sold_at.is_(None)).all()
     total_assets_value = sum((a.estimated_value or 0.0) for a in assets)
     asset_count = len(assets)
 
