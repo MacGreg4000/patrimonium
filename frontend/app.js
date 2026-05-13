@@ -145,10 +145,8 @@ function injectPortfolioModals() {
             <select class="form-select" id="posType">
               <option value="action">Action</option>
               <option value="etf">ETF</option>
-              <option value="obligation">Obligation</option>
-              <option value="crypto">Crypto</option>
-              <option value="matiere_premiere">Matière première</option>
-              <option value="autre">Autre</option>
+              <option value="bond_manual">Obligation / Fond</option>
+              <option value="commodity">Or / Matière première</option>
             </select>
           </div>
           <div class="form-group">

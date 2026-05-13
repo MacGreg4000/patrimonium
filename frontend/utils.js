@@ -276,8 +276,8 @@ const ICONS = {
 
 // ── Asset type / category helpers ─────────────────────────
 
-const ASSET_TYPE_LABELS = { action: 'Action', etf: 'ETF', commodity: 'Or', bond_manual: 'Obligation' };
-const ASSET_TYPE_ICONS  = { action: ICONS.chartUp, etf: ICONS.layers, commodity: ICONS.coins, bond_manual: ICONS.bank };
+const ASSET_TYPE_LABELS = { action: 'Action', etf: 'ETF', commodity: 'Or / Mat. première', bond_manual: 'Obligation / Fond', obligation: 'Obligation' };
+const ASSET_TYPE_ICONS  = { action: ICONS.chartUp, etf: ICONS.layers, commodity: ICONS.coins, bond_manual: ICONS.bank, obligation: ICONS.bank };
 const ASSET_CAT_LABELS  = { bijou: 'Bijou', immo: 'Immobilier', vehicule: 'Véhicule', art: 'Art', metal: 'Métaux précieux', autre: 'Autre' };
 const ASSET_CAT_ICONS   = { bijou: ICONS.gemSm, immo: ICONS.home, vehicule: ICONS.car, art: ICONS.frame, metal: ICONS.coins, autre: ICONS.box };
 
