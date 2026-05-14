@@ -137,6 +137,71 @@ function renderPatrimoineDonut(canvasId, data) {
   renderDonut(canvasId, labels, values, canvasId + 'Legend');
 }
 
+// ── Coffre balance over time ──────────────────────────────
+
+function renderCoffreBalanceLine(canvasId, points) {
+  destroyChart(canvasId);
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+
+  if (!points.length) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+
+  const labels = points.map(p => fmtDate(p.date));
+  const values = points.map(p => p.balance);
+
+  const ctx = canvas.getContext('2d');
+  const grad = ctx.createLinearGradient(0, 0, 0, 220);
+  grad.addColorStop(0, 'rgba(245,158,11,.28)');
+  grad.addColorStop(1, 'rgba(245,158,11,0)');
+
+  _charts[canvasId] = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Solde',
+        data: values,
+        borderColor: '#F59E0B',
+        backgroundColor: grad,
+        borderWidth: 2,
+        pointRadius: points.length <= 30 ? 4 : 0,
+        pointHoverRadius: 6,
+        pointBackgroundColor: '#F59E0B',
+        fill: true,
+        stepped: true,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          ...tooltipStyle(),
+          callbacks: {
+            title: ctx => ctx[0].label,
+            label: ctx => `  Solde : ${fmtEur(ctx.parsed.y)}`,
+          },
+        },
+      },
+      scales: {
+        x: { grid: { color: '#1E2330' }, ticks: { color: '#3D4452', maxTicksLimit: 10 }},
+        y: {
+          position: 'right',
+          grid: { color: '#1E2330' },
+          ticks: { color: '#3D4452', callback: fmtEurShort },
+          min: 0,
+        },
+      },
+    },
+  });
+}
+
 // ── Shared tooltip style ──────────────────────────────────
 
 function tooltipStyle() {

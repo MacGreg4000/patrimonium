@@ -67,6 +67,18 @@ function renderCoffresPage() {
       ? `<div class="card"><div class="empty-state"><div class="empty-icon">${ICONS.landmark}</div><div class="empty-text">Aucun coffre disponible</div>${isAdmin() ? `<div class="empty-sub">Créez un coffre depuis l'administration</div>` : ''}</div></div>`
       : renderCaisseInterface()}
 
+    <!-- Balance chart -->
+    <div class="card" style="margin-top:20px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div class="card-title" style="margin:0">Évolution du solde — <span id="balanceChartCoffreName" style="color:var(--accent-gold)"></span></div>
+        <select class="form-select" style="width:auto;padding:5px 10px;font-size:12px" id="balanceChartCoffreSelect" onchange="switchBalanceChart(parseInt(this.value))">
+          ${_coffresData.map(c => `<option value="${c.id}" ${c.id === _selectedCoffreId ? 'selected' : ''}>${escHtml(c.name)}</option>`).join('')}
+        </select>
+      </div>
+      <div style="height:220px"><canvas id="coffreBalanceChart"></canvas></div>
+      <div id="coffreBalanceChartEmpty" style="display:none;text-align:center;padding:40px 0;color:var(--text-muted);font-size:13px">Aucun mouvement enregistré</div>
+    </div>
+
     <!-- History -->
     <div class="card" style="padding:0;overflow:hidden;margin-top:20px" id="coffresHistorySection">
       <div class="section-header">
@@ -104,6 +116,7 @@ function renderCoffresPage() {
   if (_coffresData.length > 0) {
     if (!_selectedCoffreId) _selectedCoffreId = _coffresData[0].id;
     loadHistory();
+    requestAnimationFrame(() => loadBalanceChart(_selectedCoffreId));
   }
 }
 
@@ -175,6 +188,65 @@ function renderCaisseInterface() {
       </div>
     </div>`;
 }
+
+// ── Balance chart ─────────────────────────────────────────
+
+let _balanceChartCoffreId = null;
+
+function switchBalanceChart(coffreId) {
+  _balanceChartCoffreId = coffreId;
+  loadBalanceChart(coffreId);
+}
+
+async function loadBalanceChart(coffreId) {
+  _balanceChartCoffreId = coffreId;
+
+  // Update label
+  const coffre = _coffresData.find(c => c.id === coffreId);
+  const nameEl = document.getElementById('balanceChartCoffreName');
+  if (nameEl && coffre) nameEl.textContent = coffre.name;
+
+  // Sync selector
+  const sel = document.getElementById('balanceChartCoffreSelect');
+  if (sel) sel.value = coffreId;
+
+  try {
+    // Fetch full history (limit generous — cash movements are typically few)
+    const data = await apiGet(`/api/coffres/${coffreId}/history?limit=500`);
+    const items = (data.items || []).slice().reverse(); // oldest first
+
+    const points = [];
+    let balance = 0;
+
+    for (const item of items) {
+      const date = item.date || item.created_at;
+      if (item.kind === 'inventory') {
+        balance = item.total_amount;
+      } else if (item.kind === 'movement') {
+        balance += item.type === 'ENTRY' ? item.amount : -item.amount;
+      }
+      points.push({ date, balance });
+    }
+
+    const emptyEl = document.getElementById('coffreBalanceChartEmpty');
+    const canvas  = document.getElementById('coffreBalanceChart');
+
+    if (!points.length) {
+      if (emptyEl) emptyEl.style.display = '';
+      if (canvas)  canvas.style.display  = 'none';
+      return;
+    }
+
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (canvas)  canvas.style.display  = '';
+
+    renderCoffreBalanceLine('coffreBalanceChart', points);
+  } catch (err) {
+    console.warn('Balance chart:', err);
+  }
+}
+
+// ─────────────────────────────────────────────────────────
 
 function renderAdminCaisseSection(coffre) {
   const modeConfig = {
