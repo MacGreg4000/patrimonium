@@ -166,7 +166,8 @@ async def import_saxo(
 
     created_positions = 0
     created_purchases = 0
-    skipped_purchases = 0
+    skipped_purchases = 0   # dédupliqués par ID SaxoBank
+    fuzzy_duplicates  = 0   # dédupliqués par (date, qté, prix) — même transaction, ID différent
 
     for tx in transactions:
         isin = tx["isin"]
@@ -194,7 +195,7 @@ async def import_saxo(
             # Enrichir une position existante avec l'ISIN
             pos.isin = isin
 
-        # --- Vérifier si cet achat est déjà importé (via note SAXO) ---
+        # --- Déduplication 1 : via l'ID SaxoBank dans la note ---
         op_id = tx["op_id"]
         saxo_tag = f"[SAXO:{op_id}]" if op_id else None
         if saxo_tag:
@@ -205,6 +206,19 @@ async def import_saxo(
             if existing:
                 skipped_purchases += 1
                 continue
+
+        # --- Déduplication 2 : via (date, quantité, prix unitaire) ---
+        # SaxoBank peut exporter la même transaction avec des IDs différents
+        # selon la période (ex : transaction pending → réglée).
+        fuzzy_existing = db.query(Purchase).filter(
+            Purchase.position_id == pos.id,
+            Purchase.purchase_date == tx["date"],
+            Purchase.quantity == tx["quantity"],
+            Purchase.unit_price == tx["unit_price"],
+        ).first()
+        if fuzzy_existing:
+            fuzzy_duplicates += 1
+            continue
 
         purchase = Purchase(
             position_id=pos.id,
@@ -219,12 +233,14 @@ async def import_saxo(
 
     db.commit()
     log_audit(db, user.id, "SAXO_IMPORT",
-              f"Import SaxoBank: {created_positions} positions, {created_purchases} achats, {skipped_purchases} doublons ignorés",
+              f"Import SaxoBank: {created_positions} positions, {created_purchases} achats, "
+              f"{skipped_purchases} doublons (ID), {fuzzy_duplicates} doublons (date/qté/prix)",
               request)
 
     return {
         "created_positions": created_positions,
         "created_purchases": created_purchases,
         "skipped_purchases": skipped_purchases,
+        "fuzzy_duplicates":  fuzzy_duplicates,
         "total_transactions": len(transactions),
     }
