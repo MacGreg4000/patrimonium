@@ -55,10 +55,17 @@ function renderCoffresPage() {
         <div class="hero-card-sub">${_coffresData.length} coffre${_coffresData.length > 1 ? 's' : ''}</div>
       </div>
       ${_coffresData.map(c => `
-      <div class="hero-card" style="cursor:pointer" onclick="selectCoffre(${c.id})">
-        <div class="card-label">${ICONS.landmark} ${escHtml(c.name)}</div>
+      <div class="hero-card" style="cursor:pointer;position:relative" onclick="selectCoffre(${c.id})">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+          <div class="card-label" style="margin-bottom:0">${ICONS.landmark} ${escHtml(c.name)}</div>
+          ${isAdmin()
+            ? `<button onclick="event.stopPropagation();toggleFavoriteCoffre(${c.id})"
+                style="background:none;border:none;cursor:pointer;font-size:15px;padding:0 2px;line-height:1;opacity:${c.is_favorite ? '1' : '0.35'}"
+                title="${c.is_favorite ? 'Retirer des favoris' : 'Définir comme favori'}">⭐</button>`
+            : (c.is_favorite ? '<span style="font-size:13px">⭐</span>' : '')}
+        </div>
         <div class="hero-card-value ${_selectedCoffreId === c.id ? 'blue' : 'green'}">${fmtEur(c.balance)}</div>
-        <div class="hero-card-sub" style="color:var(--text-muted)">Cliquer pour sélectionner</div>
+        <div class="hero-card-sub" style="color:var(--text-muted)">${c.is_favorite ? 'Favori · ' : ''}Cliquer pour sélectionner</div>
       </div>`).join('')}
     </div>
 
@@ -114,7 +121,10 @@ function renderCoffresPage() {
     </div>`;
 
   if (_coffresData.length > 0) {
-    if (!_selectedCoffreId) _selectedCoffreId = _coffresData[0].id;
+    if (!_selectedCoffreId) {
+      const fav = _coffresData.find(c => c.is_favorite);
+      _selectedCoffreId = fav ? fav.id : _coffresData[0].id;
+    }
     loadHistory();
     requestAnimationFrame(() => loadBalanceChart(_selectedCoffreId));
   }
@@ -129,7 +139,7 @@ function renderCaisseInterface() {
       <!-- Coffre selector row -->
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
         <select class="form-select" style="width:auto" id="caisseSelect" onchange="selectCoffre(parseInt(this.value))">
-          ${_coffresData.map(c => `<option value="${c.id}" ${c.id === coffre.id ? 'selected' : ''}>${escHtml(c.name)}</option>`).join('')}
+          ${_coffresData.map(c => `<option value="${c.id}" ${c.id === coffre.id ? 'selected' : ''}>${c.is_favorite ? '⭐ ' : ''}${escHtml(c.name)}</option>`).join('')}
         </select>
         <div style="font-family:var(--font-display);font-size:22px;color:var(--accent-gold)">${fmtEur(coffre.balance)}</div>
       </div>
@@ -310,6 +320,24 @@ function updateCaisseTotal() {
 function setCaisseMode(mode) {
   _caissMode = mode;
   renderCoffresPage();
+}
+
+async function toggleFavoriteCoffre(coffreId) {
+  try {
+    await apiPut(`/api/coffres/${coffreId}/favorite`, {});
+    // Mettre à jour localement sans recharger toute la page
+    const wasFav = _coffresData.find(c => c.id === coffreId)?.is_favorite;
+    _coffresData.forEach(c => { c.is_favorite = false; });
+    const target = _coffresData.find(c => c.id === coffreId);
+    if (target) target.is_favorite = !wasFav;
+    renderCoffresPage();
+    // Re-inject breakdown
+    const el = document.getElementById(`breakdown-${_selectedCoffreId}`);
+    if (el && _breakdowns[_selectedCoffreId]) renderBreakdownPanel(el, _breakdowns[_selectedCoffreId]);
+    showToast(target?.is_favorite ? `⭐ ${target.name} défini comme favori` : 'Favori retiré', 'success');
+  } catch (err) {
+    showToast('Erreur : ' + err.message, 'error');
+  }
 }
 
 function selectCoffre(coffreId) {

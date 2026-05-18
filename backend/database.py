@@ -54,6 +54,8 @@ _MIGRATIONS: list[tuple[str, str]] = [
      "ALTER TABLE physical_assets ADD COLUMN IF NOT EXISTS sale_destination VARCHAR(50)"),
     ("physical_assets.sale_notes column",
      "ALTER TABLE physical_assets ADD COLUMN IF NOT EXISTS sale_notes VARCHAR(500)"),
+    ("coffres.is_favorite column",
+     "ALTER TABLE coffres ADD COLUMN IF NOT EXISTS is_favorite BOOLEAN DEFAULT FALSE"),
 ]
 
 

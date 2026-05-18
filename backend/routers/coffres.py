@@ -74,12 +74,40 @@ def compute_balance(coffre_id: int, db: Session) -> float:
 
 @router.get("/coffres")
 def list_coffres(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    coffres = db.query(Coffre).filter(Coffre.is_active == True).order_by(Coffre.name).all()  # noqa: E712
+    from sqlalchemy import desc
+    coffres = (
+        db.query(Coffre)
+        .filter(Coffre.is_active == True)  # noqa: E712
+        .order_by(desc(Coffre.is_favorite), Coffre.name)
+        .all()
+    )
     return [
         {"id": c.id, "name": c.name, "description": c.description,
-         "balance": compute_balance(c.id, db)}
+         "balance": compute_balance(c.id, db),
+         "is_favorite": bool(c.is_favorite)}
         for c in coffres
     ]
+
+
+@router.put("/coffres/{coffre_id}/favorite", status_code=200)
+def set_favorite_coffre(
+    coffre_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_admin_csrf),
+):
+    """Définit un coffre comme favori (un seul à la fois). Toggle si déjà favori."""
+    coffre = db.query(Coffre).filter(Coffre.id == coffre_id, Coffre.is_active == True).first()  # noqa: E712
+    if not coffre:
+        raise HTTPException(status_code=404, detail="Coffre introuvable")
+
+    new_state = not coffre.is_favorite
+    # Retirer le favori des autres
+    if new_state:
+        db.query(Coffre).filter(Coffre.id != coffre_id).update({"is_favorite": False})
+    coffre.is_favorite = new_state
+    db.commit()
+    return {"id": coffre.id, "is_favorite": new_state}
 
 
 @router.get("/coffres/{coffre_id}/balance")
