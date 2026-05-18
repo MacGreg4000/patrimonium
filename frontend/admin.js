@@ -119,6 +119,8 @@ function renderCoffreRows() {
       <td style="color:var(--text-secondary)">${fmtDate(c.created_at)}</td>
       <td>
         <div style="display:flex;justify-content:flex-end;gap:4px">
+          <button class="btn btn-ghost" onclick="toggleAdminFavorite(${c.id})" title="${c.is_favorite ? 'Retirer des favoris' : 'Définir comme favori'}"
+            style="opacity:${c.is_favorite ? '1' : '0.35'}">⭐</button>
           <button class="btn btn-ghost" onclick="openEditCoffreModal(${c.id})">✏️</button>
           <button class="btn btn-ghost danger" onclick="deleteCoffreConfirm(${c.id},'${escHtml(c.name).replace(/'/g,"\\'")}')">🗑</button>
         </div>
@@ -207,6 +209,20 @@ function deleteUserConfirm(userId, name) {
 }
 
 // ── Coffre actions ────────────────────────────────────────
+
+async function toggleAdminFavorite(coffreId) {
+  try {
+    await apiPut(`/api/coffres/${coffreId}/favorite`, {});
+    const wasFav = _adminCoffres.find(c => c.id === coffreId)?.is_favorite;
+    _adminCoffres.forEach(c => { c.is_favorite = false; });
+    const target = _adminCoffres.find(c => c.id === coffreId);
+    if (target) target.is_favorite = !wasFav;
+    document.getElementById('admin-tab-coffres').querySelector('tbody').innerHTML = renderCoffreRows();
+    showToast(target?.is_favorite ? `⭐ ${target.name} défini comme favori` : 'Favori retiré', 'success');
+  } catch (err) {
+    showToast('Erreur : ' + err.message, 'error');
+  }
+}
 
 function openAddCoffreModal() {
   document.getElementById('coffreModalTitle').textContent = 'Créer un coffre';

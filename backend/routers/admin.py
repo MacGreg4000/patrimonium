@@ -143,7 +143,8 @@ def list_coffres(db: Session = Depends(get_db), admin: User = Depends(require_ad
         {"id": c.id, "name": c.name, "description": c.description,
          "is_active": c.is_active, "created_at": c.created_at,
          "combination_hint": c.combination_hint,
-         "has_combination": c.encrypted_combination is not None}
+         "has_combination": c.encrypted_combination is not None,
+         "is_favorite": bool(c.is_favorite)}
         for c in coffres
     ]
 
