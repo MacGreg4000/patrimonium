@@ -100,10 +100,6 @@
             <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg></span>
             <span>Coffres</span>
           </button>
-          <button class="nav-item" data-page="bank" onclick="navigate('bank')">
-            <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="10" width="18" height="11" rx="2"/><path d="M3 10l9-7 9 7"/><line x1="12" y1="10" x2="12" y2="21"/></svg></span>
-            <span>Comptes bancaires</span>
-          </button>
           <button class="nav-item" data-page="assets" onclick="navigate('assets')">
             <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 3 18 3 22 9 12 22 2 9"/><line x1="2" y1="9" x2="22" y2="9"/><line x1="12" y1="3" x2="6" y2="9"/><line x1="12" y1="3" x2="18" y2="9"/></svg></span>
             <span>Actifs physiques</span>
@@ -161,7 +157,6 @@
       <div id="page-dashboard" class="page active"></div>
       <div id="page-portfolio" class="page"></div>
       <div id="page-coffres" class="page"></div>
-      <div id="page-bank" class="page"></div>
       <div id="page-assets" class="page"></div>
       <div id="page-reserves" class="page"></div>
       <div id="page-passwords" class="page"></div>
@@ -236,19 +231,6 @@
   </div>
 </div>
 
-<!-- Bank connect modal -->
-<div class="modal-overlay" id="bankConnectModal">
-  <div class="modal" style="max-width:480px">
-    <div class="modal-header">
-      <span class="modal-title">Connecter une banque</span>
-      <button class="modal-close" onclick="closeModal('bankConnectModal')">✕</button>
-    </div>
-    <div id="bankModalBody">
-      <!-- Rendered dynamically by bank.js -->
-    </div>
-  </div>
-</div>
-
 <!-- Generic confirm modal -->
 <div class="modal-overlay" id="confirmModal">
   <div class="modal" style="max-width:380px">
@@ -284,7 +266,6 @@
 <script src="/static/reserves.js"></script>
 <script src="/static/passwords.js"></script>
 <script src="/static/admin.js"></script>
-<script src="/static/bank.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

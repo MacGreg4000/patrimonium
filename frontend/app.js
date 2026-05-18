@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════ */
 'use strict';
 
-const PAGES = ['dashboard', 'portfolio', 'coffres', 'bank', 'assets', 'reserves', 'passwords', 'admin'];
+const PAGES = ['dashboard', 'portfolio', 'coffres', 'assets', 'reserves', 'passwords', 'admin'];
 let _currentPage = 'dashboard';
 let _refreshInterval = null;
 
@@ -57,7 +57,6 @@ function navigate(page) {
     case 'dashboard':  loadDashboard();  break;
     case 'portfolio':  loadPortfolio();  break;
     case 'coffres':    loadCoffres();    break;
-    case 'bank':       loadBank();       break;
     case 'assets':     loadAssets();     break;
     case 'reserves':   loadReserves();   break;
     case 'passwords':  loadPasswords();  break;
