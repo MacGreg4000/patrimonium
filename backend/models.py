@@ -308,3 +308,37 @@ class AuditLog(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, index=True)
 
     user = relationship("User", back_populates="audit_logs")
+
+
+# ── Bank Account Data (GoCardless) ────────────────────────────────────────────
+
+class BankRequisition(Base):
+    __tablename__ = "bank_requisitions"
+
+    id = Column(Integer, primary_key=True)
+    requisition_id = Column(String(100), unique=True, nullable=False)
+    institution_id = Column(String(100), nullable=False)
+    institution_name = Column(String(200), nullable=True)
+    institution_logo = Column(String(500), nullable=True)
+    status = Column(String(20), default="CR")  # CR=Created, LN=Linked, EX=Expired, RJ=Rejected
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+    accounts = relationship("BankAccount", back_populates="requisition", cascade="all, delete-orphan")
+
+
+class BankAccount(Base):
+    __tablename__ = "bank_accounts"
+
+    id = Column(Integer, primary_key=True)
+    requisition_id = Column(Integer, ForeignKey("bank_requisitions.id"), nullable=False)
+    account_id = Column(String(100), unique=True, nullable=False)
+    iban = Column(String(50), nullable=True)
+    name = Column(String(200), nullable=True)
+    owner_name = Column(String(200), nullable=True)
+    balance = Column(Float, nullable=True)
+    currency = Column(String(10), default="EUR")
+    last_synced_at = Column(DateTime(timezone=True), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+    requisition = relationship("BankRequisition", back_populates="accounts")
