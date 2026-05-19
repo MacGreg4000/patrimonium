@@ -240,6 +240,25 @@ function buildDCAContent(pos) {
           </div>` : ''}</td>
         </tr>`).join('');
 
+  // Section ventes
+  const sales = pos.sales || [];
+  const salesSection = sales.length ? `
+    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:12px">
+      <div style="font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">Ventes</div>
+      <table class="data-table" style="font-size:12px">
+        <thead><tr><th class="left">Date</th><th>Qté vendue</th><th>Prix vente</th><th>Frais</th><th>P&amp;L réalisé</th></tr></thead>
+        <tbody>${sales.map(s => `
+          <tr>
+            <td class="left">${fmtDate(s.sale_date)}</td>
+            <td>${fmtNum(s.quantity, 4)}</td>
+            <td>${fmtNum(s.unit_price)} €</td>
+            <td>${fmtNum(s.fees)} €</td>
+            <td class="${s.realized_pnl >= 0 ? 'positive' : 'negative'}">${s.realized_pnl != null ? (s.realized_pnl >= 0 ? '+' : '') + fmtNum(s.realized_pnl) + ' €' : '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>` : '';
+
   return `
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
       <span style="font-size:11px;font-weight:500;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em">Achats DCA — ${escHtml(pos.display_name)}</span>
@@ -249,7 +268,8 @@ function buildDCAContent(pos) {
       <thead><tr><th class="left">Date</th><th>Qté</th><th>Prix</th><th>Frais</th><th class="left">Note</th><th>Actions</th></tr></thead>
       <tbody>${tableRows}</tbody>
     </table>
-    <div style="margin-top:10px">${addBtn}</div>`;
+    <div style="margin-top:10px">${addBtn}</div>
+    ${salesSection}`;
 }
 
 function togglePositionExpand(posId) {

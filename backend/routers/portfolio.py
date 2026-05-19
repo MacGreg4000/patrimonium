@@ -9,7 +9,7 @@ import calculations
 import market_data as md
 from database import get_db
 from dependencies import get_current_user, log_audit, require_admin_csrf
-from models import Position, PortfolioSnapshot, Purchase, User
+from models import Position, PortfolioSnapshot, Purchase, Sale, User
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
 
@@ -72,6 +72,12 @@ def _build_position(pos: Position, portfolio_total: float) -> dict:
              "quantity": p.quantity, "unit_price": p.unit_price, "fees": p.fees,
              "note": p.note, "created_at": p.created_at}
             for p in pos.purchases
+        ],
+        "sales": [
+            {"id": s.id, "sale_date": str(s.sale_date), "quantity": s.quantity,
+             "unit_price": s.unit_price, "fees": s.fees,
+             "realized_pnl": s.realized_pnl, "note": s.note}
+            for s in pos.sales
         ],
     }
 

@@ -131,6 +131,7 @@ class Position(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     purchases = relationship("Purchase", back_populates="position", cascade="all, delete-orphan")
+    sales     = relationship("Sale",     back_populates="position", cascade="all, delete-orphan")
 
 
 class Purchase(Base):
@@ -146,6 +147,22 @@ class Purchase(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     position = relationship("Position", back_populates="purchases")
+
+
+class Sale(Base):
+    __tablename__ = "sales"
+
+    id           = Column(Integer, primary_key=True)
+    position_id  = Column(Integer, ForeignKey("positions.id"), nullable=False)
+    sale_date    = Column(Date, nullable=False)
+    quantity     = Column(Float, nullable=False)
+    unit_price   = Column(Float, nullable=False)
+    fees         = Column(Float, default=0.0)
+    realized_pnl = Column(Float, nullable=True)   # (prix_vente - PRU) × qté - frais
+    note         = Column(Text, nullable=True)     # [SAXO:op_id]
+    created_at   = Column(DateTime(timezone=True), default=utcnow)
+
+    position = relationship("Position", back_populates="sales")
 
 
 class PortfolioSnapshot(Base):

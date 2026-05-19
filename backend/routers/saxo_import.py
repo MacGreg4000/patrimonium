@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from dependencies import get_current_user, log_audit, require_admin_csrf
-from models import Position, Purchase, User
+from models import Position, Purchase, Sale, User
 
 router = APIRouter(prefix="/api/saxo", tags=["saxo"])
 
@@ -69,6 +69,18 @@ def _parse_event(event: str) -> Optional[tuple[float, float]]:
     return qty, price
 
 
+def _parse_sale_event(event: str) -> Optional[tuple[float, float]]:
+    """Extrait (quantité, prix_unitaire) depuis 'Vente 84 @ 8.52 EUR'."""
+    if not event:
+        return None
+    m = re.match(r"Vente\s+([\d,\.]+)\s*@\s*([\d,\.]+)", event, re.IGNORECASE)
+    if not m:
+        return None
+    qty   = float(m.group(1).replace(",", "."))
+    price = float(m.group(2).replace(",", "."))
+    return qty, price
+
+
 def _parse_saxo_xlsx(content: bytes) -> list[dict]:
     """Parse le fichier XLSX SaxoBank et retourne les transactions d'achat."""
     wb = openpyxl.load_workbook(BytesIO(content), data_only=True)
@@ -101,11 +113,15 @@ def _parse_saxo_xlsx(content: bytes) -> list[dict]:
             continue
 
         event = row[COL["event"]] or ""
-        parsed = _parse_event(event)
-        if parsed is None:
-            continue   # Vente ou autre — ignoré pour l'instant
+        parsed      = _parse_event(event)
+        sale_parsed = _parse_sale_event(event)
+        if parsed is None and sale_parsed is None:
+            continue   # Autre type d'opération — ignoré
 
-        qty, unit_price = parsed
+        if parsed:
+            qty, unit_price = parsed
+        else:
+            qty, unit_price = sale_parsed
         raw_date = row[COL["date"]]
         if hasattr(raw_date, "date"):
             op_date = raw_date.date()
@@ -134,6 +150,7 @@ def _parse_saxo_xlsx(content: bytes) -> list[dict]:
             "quantity":    qty,
             "unit_price":  unit_price,
             "fees":        fees,
+            "is_sale":     sale_parsed is not None and parsed is None,
         })
 
     return transactions
@@ -162,12 +179,14 @@ async def import_saxo(
         raise HTTPException(status_code=422, detail=f"Erreur de lecture du fichier: {e}")
 
     if not transactions:
-        raise HTTPException(status_code=422, detail="Aucune transaction d'achat trouvée dans ce fichier")
+        raise HTTPException(status_code=422, detail="Aucune transaction d'achat ou de vente trouvée dans ce fichier")
 
     created_positions = 0
     created_purchases = 0
     skipped_purchases = 0   # dédupliqués par ID SaxoBank
     fuzzy_duplicates  = 0   # dédupliqués par (date, qté, prix) — même transaction, ID différent
+    created_sales     = 0
+    skipped_sales     = 0
 
     for tx in transactions:
         isin = tx["isin"]
@@ -195,9 +214,47 @@ async def import_saxo(
             # Enrichir une position existante avec l'ISIN
             pos.isin = isin
 
-        # --- Déduplication 1 : via l'ID SaxoBank dans la note ---
-        op_id = tx["op_id"]
+        op_id    = tx["op_id"]
         saxo_tag = f"[SAXO:{op_id}]" if op_id else None
+
+        # ── Vente ─────────────────────────────────────────────
+        if tx.get("is_sale"):
+            qty_sold, sale_price = tx["quantity"], tx["unit_price"]
+
+            # Déduplication par SAXO op_id
+            if saxo_tag and db.query(Sale).filter(
+                Sale.position_id == pos.id,
+                Sale.note.like(f"%{saxo_tag}%"),
+            ).first():
+                skipped_sales += 1
+                continue
+
+            # Calcul du P&L réalisé sur base du PRU moyen
+            all_purchases = db.query(Purchase).filter(Purchase.position_id == pos.id).all()
+            total_b = sum(p.quantity for p in all_purchases)
+            total_i = sum(p.quantity * p.unit_price + p.fees for p in all_purchases)
+            avg_c   = total_i / total_b if total_b > 0 else 0.0
+            rpnl    = (sale_price - avg_c) * qty_sold - tx["fees"]
+
+            db.add(Sale(
+                position_id=pos.id,
+                sale_date=tx["date"],
+                quantity=qty_sold,
+                unit_price=sale_price,
+                fees=tx["fees"],
+                realized_pnl=rpnl,
+                note=saxo_tag,
+            ))
+            created_sales += 1
+
+            # Auto-archiver si la position est entièrement vendue
+            prev_sales = db.query(Sale).filter(Sale.position_id == pos.id).all()
+            net_qty = total_b - sum(s.quantity for s in prev_sales) - qty_sold
+            if net_qty <= 0.0001:
+                pos.is_active = False
+            continue
+
+        # ── Achat — Déduplication 1 : ID SaxoBank ────────────
         if saxo_tag:
             existing = db.query(Purchase).filter(
                 Purchase.position_id == pos.id,
@@ -207,7 +264,7 @@ async def import_saxo(
                 skipped_purchases += 1
                 continue
 
-        # --- Déduplication 2 : via (date, quantité, prix unitaire) ---
+        # --- Déduplication 2 : (date, quantité, prix unitaire) ---
         # SaxoBank peut exporter la même transaction avec des IDs différents
         # selon la période (ex : transaction pending → réglée).
         fuzzy_existing = db.query(Purchase).filter(
@@ -234,13 +291,16 @@ async def import_saxo(
     db.commit()
     log_audit(db, user.id, "SAXO_IMPORT",
               f"Import SaxoBank: {created_positions} positions, {created_purchases} achats, "
-              f"{skipped_purchases} doublons (ID), {fuzzy_duplicates} doublons (date/qté/prix)",
+              f"{created_sales} ventes, {skipped_purchases} doublons (ID), "
+              f"{fuzzy_duplicates} doublons (date/qté/prix)",
               request)
 
     return {
         "created_positions": created_positions,
         "created_purchases": created_purchases,
+        "created_sales":     created_sales,
         "skipped_purchases": skipped_purchases,
+        "skipped_sales":     skipped_sales,
         "fuzzy_duplicates":  fuzzy_duplicates,
         "total_transactions": len(transactions),
     }
