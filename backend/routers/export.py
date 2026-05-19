@@ -283,6 +283,8 @@ main{flex:1;padding:24px;max-width:1200px;margin:0 auto;width:100%}
 .pos-name{font-size:14px;font-weight:600}
 .pos-ticker{font-size:11px;color:var(--text2)}
 .pos-chevron{color:var(--text2);transition:transform .2s;font-size:11px;flex-shrink:0;margin-left:12px}
+.asset-chevron{color:var(--text2);transition:transform .2s;font-size:11px;display:inline-block}
+.asset-row.open .asset-chevron{transform:rotate(90deg)}
 .pos-metrics{display:flex;gap:20px;padding:0 16px 14px;flex-wrap:wrap}
 .metric{display:flex;flex-direction:column;min-width:70px}
 .metric-lbl{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
@@ -857,15 +859,16 @@ function renderAssets(data) {
 
     const locStr = a.location || (a.coffre_id ? (coffreMap[a.coffre_id]||'Coffre') : '—');
 
-    rows += '<tr onclick="this.nextElementSibling.querySelector(\'.expand-content\').classList.toggle(\'open\')" style="cursor:pointer">'
+    rows += '<tr class="asset-row" onclick="toggleAssetRow(this)" style="cursor:pointer">'
           + '<td class="left"><strong>' + (CAT_ICONS[a.category]||'📦') + ' ' + esc(a.name) + '</strong>'
           + (vInfo?'<br/><span style="color:var(--text2);font-size:11px">'+esc(vInfo)+'</span>':'') + '</td>'
           + '<td class="left"><span class="badge badge-'+(a.category||'autre')+'">'+(CAT_LABELS[a.category||'autre']||a.category)+'</span></td>'
           + '<td class="left" style="color:var(--text2)">' + esc(locStr) + '</td>'
           + '<td><strong>' + eur(a.estimated_value) + '</strong></td>'
           + '<td style="color:var(--text2)">' + (a.documents||[]).length + '</td>'
+          + '<td style="width:28px;text-align:center"><span class="asset-chevron">▶</span></td>'
           + '</tr>'
-          + '<tr class="expand-row" style="display:table-row"><td colspan="5">'
+          + '<tr class="expand-row" style="display:table-row"><td colspan="6">'
           + '<div class="expand-content" style="max-height:0;overflow:hidden;transition:.3s">'
           + vehicleBlock + eventsBlock + docsBlock + '</div></td></tr>';
   }
@@ -875,7 +878,7 @@ function renderAssets(data) {
     + '<div class="card"><div class="card-label">Valeur totale</div><div class="card-value purple">' + eur(total) + '</div></div>'
     + '</div>'
     + '<div class="card" style="padding:0"><div class="table-wrap"><table>'
-    + '<thead><tr><th class="left">Actif</th><th class="left">Catégorie</th><th class="left">Localisation</th><th>Valeur estimée</th><th>Docs</th></tr></thead>'
+    + '<thead><tr><th class="left">Actif</th><th class="left">Catégorie</th><th class="left">Localisation</th><th>Valeur estimée</th><th>Docs</th><th></th></tr></thead>'
     + '<tbody>' + rows + '</tbody></table></div></div>';
 
   document.querySelectorAll('#tab-assets .expand-content').forEach(function(el) {
@@ -884,6 +887,12 @@ function renderAssets(data) {
     });
     observer.observe(el, {attributes:true,attributeFilter:['class']});
   });
+}
+
+function toggleAssetRow(tr) {
+  tr.classList.toggle('open');
+  var ec = tr.nextElementSibling.querySelector('.expand-content');
+  if (ec) ec.classList.toggle('open');
 }
 
 // ── Reserves ─────────────────────────────────────────────────────────────
