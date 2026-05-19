@@ -230,7 +230,7 @@ def _collect_data(db: Session, user: User) -> dict:
 # ── HTML template ─────────────────────────────────────────
 # Utilise des marqueurs __XXXX__ pour éviter l'enfer des {{ }} dans les f-strings.
 
-_HTML_TEMPLATE = '''<!DOCTYPE html>
+_HTML_TEMPLATE = r'''<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8"/>
