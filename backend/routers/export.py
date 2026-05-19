@@ -64,6 +64,9 @@ def _collect_data(db: Session, user: User) -> dict:
             price_eur = price_eur or 0.0
             prev_eur = prev_eur or price_eur
         m = calc_position_metrics(pos, price_eur, prev_eur, 1.0)
+        # Ignorer les positions sans achats (QTÉ nette = 0)
+        if (m.get("total_quantity") or 0) <= 0 and (m.get("total_bought") or 0) == 0:
+            continue
         portfolio_items.append({
             "name": pos.display_name,
             "ticker": pos.ticker,
