@@ -375,10 +375,9 @@ footer{padding:16px 24px;text-align:center;color:var(--text2);font-size:11px;bor
 </div>
 
 <script>
-const BLOB = "__BLOB__";
-const DOC_BLOBS = __DOC_BLOBS__;
-let _cryptoKey = null;
-const ITERATIONS = __ITERATIONS__;
+// Déclarations globales — les valeurs sont injectées dans le 2e bloc <script>
+var BLOB, DOC_BLOBS, ITERATIONS;
+var _cryptoKey = null;
 
 function b64ToBytes(b64) {
   const bin = atob(b64);
@@ -410,9 +409,6 @@ async function downloadFile(docKey, filename, mimeType) {
     alert('Erreur de déchiffrement du document.');
   }
 }
-
-document.getElementById('exportDateDisplay').textContent = "__EXPORTED_AT__";
-document.getElementById('passInput').addEventListener('keydown', e => { if (e.key === 'Enter') unlock(); });
 
 async function unlock() {
   const pass = document.getElementById('passInput').value;
@@ -975,6 +971,16 @@ function renderVault(data) {
     + '</div>'
     + '<div style="display:flex;flex-direction:column;gap:10px">' + cards + '</div>';
 }
+</script>
+<!-- Bloc 2 : injection des données — séparé pour éviter les erreurs de parsing Safari -->
+<script>
+BLOB = "__BLOB__";
+DOC_BLOBS = __DOC_BLOBS__;
+ITERATIONS = __ITERATIONS__;
+document.getElementById('exportDateDisplay').textContent = "__EXPORTED_AT__";
+document.getElementById('passInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') unlock();
+});
 </script>
 </body>
 </html>'''
