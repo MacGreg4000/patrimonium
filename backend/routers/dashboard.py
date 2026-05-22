@@ -31,7 +31,7 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
 
     pos_data = []
     for pos in positions:
-        if pos.ticker == "MANUAL":
+        if pos.ticker == "MANUAL" or pos.asset_type == "cash":
             price_eur = pos.manual_price or 0.0
             prev_eur = price_eur
         else:
