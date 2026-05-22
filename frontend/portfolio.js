@@ -135,19 +135,20 @@ function renderHeldRows(positions) {
 }
 
 function buildPositionRow(pos) {
+  const isCash = pos.asset_type === 'cash';
   const hasPrice = pos.current_price_eur != null || pos.manual_price != null;
-  const priceStr = hasPrice ? fmtNum(pos.current_price_eur ?? pos.manual_price) + ' €' : '—';
-  const dayStr = pos.asset_type === 'bond_manual' ? '—' : (pos.day_change_pct != null
+  const priceStr = isCash ? '—' : (hasPrice ? fmtNum(pos.current_price_eur ?? pos.manual_price) + ' €' : '—');
+  const dayStr = (pos.asset_type === 'bond_manual' || isCash) ? '—' : (pos.day_change_pct != null
     ? `<span class="${pnlClass(pos.day_change_eur)}">${pnlSign(pos.day_change_eur)}${fmtPct(pos.day_change_pct)}</span>` : '—');
-  const pnlEurStr = `<span class="${pnlClass(pos.pnl_eur)}">${pnlSign(pos.pnl_eur)}${fmtEur(pos.pnl_eur)}</span>`;
-  const pnlPctStr = pos.pnl_pct != null
-    ? `<span class="${pnlClass(pos.pnl_pct)}">${pnlSign(pos.pnl_pct)}${fmtPct(pos.pnl_pct)}</span>` : '—';
+  const pnlEurStr = isCash ? '—' : `<span class="${pnlClass(pos.pnl_eur)}">${pnlSign(pos.pnl_eur)}${fmtEur(pos.pnl_eur)}</span>`;
+  const pnlPctStr = (isCash || pos.pnl_pct == null) ? '—'
+    : `<span class="${pnlClass(pos.pnl_pct)}">${pnlSign(pos.pnl_pct)}${fmtPct(pos.pnl_pct)}</span>`;
   const alertDot = (pos.alert_gain_pct || pos.alert_loss_pct)
     ? `<span class="alert-dot" title="+${pos.alert_gain_pct ?? '—'}% / -${pos.alert_loss_pct ?? '—'}%"></span>` : '—';
   const adminActions = isAdmin() ? `
     ${pos.asset_type === 'bond_manual' ? `<button class="btn btn-ghost primary" onclick="openManualPriceModal(${pos.id})">📝</button>` : ''}
-    <button class="btn btn-ghost" onclick="openAlertModal(${pos.id})" title="Alertes">⚡</button>
-    <button class="btn btn-ghost primary" onclick="openAddPurchaseModal(${pos.id})">+ Achat</button>
+    ${!isCash ? `<button class="btn btn-ghost" onclick="openAlertModal(${pos.id})" title="Alertes">⚡</button>` : ''}
+    ${!isCash ? `<button class="btn btn-ghost primary" onclick="openAddPurchaseModal(${pos.id})">+ Achat</button>` : ''}
     <button class="btn btn-ghost" onclick="openEditPositionModal(${pos.id})" title="Modifier">✏️</button>
     <button class="btn btn-ghost danger" onclick="archivePosition(${pos.id},'${escHtml(pos.display_name).replace(/'/g,"\\'")}')">🗑</button>` : '';
 
@@ -164,9 +165,9 @@ function buildPositionRow(pos) {
       </td>
       <td>${priceStr}</td>
       <td>${dayStr}</td>
-      <td>${fmtNum(pos.total_quantity, 4)}</td>
-      <td>${pos.average_cost != null ? fmtNum(pos.average_cost) + ' €' : '—'}</td>
-      <td>${fmtEur(pos.total_invested)}</td>
+      <td>${isCash ? '—' : fmtNum(pos.total_quantity, 4)}</td>
+      <td>${isCash ? '—' : (pos.average_cost != null ? fmtNum(pos.average_cost) + ' €' : '—')}</td>
+      <td>${isCash ? '—' : fmtEur(pos.total_invested)}</td>
       <td><strong>${fmtEur(pos.current_value)}</strong></td>
       <td>${pnlEurStr}</td>
       <td>${pnlPctStr}</td>
@@ -478,7 +479,7 @@ async function submitSaxoImport(e) {
   fd.append('file', file);
   try {
     const data = await apiFetch('/api/saxo/import', { method: 'POST', body: fd });
-    const { created_positions, created_purchases, skipped_purchases, total_transactions } = data;
+    const { created_positions, created_purchases, skipped_purchases, total_transactions, cash_balance_eur } = data;
     res.style.display = 'block';
     res.style.background = 'rgba(0,214,143,0.08)';
     res.style.border = '1px solid rgba(0,214,143,0.3)';
@@ -488,6 +489,7 @@ async function submitSaxoImport(e) {
         ${created_positions} position${created_positions !== 1 ? 's' : ''} créée${created_positions !== 1 ? 's' : ''} ·
         ${created_purchases} achat${created_purchases !== 1 ? 's' : ''} importé${created_purchases !== 1 ? 's' : ''} ·
         ${skipped_purchases} doublon${skipped_purchases !== 1 ? 's' : ''} ignoré${skipped_purchases !== 1 ? 's' : ''}
+        ${cash_balance_eur != null ? ` · 💶 Liquidités : ${fmtEur(cash_balance_eur)}` : ''}
       </span>`;
     btn.textContent = '✓ Terminé';
     await loadPortfolio();

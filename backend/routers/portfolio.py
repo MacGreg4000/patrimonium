@@ -41,7 +41,7 @@ class ManualPriceUpdate(BaseModel):
 # ── Helpers ───────────────────────────────────────────────
 
 def _build_position(pos: Position, portfolio_total: float) -> dict:
-    if pos.ticker == "MANUAL":
+    if pos.ticker == "MANUAL" or pos.asset_type == "cash":
         price_eur = pos.manual_price or 0.0
         prev_eur = price_eur
         day_pct = 0.0
@@ -86,7 +86,7 @@ def _all_positions_with_total(db: Session) -> tuple[list, float]:
     positions = db.query(Position).filter(Position.is_active == True).all()  # noqa: E712
     total = 0.0
     for pos in positions:
-        if pos.ticker == "MANUAL":
+        if pos.ticker == "MANUAL" or pos.asset_type == "cash":
             p = pos.manual_price or 0.0
         else:
             p, _, _ = md.get_price_eur(pos.ticker, pos.currency)

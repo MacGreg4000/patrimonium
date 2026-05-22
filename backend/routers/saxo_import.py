@@ -1,6 +1,6 @@
 """SaxoBank XLSX import router."""
 import re
-from datetime import date
+from datetime import date, datetime, timezone
 from io import BytesIO
 from typing import Optional
 
@@ -81,8 +81,12 @@ def _parse_sale_event(event: str) -> Optional[tuple[float, float]]:
     return qty, price
 
 
-def _parse_saxo_xlsx(content: bytes) -> list[dict]:
-    """Parse le fichier XLSX SaxoBank et retourne les transactions d'achat."""
+def _parse_saxo_xlsx(content: bytes) -> tuple[list[dict], float]:
+    """Parse le fichier XLSX SaxoBank.
+    Retourne (transactions, cash_balance).
+    Le cash_balance = Σ(Montant comptabilisé) sur toutes les lignes —
+    valide uniquement si le fichier couvre l'historique complet du compte.
+    """
     wb = openpyxl.load_workbook(BytesIO(content), data_only=True)
     ws = wb.active
 
@@ -92,12 +96,14 @@ def _parse_saxo_xlsx(content: bytes) -> list[dict]:
 
     # Colonnes (0-indexées) — basées sur le format SaxoBank exporté
     # 1=Date opération, 4=ID opération, 9=Type, 10=Événement,
-    # 15=Coût total(frais), 21=Instrument, 22=Symbole, 23=ISIN, 24=Devise, 25=Type actif
+    # 11=Montant comptabilisé, 15=Coût total(frais),
+    # 21=Instrument, 22=Symbole, 23=ISIN, 24=Devise, 25=Type actif
     COL = {
         "date":        1,
         "op_id":       4,
         "tx_type":     9,
         "event":       10,
+        "amount":      11,   # Montant comptabilisé (pour calcul cash)
         "fees":        15,
         "instrument":  21,
         "symbol":      22,
@@ -105,6 +111,16 @@ def _parse_saxo_xlsx(content: bytes) -> list[dict]:
         "currency":    24,
         "asset_type":  25,
     }
+
+    # Solde cash = somme de tous les montants comptabilisés (valide si export complet)
+    cash_balance = 0.0
+    for row in rows[1:]:
+        amt = row[COL["amount"]]
+        if amt is not None:
+            try:
+                cash_balance += float(amt)
+            except (ValueError, TypeError):
+                pass
 
     transactions = []
     for row in rows[1:]:   # skip header
@@ -153,7 +169,7 @@ def _parse_saxo_xlsx(content: bytes) -> list[dict]:
             "is_sale":     sale_parsed is not None and parsed is None,
         })
 
-    return transactions
+    return transactions, cash_balance
 
 
 # ── Endpoint ──────────────────────────────────────────────
@@ -174,7 +190,7 @@ async def import_saxo(
         raise HTTPException(status_code=400, detail="Fichier trop volumineux (max 10 MB)")
 
     try:
-        transactions = _parse_saxo_xlsx(content)
+        transactions, cash_balance = _parse_saxo_xlsx(content)
     except Exception as e:
         raise HTTPException(status_code=422, detail=f"Erreur de lecture du fichier: {e}")
 
@@ -288,11 +304,57 @@ async def import_saxo(
         db.add(purchase)
         created_purchases += 1
 
+    # ── Mise à jour des liquidités SaxoBank ───────────────────
+    # Le solde cash = Σ(Montant comptabilisé) sur l'historique complet
+    SAXO_CASH_TICKER = "SAXO:EUR"
+    cash_pos = db.query(Position).filter(Position.ticker == SAXO_CASH_TICKER).first()
+    now_utc = datetime.now(timezone.utc)
+    if cash_pos is None:
+        cash_pos = Position(
+            display_name="Liquidités SaxoBank",
+            ticker=SAXO_CASH_TICKER,
+            asset_type="cash",
+            currency="EUR",
+            manual_price=round(cash_balance, 2),
+            manual_price_updated_at=now_utc,
+        )
+        db.add(cash_pos)
+        db.flush()
+        db.add(Purchase(
+            position_id=cash_pos.id,
+            purchase_date=date.today(),
+            quantity=1.0,
+            unit_price=round(cash_balance, 2),
+            fees=0.0,
+            note="[SAXO:CASH]",
+        ))
+    else:
+        cash_pos.manual_price = round(cash_balance, 2)
+        cash_pos.manual_price_updated_at = now_utc
+        cash_pos.is_active = True   # réactiver si archivé
+        vp = db.query(Purchase).filter(
+            Purchase.position_id == cash_pos.id,
+            Purchase.note == "[SAXO:CASH]",
+        ).first()
+        if vp:
+            vp.unit_price = round(cash_balance, 2)
+            vp.purchase_date = date.today()
+        else:
+            db.add(Purchase(
+                position_id=cash_pos.id,
+                purchase_date=date.today(),
+                quantity=1.0,
+                unit_price=round(cash_balance, 2),
+                fees=0.0,
+                note="[SAXO:CASH]",
+            ))
+
     db.commit()
     log_audit(db, user.id, "SAXO_IMPORT",
               f"Import SaxoBank: {created_positions} positions, {created_purchases} achats, "
               f"{created_sales} ventes, {skipped_purchases} doublons (ID), "
-              f"{fuzzy_duplicates} doublons (date/qté/prix)",
+              f"{fuzzy_duplicates} doublons (date/qté/prix), "
+              f"liquidités: {cash_balance:.2f} EUR",
               request)
 
     return {
@@ -303,4 +365,5 @@ async def import_saxo(
         "skipped_sales":     skipped_sales,
         "fuzzy_duplicates":  fuzzy_duplicates,
         "total_transactions": len(transactions),
+        "cash_balance_eur":  round(cash_balance, 2),
     }
