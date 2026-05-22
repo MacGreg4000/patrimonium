@@ -480,7 +480,7 @@ function pct(v) { return v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) 
 function cls(v) { return v == null ? '' : v >= 0 ? 'pos' : 'neg'; }
 function esc(s) {
   if (!s) return '';
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 function fmtDate(iso) {
   if (!iso) return '—';
@@ -1115,7 +1115,11 @@ def export_patrimoine_excel(
     today_date = date.fromisoformat(today_str)
 
     portfolio_items = data["portfolio"]
-    total_portfolio = sum(p.get("value_eur") or 0.0 for p in portfolio_items)
+    # Exclure les liquidités SaxoBank du total "bourse" (type='cash')
+    stock_items     = [p for p in portfolio_items if p.get("type") != "cash"]
+    saxo_cash_items = [p for p in portfolio_items if p.get("type") == "cash"]
+    total_portfolio = sum(p.get("value_eur") or 0.0 for p in stock_items)
+    total_saxo_cash_xl = sum(p.get("value_eur") or 0.0 for p in saxo_cash_items)
 
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
@@ -1126,7 +1130,7 @@ def export_patrimoine_excel(
         "Ticker", "Nom", "Quantité", "PRU (€)", "Cours actuel (€)",
         "Valeur totale (€)", "P&L (€)", "P&L (%)", "Allocation (%)",
     ])
-    for p in portfolio_items:
+    for p in stock_items:
         qty = p.get("quantity") or 0.0
         if qty <= 0:
             continue
@@ -1220,29 +1224,30 @@ def export_patrimoine_excel(
     ws5 = wb.create_sheet("Synthèse")
     _xl_write_headers(ws5, [
         "Date export", "Patrimoine total (€)", "Total immobilier (€)", "Total bourse (€)",
-        "Total réserves SRL (€)", "Total liquidités (€)", "Total métaux (€)", "Total véhicules (€)",
+        "Liq. SaxoBank (€)", "Total réserves SRL (€)", "Liq. coffres (€)", "Total métaux (€)", "Total véhicules (€)",
     ])
     assets         = data["assets"]
     total_immo     = sum((a.get("estimated_value") or 0.0) for a in assets if a.get("category") == "immo")
     total_metal    = sum((a.get("estimated_value") or 0.0) for a in assets if a.get("category") == "metal")
     total_vehicule = sum((a.get("estimated_value") or 0.0) for a in assets if a.get("category") == "vehicule")
-    total_cash     = sum(c.get("balance") or 0.0 for c in data["coffres"])
+    total_cash_xl  = sum(c.get("balance") or 0.0 for c in data["coffres"])
     total_res      = sum(r.get("releasable") or 0.0 for r in data["reserves"])
     total_phys     = sum((a.get("estimated_value") or 0.0) for a in assets)
-    grand_total    = total_portfolio + total_cash + total_phys + total_res
+    grand_total    = total_portfolio + total_saxo_cash_xl + total_cash_xl + total_phys + total_res
 
     ws5.append([
         today_date,
         grand_total,
         total_immo,
         total_portfolio,
+        total_saxo_cash_xl,
         total_res,
-        total_cash,
+        total_cash_xl,
         total_metal,
         total_vehicule,
     ])
     _xl_fmt_col(ws5, 1, _DATE_FMT)
-    for col in range(2, 9):
+    for col in range(2, 10):
         _xl_fmt_col(ws5, col, _EUR_FMT)
     _xl_autowidth(ws5)
 
