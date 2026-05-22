@@ -306,6 +306,7 @@ body{
 .pos-icon.etf       {background:rgba(249,168,37,.18); color:var(--accent-gold)}
 .pos-icon.commodity {background:rgba(16,217,138,.18); color:var(--accent-green)}
 .pos-icon.bond_manual{background:rgba(169,112,247,.18);color:var(--accent-purple)}
+.pos-icon.cash      {background:rgba(0,214,143,.18);  color:var(--accent-green)}
 .pos-icon.bijou     {background:rgba(249,168,37,.18); color:var(--accent-gold)}
 .pos-icon.immo      {background:rgba(79,142,247,.18); color:var(--accent-blue)}
 .pos-icon.vehicule  {background:rgba(31,207,192,.18); color:var(--accent-teal)}
