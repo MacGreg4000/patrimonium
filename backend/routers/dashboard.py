@@ -41,15 +41,29 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
         m = calculations.calc_position_metrics(pos, price_eur, prev_eur, 1.0)
         m["display_name"] = pos.display_name
         m["ticker"] = pos.ticker
+        m["asset_type"] = pos.asset_type
+        # Ne compter dans les KPI que les positions avec des achats réels
+        has_holdings = (m.get("total_bought") or 0) > 0
         pos_data.append(m)
-        total_portfolio_value += m["current_value"]
-        total_portfolio_invested += m["total_invested"]
-        day_change_eur += m["day_change_eur"]
+        if has_holdings:
+            total_portfolio_value += m["current_value"]
+            total_portfolio_invested += m["total_invested"]
+            day_change_eur += m["day_change_eur"]
 
-    total_portfolio_pnl = total_portfolio_value - total_portfolio_invested
+    # P&L total = unrealized + realized (inclut les ventes partielles sur positions actives)
+    total_portfolio_pnl = sum(
+        (m.get("pnl_eur") or 0.0)
+        for m in pos_data
+        if (m.get("total_bought") or 0) > 0 and m.get("asset_type") != "cash"
+    )
     total_portfolio_pnl_pct = (
         total_portfolio_pnl / total_portfolio_invested * 100
         if total_portfolio_invested > 0 else None
+    )
+    # Nombre de positions réelles (avec achats, hors cash)
+    real_position_count = sum(
+        1 for m in pos_data
+        if (m.get("total_bought") or 0) > 0 and m.get("asset_type") != "cash"
     )
 
     # ── 2. Liquidités coffres ──────────────────────────────
@@ -62,7 +76,10 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
     total_cash = sum(c["balance"] for c in coffre_balances)
 
     # ── 3. Actifs physiques ────────────────────────────────
-    assets = db.query(PhysicalAsset).filter(PhysicalAsset.sold_at.is_(None)).all()
+    assets = db.query(PhysicalAsset).filter(
+        PhysicalAsset.user_id == user.id,
+        PhysicalAsset.sold_at.is_(None),
+    ).all()
     total_assets_value = sum((a.estimated_value or 0.0) for a in assets)
     asset_count = len(assets)
 
@@ -102,12 +119,23 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
 
     # ── 7. Fichiers chiffrés ──────────────────────────────
     password_file_count = db.query(PasswordFile).filter(PasswordFile.user_id == user.id).count()
-    asset_doc_count     = db.query(AssetDocument).count()
+    # Compter uniquement les docs des actifs appartenant à cet utilisateur
+    user_asset_ids = [a.id for a in assets]
+    asset_doc_count = (
+        db.query(AssetDocument).filter(AssetDocument.asset_id.in_(user_asset_ids)).count()
+        if user_asset_ids else 0
+    )
 
-    # ── 8. Portfolio top movers ───────────────────────────
-    movers = sorted(pos_data, key=lambda x: x.get("pnl_pct") or 0, reverse=True)
+    # ── 8. Portfolio top movers (positions réelles uniquement, hors cash et vides) ──
+    tradeable = [
+        m for m in pos_data
+        if (m.get("total_bought") or 0) > 0
+        and m.get("asset_type") != "cash"
+        and m.get("pnl_pct") is not None
+    ]
+    movers = sorted(tradeable, key=lambda x: x.get("pnl_pct") or 0, reverse=True)
     top_gainers = movers[:3]
-    top_losers = sorted(pos_data, key=lambda x: x.get("pnl_pct") or 0)[:3]
+    top_losers = sorted(tradeable, key=lambda x: x.get("pnl_pct") or 0)[:3]
 
     return {
         # Global
@@ -122,7 +150,7 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
             "total_pnl_eur": total_portfolio_pnl,
             "total_pnl_pct": total_portfolio_pnl_pct,
             "day_change_eur": day_change_eur,
-            "position_count": len(positions),
+            "position_count": real_position_count,
             "top_gainers": top_gainers[:3],
             "top_losers": [l for l in top_losers if (l.get("pnl_pct") or 0) < 0][:3],
         },
