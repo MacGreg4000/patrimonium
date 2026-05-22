@@ -60,7 +60,7 @@ def _collect_data(db: Session, user: User) -> dict:
     positions = db.query(Position).filter(Position.is_active == True).all()  # noqa: E712
     portfolio_items = []
     for pos in positions:
-        if pos.ticker == "MANUAL":
+        if pos.ticker == "MANUAL" or pos.asset_type == "cash":
             price_eur = pos.manual_price or 0.0
             prev_eur = price_eur
         else:
@@ -196,8 +196,9 @@ def _collect_data(db: Session, user: User) -> dict:
             "releasable": max(0.0, r.amount - released), "notes": r.notes,
         })
 
-    # Totaux
-    total_portfolio      = sum(p["value_eur"] or 0 for p in portfolio_items)
+    # Totaux (cash SaxoBank séparé du portefeuille boursier)
+    total_portfolio      = sum(p["value_eur"] or 0 for p in portfolio_items if p["type"] != "cash")
+    total_saxo_cash      = sum(p["value_eur"] or 0 for p in portfolio_items if p["type"] == "cash")
     total_cash           = sum(c["balance"] for c in coffres_data)
     total_assets         = sum((a["estimated_value"] or 0) for a in assets_data)
     total_releasable_res = sum(r["releasable"] for r in reserves_data)
@@ -213,10 +214,11 @@ def _collect_data(db: Session, user: User) -> dict:
         },
         "summary": {
             "total_portfolio_eur":  total_portfolio,
+            "total_saxo_cash_eur":  total_saxo_cash,
             "total_cash_eur":       total_cash,
             "total_assets_eur":     total_assets,
             "total_reserves_eur":   total_releasable_res,
-            "grand_total_eur":      total_portfolio + total_cash + total_assets + total_releasable_res,
+            "grand_total_eur":      total_portfolio + total_saxo_cash + total_cash + total_assets + total_releasable_res,
             "reserves_stats": {
                 "total_amount":     total_amount_res,
                 "total_releasable": total_releasable_res,
@@ -536,10 +538,11 @@ function renderAll(data) {
 function renderSummary(data) {
   const s = data.summary;
   const segs = [
-    {label:'Portefeuille', value: s.total_portfolio_eur || 0, color:'#3B82F6'},
-    {label:'Liquidités',   value: s.total_cash_eur      || 0, color:'#F59E0B'},
-    {label:'Actifs phys.', value: s.total_assets_eur    || 0, color:'#a855f7'},
-    {label:'Réserves',     value: s.total_reserves_eur  || 0, color:'#14b8a6'},
+    {label:'Portefeuille',       value: s.total_portfolio_eur  || 0, color:'#3B82F6'},
+    {label:'Liq. SaxoBank',      value: s.total_saxo_cash_eur  || 0, color:'#00D68F'},
+    {label:'Liq. Coffres',       value: s.total_cash_eur       || 0, color:'#F59E0B'},
+    {label:'Actifs phys.',       value: s.total_assets_eur     || 0, color:'#a855f7'},
+    {label:'Réserves',           value: s.total_reserves_eur   || 0, color:'#14b8a6'},
   ].filter(function(x){ return x.value > 0; });
 
   const donut = buildDonut(segs, 200);
@@ -554,7 +557,7 @@ function renderSummary(data) {
             + '</div>';
   }
 
-  const topPositions = (data.portfolio || []).slice().sort(function(a,b){ return (b.pnl_pct||0)-(a.pnl_pct||0); }).slice(0,5);
+  const topPositions = (data.portfolio || []).filter(function(p){ return p.type !== 'cash' && p.pnl_pct != null; }).slice().sort(function(a,b){ return (b.pnl_pct||0)-(a.pnl_pct||0); }).slice(0,5);
   let topRows = '';
   for (let i = 0; i < topPositions.length; i++) {
     const p = topPositions[i];
@@ -605,15 +608,20 @@ function toggleCard(card) {
 function renderPortfolio(data) {
   const portfolio = data.portfolio || [];
   const sold = data.sold_positions || [];
-  const total_val = portfolio.reduce(function(s,p){ return s+(p.value_eur||0); }, 0);
-  const total_inv = portfolio.reduce(function(s,p){ return s+(p.invested_eur||0); }, 0);
-  const total_pnl = portfolio.reduce(function(s,p){ return s+(p.pnl_eur||0); }, 0);
-  const total_rpnl = portfolio.reduce(function(s,p){ return s+(p.realized_pnl||0); }, 0);
+  // Exclure le cash des totaux P&L portefeuille
+  const positions_only = portfolio.filter(function(p){ return p.type !== 'cash'; });
+  const total_val  = positions_only.reduce(function(s,p){ return s+(p.value_eur||0); }, 0);
+  const total_inv  = positions_only.reduce(function(s,p){ return s+(p.invested_eur||0); }, 0);
+  const total_pnl  = positions_only.reduce(function(s,p){ return s+(p.pnl_eur||0); }, 0);
+  const total_rpnl = positions_only.reduce(function(s,p){ return s+(p.realized_pnl||0); }, 0);
 
   let cards = '';
   for (let i = 0; i < portfolio.length; i++) {
     const p = portfolio[i];
-    const alloc = total_val > 0 ? ((p.value_eur||0) / total_val * 100) : 0;
+    // Pour le cash, l'alloc est sur le grand total ; pour les positions, sur le total_val seul
+    const alloc = p.type === 'cash'
+      ? (data.summary && data.summary.grand_total_eur > 0 ? ((p.value_eur||0) / data.summary.grand_total_eur * 100) : 0)
+      : (total_val > 0 ? ((p.value_eur||0) / total_val * 100) : 0);
 
     // Purchases table
     let purchasesTable = '';
@@ -661,6 +669,17 @@ function renderPortfolio(data) {
         + pnlLine + '</div>';
     }
 
+    const isCash = p.type === 'cash';
+    const metricsHtml = isCash
+      ? '<div class="metric"><span class="metric-lbl">Solde disponible</span><span class="metric-val" style="font-size:18px;color:var(--green)"><strong>' + eur(p.value_eur) + '</strong></span></div>'
+      : '<div class="metric"><span class="metric-lbl">QTÉ</span><span class="metric-val">' + num(p.quantity,4) + '</span></div>'
+        + '<div class="metric"><span class="metric-lbl">PRU</span><span class="metric-val">' + eur(p.average_cost) + '</span></div>'
+        + '<div class="metric"><span class="metric-lbl">Investi</span><span class="metric-val">' + eur(p.invested_eur) + '</span></div>'
+        + '<div class="metric"><span class="metric-lbl">Valeur</span><span class="metric-val"><strong>' + eur(p.value_eur) + '</strong></span></div>'
+        + '<div class="metric"><span class="metric-lbl">P&amp;L €</span><span class="metric-val ' + cls(p.pnl_eur) + '">' + eur(p.pnl_eur) + '</span></div>'
+        + '<div class="metric"><span class="metric-lbl">P&amp;L %</span><span class="metric-val ' + cls(p.pnl_pct) + '">' + pct(p.pnl_pct) + '</span></div>'
+        + '<div class="metric"><span class="metric-lbl">Alloc.</span><span class="metric-val" style="color:var(--text2)">' + alloc.toFixed(1) + '%</span></div>';
+
     cards += '<div class="pos-card" onclick="toggleCard(this)">'
            + '<div class="pos-header">'
            + '<div class="pos-left">'
@@ -668,19 +687,11 @@ function renderPortfolio(data) {
            + '<span class="badge badge-' + (p.type||'action') + '">' + (TYPE_LABELS[p.type]||p.type) + '</span></div>'
            + '<div class="pos-ticker">' + esc(p.ticker) + '</div>'
            + '</div>'
-           + '<span class="pos-chevron">▶</span>'
+           + (isCash ? '' : '<span class="pos-chevron">▶</span>')
            + '</div>'
-           + '<div class="pos-metrics">'
-           + '<div class="metric"><span class="metric-lbl">QTÉ</span><span class="metric-val">' + num(p.quantity,4) + '</span></div>'
-           + '<div class="metric"><span class="metric-lbl">PRU</span><span class="metric-val">' + eur(p.average_cost) + '</span></div>'
-           + '<div class="metric"><span class="metric-lbl">Investi</span><span class="metric-val">' + eur(p.invested_eur) + '</span></div>'
-           + '<div class="metric"><span class="metric-lbl">Valeur</span><span class="metric-val"><strong>' + eur(p.value_eur) + '</strong></span></div>'
-           + '<div class="metric"><span class="metric-lbl">P&amp;L €</span><span class="metric-val ' + cls(p.pnl_eur) + '">' + eur(p.pnl_eur) + '</span></div>'
-           + '<div class="metric"><span class="metric-lbl">P&amp;L %</span><span class="metric-val ' + cls(p.pnl_pct) + '">' + pct(p.pnl_pct) + '</span></div>'
-           + '<div class="metric"><span class="metric-lbl">Alloc.</span><span class="metric-val" style="color:var(--text2)">' + alloc.toFixed(1) + '%</span></div>'
-           + '</div>'
-           + '<div class="alloc-bar"><div class="alloc-fill" style="width:' + alloc.toFixed(2) + '%"></div></div>'
-           + '<div class="card-detail">' + purchasesTable + salesTable + '</div>'
+           + '<div class="pos-metrics">' + metricsHtml + '</div>'
+           + (isCash ? '' : '<div class="alloc-bar"><div class="alloc-fill" style="width:' + alloc.toFixed(2) + '%"></div></div>')
+           + (isCash ? '' : '<div class="card-detail">' + purchasesTable + salesTable + '</div>')
            + '</div>';
   }
 
