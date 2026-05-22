@@ -303,6 +303,36 @@ function injectPortfolioModals() {
   document.body.appendChild(container);
 }
 
+// ── Export Excel ──────────────────────────────────────────
+
+async function exportExcel() {
+  const btn = document.getElementById('exportExcelBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Génération…'; }
+  try {
+    const res = await apiFetchRaw('/api/export/patrimoine-excel', { method: 'GET' });
+    if (!res.ok) {
+      let detail = 'Erreur serveur';
+      try { const e = await res.json(); detail = e.detail || detail; } catch {}
+      throw new Error(detail);
+    }
+    const blob = await res.blob();
+    const today = new Date().toISOString().slice(0, 10);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `patrimoine_${today}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('Export Excel téléchargé', 'success');
+  } catch (err) {
+    showToast('Erreur export Excel : ' + err.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📊 Export Excel'; }
+  }
+}
+
 // ── Export USB ────────────────────────────────────────────
 
 function openExportModal() {

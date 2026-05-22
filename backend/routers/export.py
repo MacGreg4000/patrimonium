@@ -1,15 +1,19 @@
-"""Export router: génère un fichier HTML autonome chiffré pour clé USB."""
+"""Export router: génère un fichier HTML autonome chiffré pour clé USB, et un export Excel."""
 import base64 as b64_stdlib
 import gzip
 import json
 import os
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from io import BytesIO
 
+import openpyxl
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -1043,5 +1047,202 @@ def generate_export(
     return Response(
         content=html.encode("utf-8"),
         media_type="text/html",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ── Excel export ──────────────────────────────────────────
+
+_XL_HEADER_FILL = PatternFill("solid", fgColor="1E3A5F")
+_XL_HEADER_FONT = Font(bold=True, color="FFFFFF", size=10)
+_EUR_FMT  = '#,##0.00 "€"'
+_PCT_FMT  = r'0.00\%'
+_DATE_FMT = "DD/MM/YYYY"
+
+
+def _xl_write_headers(ws, headers: list[str]) -> None:
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = _XL_HEADER_FONT
+        cell.fill = _XL_HEADER_FILL
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[1].height = 20
+
+
+def _xl_autowidth(ws) -> None:
+    for col_cells in ws.columns:
+        max_len = max(
+            len(str(c.value)) if c.value is not None else 0
+            for c in col_cells
+        )
+        ws.column_dimensions[get_column_letter(col_cells[0].column)].width = min(max_len + 4, 45)
+
+
+def _xl_fmt_col(ws, col_idx: int, fmt: str, start_row: int = 2) -> None:
+    for row in ws.iter_rows(min_row=start_row, min_col=col_idx, max_col=col_idx):
+        for cell in row:
+            cell.number_format = fmt
+
+
+def _parse_date(s) -> date | None:
+    if not s:
+        return None
+    try:
+        return date.fromisoformat(str(s)[:10])
+    except (ValueError, TypeError):
+        return None
+
+
+@router.get("/patrimoine-excel")
+def export_patrimoine_excel(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Génère un fichier .xlsx structuré avec les données patrimoniales."""
+    data = _collect_data(db, user)
+    today_str  = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today_date = date.fromisoformat(today_str)
+
+    portfolio_items = data["portfolio"]
+    total_portfolio = sum(p.get("value_eur") or 0.0 for p in portfolio_items)
+
+    wb = openpyxl.Workbook()
+    wb.remove(wb.active)
+
+    # ── Feuille 1 : Portefeuille Boursier ──────────────────
+    ws1 = wb.create_sheet("Portefeuille Boursier")
+    _xl_write_headers(ws1, [
+        "Ticker", "Nom", "Quantité", "PRU (€)", "Cours actuel (€)",
+        "Valeur totale (€)", "P&L (€)", "P&L (%)", "Allocation (%)",
+    ])
+    for p in portfolio_items:
+        qty = p.get("quantity") or 0.0
+        if qty <= 0:
+            continue
+        alloc = (p.get("value_eur") or 0.0) / total_portfolio * 100.0 if total_portfolio > 0 else 0.0
+        ws1.append([
+            p.get("ticker") or "",
+            p.get("name") or "",
+            qty,
+            p.get("average_cost") or 0.0,
+            p.get("current_price_eur") or 0.0,
+            p.get("value_eur") or 0.0,
+            p.get("pnl_eur") or 0.0,
+            p.get("pnl_pct") or 0.0,
+            alloc,
+        ])
+    _xl_fmt_col(ws1, 4, _EUR_FMT)
+    _xl_fmt_col(ws1, 5, _EUR_FMT)
+    _xl_fmt_col(ws1, 6, _EUR_FMT)
+    _xl_fmt_col(ws1, 7, _EUR_FMT)
+    _xl_fmt_col(ws1, 8, _PCT_FMT)
+    _xl_fmt_col(ws1, 9, _PCT_FMT)
+    _xl_autowidth(ws1)
+
+    # ── Feuille 2 : Actifs Physiques ────────────────────────
+    ws2 = wb.create_sheet("Actifs Physiques")
+    _xl_write_headers(ws2, [
+        "Catégorie", "Nom", "Localisation", "Valeur estimée (€)",
+        "Dernière évaluation", "Notes",
+    ])
+    for a in data["assets"]:
+        val_dates = [e["date"] for e in a.get("events", []) if e.get("type") == "VALUATION"]
+        last_val  = _parse_date(max(val_dates)) if val_dates else None
+        ws2.append([
+            a.get("category") or "",
+            a.get("name") or "",
+            a.get("location") or "",
+            a.get("estimated_value") or 0.0,
+            last_val,
+            a.get("description") or "",
+        ])
+    _xl_fmt_col(ws2, 4, _EUR_FMT)
+    _xl_fmt_col(ws2, 5, _DATE_FMT)
+    _xl_autowidth(ws2)
+
+    # ── Feuille 3 : Réserves SRL ────────────────────────────
+    ws3 = wb.create_sheet("Réserves SRL")
+    _xl_write_headers(ws3, [
+        "Année", "Montant constitué (€)", "Libéré brut (€)",
+        "Précompte payé (€)", "Net reçu (€)", "Encore libérable (€)", "Statut",
+    ])
+    for r in sorted(data["reserves"], key=lambda x: (x.get("year", 0), x.get("month", 0))):
+        released   = r.get("released") or 0.0
+        releasable = r.get("releasable") or 0.0
+        amount     = r.get("amount") or 0.0
+        if released == 0:
+            status = "Non libéré"
+        elif releasable == 0:
+            status = "Libéré"
+        else:
+            status = "Partiel"
+        ws3.append([
+            r.get("year") or "",
+            amount,
+            released,
+            r.get("precompte_paye") or 0.0,
+            r.get("net_recu") or 0.0,
+            releasable,
+            status,
+        ])
+    for col in [2, 3, 4, 5, 6]:
+        _xl_fmt_col(ws3, col, _EUR_FMT)
+    _xl_autowidth(ws3)
+
+    # ── Feuille 4 : Liquidités ──────────────────────────────
+    ws4 = wb.create_sheet("Liquidités")
+    _xl_write_headers(ws4, ["Coffre/Compte", "Montant (€)", "Devise", "Date mise à jour"])
+    for c in data["coffres"]:
+        moves     = c.get("movements", [])
+        last_date = _parse_date(moves[0]["date"]) if moves else today_date
+        ws4.append([
+            c.get("name") or "",
+            c.get("balance") or 0.0,
+            "EUR",
+            last_date,
+        ])
+    _xl_fmt_col(ws4, 2, _EUR_FMT)
+    _xl_fmt_col(ws4, 4, _DATE_FMT)
+    _xl_autowidth(ws4)
+
+    # ── Feuille 5 : Synthèse ────────────────────────────────
+    ws5 = wb.create_sheet("Synthèse")
+    _xl_write_headers(ws5, [
+        "Date export", "Patrimoine total (€)", "Total immobilier (€)", "Total bourse (€)",
+        "Total réserves SRL (€)", "Total liquidités (€)", "Total métaux (€)", "Total véhicules (€)",
+    ])
+    assets         = data["assets"]
+    total_immo     = sum((a.get("estimated_value") or 0.0) for a in assets if a.get("category") == "immo")
+    total_metal    = sum((a.get("estimated_value") or 0.0) for a in assets if a.get("category") == "metal")
+    total_vehicule = sum((a.get("estimated_value") or 0.0) for a in assets if a.get("category") == "vehicule")
+    total_cash     = sum(c.get("balance") or 0.0 for c in data["coffres"])
+    total_res      = sum(r.get("releasable") or 0.0 for r in data["reserves"])
+    total_phys     = sum((a.get("estimated_value") or 0.0) for a in assets)
+    grand_total    = total_portfolio + total_cash + total_phys + total_res
+
+    ws5.append([
+        today_date,
+        grand_total,
+        total_immo,
+        total_portfolio,
+        total_res,
+        total_cash,
+        total_metal,
+        total_vehicule,
+    ])
+    _xl_fmt_col(ws5, 1, _DATE_FMT)
+    for col in range(2, 9):
+        _xl_fmt_col(ws5, col, _EUR_FMT)
+    _xl_autowidth(ws5)
+
+    # ── Sérialisation ───────────────────────────────────────
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f"patrimoine_{today_str}.xlsx"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

@@ -36,6 +36,11 @@ function renderDashboard(d) {
   const dayChangePct = prevTotal > 0 ? port.day_change_eur / prevTotal * 100 : null;
 
   page.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <div class="page-title">Patrimoine</div>
+      <button class="btn btn-secondary btn-sm" id="exportExcelBtn" onclick="exportExcel()">📊 Export Excel</button>
+    </div>
+
     <!-- Ligne 1 : patrimoine global -->
     <div class="hero-grid" style="margin-bottom:12px">
       <div class="hero-card">
