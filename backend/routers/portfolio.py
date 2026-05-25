@@ -101,11 +101,15 @@ def _all_positions_with_total(db: Session) -> tuple[list, float]:
 @router.get("/summary")
 def get_portfolio_summary(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     positions, total = _all_positions_with_total(db)
+    # Les liquidités (cash) ne sont pas du capital "investi" → exclure du calcul P&L
+    # mais conserver leur valeur dans total_value_eur
+    stock_positions = [p for p in positions if p.get("asset_type") != "cash"]
     metrics = calculations.calc_portfolio_metrics([
         {"current_value": p["current_value"], "total_invested": p["total_invested"],
          "day_change_eur": p["day_change_eur"]}
-        for p in positions
+        for p in stock_positions
     ])
+    metrics["total_value_eur"] = total   # inclut les liquidités
     return {
         **metrics,
         "positions": positions,

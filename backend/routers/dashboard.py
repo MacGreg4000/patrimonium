@@ -47,7 +47,8 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
         pos_data.append(m)
         if has_holdings:
             total_portfolio_value += m["current_value"]
-            total_portfolio_invested += m["total_invested"]
+            if m.get("asset_type") != "cash":   # le cash n'est pas du capital "investi"
+                total_portfolio_invested += m["total_invested"]
             day_change_eur += m["day_change_eur"]
 
     # P&L total = unrealized + realized (inclut les ventes partielles sur positions actives)
