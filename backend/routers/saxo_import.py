@@ -113,14 +113,25 @@ def _parse_saxo_xlsx(content: bytes) -> tuple[list[dict], float]:
     }
 
     # Solde cash = somme de tous les montants comptabilisés (valide si export complet)
+    # Pour les achats non encore réglés (Montant vide, settlement T+2), on déduit
+    # le coût estimé (qté × prix) afin d'éviter un double-comptage.
     cash_balance = 0.0
     for row in rows[1:]:
         amt = row[COL["amount"]]
-        if amt is not None:
+        if amt is not None and amt != "":
             try:
                 cash_balance += float(amt)
             except (ValueError, TypeError):
                 pass
+        else:
+            # Montant vide = transaction non réglée → déduire le coût estimé du cash
+            event_str = str(row[COL["event"]] or "")
+            buy_parsed = _parse_event(event_str)
+            if buy_parsed and row[COL["tx_type"]] == "Transaction":
+                qty_b, price_b = buy_parsed
+                fees_raw = row[COL["fees"]]
+                fees_b = abs(float(fees_raw)) if fees_raw else 0.0
+                cash_balance -= round(qty_b * price_b + fees_b, 2)
 
     transactions = []
     for row in rows[1:]:   # skip header
