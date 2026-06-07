@@ -96,7 +96,11 @@ function startAutoRefresh() {
         const d = await apiGet('/api/dashboard');
         refreshDashboardValues(d);
       } else if (_currentPage === 'portfolio') {
-        loadPortfolio();
+        // Rafraîchissement léger : prix uniquement, sans re-rendre la page
+        // (évite de réinitialiser les formulaires, notamment le simulateur)
+        const data = await apiGet('/api/portfolio/summary');
+        updateLiveBadge(data.is_market_open, data.last_updated);
+        refreshPortfolioValues(data);
       } else {
         const data = await apiGet('/api/portfolio/summary');
         updateLiveBadge(data.is_market_open, data.last_updated);

@@ -195,6 +195,30 @@ function renderPortfolioPage(data) {
   });
 }
 
+function refreshPortfolioValues(data) {
+  // Mise à jour légère des KPI heroes sans re-rendre toute la page
+  // Appelée par l'auto-refresh toutes les 30s pour ne pas écraser le simulateur
+  _portfolioData = data;
+  const q = id => document.querySelector(`#page-portfolio ${id}`);
+
+  const vEl = q('.hero-card-value.gold');
+  if (vEl) vEl.textContent = fmtEur(data.total_value_eur);
+
+  // Mettre à jour le tbody des positions détenues et suivies
+  const held    = (data.positions || []).filter(p => p.total_quantity > 0);
+  const watched = (data.positions || []).filter(p => p.total_quantity === 0);
+  const pb = document.getElementById('positionsBody');
+  const wb = document.getElementById('watchedBody');
+  if (pb) pb.innerHTML = renderHeldRows(held);
+  if (wb) wb.innerHTML = renderWatchedRows(watched);
+
+  // Re-expand les lignes qui étaient ouvertes
+  _expandedPositions.forEach(id => {
+    const el = document.getElementById(`expand-${id}`);
+    if (el) el.classList.add('open');
+  });
+}
+
 async function loadPortfolioHistory() {
   try {
     const history = await apiGet('/api/portfolio/history');
