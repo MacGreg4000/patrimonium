@@ -633,8 +633,13 @@ async function submitRevolutImport(e) {
   fd.append('file', file);
   try {
     const data = await apiFetch('/api/revolut/import', { method: 'POST', body: fd });
-    const { created_positions, created_purchases, created_sales, skipped_purchases, skipped_sales, fuzzy_duplicates, cash_balance_eur } = data;
+    const { created_positions, created_purchases, created_sales, skipped_purchases, skipped_sales, fuzzy_duplicates, cash_balance_eur, unknown_tickers } = data;
     const skipped = skipped_purchases + skipped_sales + fuzzy_duplicates;
+    const unknownWarn = unknown_tickers?.length
+      ? `<div style="margin-top:8px;padding:8px;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:6px;color:#F59E0B;font-size:12px">
+          ⚠ Tickers sans mapping yfinance (cours non mis à jour) : <strong>${unknown_tickers.join(', ')}</strong><br/>
+          <span style="color:var(--text-secondary)">Contacte le support pour les ajouter au mapping.</span>
+         </div>` : '';
     res.style.display = 'block';
     res.style.background = 'rgba(0,214,143,0.08)';
     res.style.border = '1px solid rgba(0,214,143,0.3)';
@@ -646,7 +651,7 @@ async function submitRevolutImport(e) {
         ${created_sales} vente${created_sales !== 1 ? 's' : ''} ·
         ${skipped} doublon${skipped !== 1 ? 's' : ''} ignoré${skipped !== 1 ? 's' : ''}
         ${cash_balance_eur != null ? ` · 💶 Liquidités : ${fmtEur(cash_balance_eur)}` : ''}
-      </span>`;
+      </span>${unknownWarn}`;
     btn.textContent = '✓ Terminé';
     await loadPortfolio();
   } catch (err) {

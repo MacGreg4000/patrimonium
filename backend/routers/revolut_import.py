@@ -13,17 +13,70 @@ from models import Position, Purchase, Sale, User
 
 router = APIRouter(prefix="/api/revolut", tags=["revolut"])
 
-# ── Mapping type d'actif par ticker (extensible) ─────────────────────────────
-# Revolut ne fournit pas le type d'actif — on devine à partir du ticker.
-# Les ETF connus sont listés ici ; tout le reste est traité comme "action".
-_ETF_TICKERS = {
+# ── Mapping ticker Revolut → ticker yfinance ─────────────────────────────────
+# Revolut utilise ses propres codes internes qui diffèrent souvent de yfinance.
+# Ajouter ici tout nouveau ticker rencontré lors des imports.
+_REVOLUT_TO_YFINANCE: dict[str, str] = {
+    # Actions françaises (Euronext Paris)
+    "AIL":   "AI.PA",      # Air Liquide
+    "SGM":   "SGO.PA",     # Saint-Gobain
+    "TOTB":  "TTE.PA",     # TotalEnergies
+    "ACA":   "ACA.PA",     # Crédit Agricole
+    "BNP":   "BNP.PA",     # BNP Paribas
+    "SAN":   "SAN.PA",     # Sanofi
+    "OR":    "OR.PA",      # L'Oréal
+    "MC":    "MC.PA",      # LVMH
+    "RMS":   "RMS.PA",     # Hermès
+    "SU":    "SU.PA",      # Schneider Electric
+    "ORA":   "ORA.PA",     # Orange
+    "VIE":   "VIE.PA",     # Veolia
+    "DG":    "DG.PA",      # Vinci
+    "AI":    "AI.PA",      # Air Liquide (alias)
+    "CAP":   "CAP.PA",     # Capgemini
+    "SAF":   "SAF.PA",     # Safran
+    "DSY":   "DSY.PA",     # Dassault Systèmes
+    "HO":    "HO.PA",      # Thales
+    "PUB":   "PUB.PA",     # Publicis
+    "VK":    "VK.PA",      # Vallourec
+    # Actions US
+    "AAPL":  "AAPL",
+    "MSFT":  "MSFT",
+    "NVDA":  "NVDA",
+    "GOOGL": "GOOGL",
+    "AMZN":  "AMZN",
+    "META":  "META",
+    "TSLA":  "TSLA",
+    # ETF (Euronext Amsterdam / XETRA)
+    "EUNL":  "EUNL.AS",    # iShares Core MSCI World
+    "IWDA":  "IWDA.AS",    # iShares MSCI World
+    "CSPX":  "CSPX.AS",    # iShares Core S&P 500
+    "VWCE":  "VWCE.DE",    # Vanguard FTSE All-World Acc
+    "VUSA":  "VUSA.AS",    # Vanguard S&P 500
+    "X9I1":  "X9I1.DE",    # Xtrackers MSCI World Swap
+    "XDWD":  "XDWD.DE",    # Xtrackers MSCI World
+    "MEUD":  "MEUD.PA",    # Amundi MSCI Europe
+    "IMAE":  "IMAE.AS",    # iShares MSCI EM
+    "IUSQ":  "IUSQ.DE",    # iShares MSCI World Quality
+    "SWDA":  "SWDA.AS",    # iShares Core MSCI World (GBP)
+    "LYPS":  "LYPS.DE",    # Lyxor S&P 500
+    "PAEEM": "PAEEM.PA",   # Amundi MSCI Emerging Markets
+    "PANX":  "PANX.PA",    # Amundi Nasdaq-100
+}
+
+# ETF connus pour le type d'actif (basé sur les valeurs ci-dessus)
+_ETF_REVOLUT_TICKERS = {
     "EUNL", "IWDA", "CSPX", "VWCE", "VUSA", "MEUD", "X9I1", "IMAE",
     "IUSQ", "SWDA", "XDWD", "LYPS", "PAEEM", "PANX", "PRAE",
 }
 
 
-def _guess_asset_type(ticker: str) -> str:
-    return "etf" if ticker.upper() in _ETF_TICKERS else "action"
+def _revolut_ticker_to_yfinance(revolut_ticker: str) -> str:
+    """Convertit un ticker Revolut en ticker yfinance. Retourne le ticker brut si inconnu."""
+    return _REVOLUT_TO_YFINANCE.get(revolut_ticker.upper(), revolut_ticker.upper())
+
+
+def _guess_asset_type(revolut_ticker: str) -> str:
+    return "etf" if revolut_ticker.upper() in _ETF_REVOLUT_TICKERS else "action"
 
 
 def _parse_amount(val) -> float:
@@ -123,16 +176,18 @@ def _parse_revolut_csv(content: bytes) -> tuple[list[dict], float]:
         # Tag de déduplication : date ISO + ticker + quantité (pas d'ID dans Revolut)
         revolut_tag = f"[REVOLUT:{tx_date.isoformat()}:{ticker}:{qty}]"
 
+        yf_ticker = _revolut_ticker_to_yfinance(ticker)
         transactions.append({
-            "date":       tx_date,
-            "ticker":     ticker.upper(),
-            "is_sale":    is_sell,
-            "quantity":   round(qty, 8),
-            "unit_price": round(unit_price, 6),
-            "fees":       0.0,   # Revolut n'affiche pas les frais séparément
-            "currency":   currency,
-            "asset_type": _guess_asset_type(ticker),
-            "revolut_tag": revolut_tag,
+            "date":           tx_date,
+            "revolut_ticker": ticker.upper(),    # ticker original Revolut (pour le tag)
+            "ticker":         yf_ticker,         # ticker yfinance (pour les cours)
+            "is_sale":        is_sell,
+            "quantity":       round(qty, 8),
+            "unit_price":     round(unit_price, 6),
+            "fees":           0.0,
+            "currency":       currency,
+            "asset_type":     _guess_asset_type(ticker),
+            "revolut_tag":    revolut_tag,
         })
 
     return transactions, round(cash_balance, 2)
@@ -171,6 +226,10 @@ async def import_revolut(
     created_sales     = 0
     skipped_sales     = 0
     fuzzy_duplicates  = 0
+    unknown_tickers   = {
+        tx["revolut_ticker"] for tx in transactions
+        if tx["revolut_ticker"] not in _REVOLUT_TO_YFINANCE
+    }
 
     for tx in transactions:
         ticker = tx["ticker"]
@@ -314,12 +373,13 @@ async def import_revolut(
     )
 
     return {
-        "created_positions": created_positions,
-        "created_purchases": created_purchases,
-        "created_sales":     created_sales,
-        "skipped_purchases": skipped_purchases,
-        "skipped_sales":     skipped_sales,
-        "fuzzy_duplicates":  fuzzy_duplicates,
+        "created_positions":  created_positions,
+        "created_purchases":  created_purchases,
+        "created_sales":      created_sales,
+        "skipped_purchases":  skipped_purchases,
+        "skipped_sales":      skipped_sales,
+        "fuzzy_duplicates":   fuzzy_duplicates,
         "total_transactions": len(transactions),
-        "cash_balance_eur":  round(cash_balance, 2),
+        "cash_balance_eur":   round(cash_balance, 2),
+        "unknown_tickers":    sorted(unknown_tickers),   # tickers sans mapping yfinance
     }
