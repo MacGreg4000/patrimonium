@@ -167,15 +167,22 @@ function refreshDashboardValues(d) {
 function renderTopMovers(port) {
   const gainers = (port.top_gainers || []).filter(p => (p.pnl_pct || 0) !== 0);
   const losers  = (port.top_losers  || []).filter(p => (p.pnl_pct || 0) !== 0);
-  if (!gainers.length && !losers.length) {
+  if (!gainers.length && !losers.length)
     return `<div class="empty-state" style="padding:20px"><div class="empty-icon">📊</div><div class="empty-text">Aucun achat enregistré</div></div>`;
-  }
-  const rows = [...gainers, ...losers].slice(0, 5).map(p => `
+
+  const row = p => `
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
       <div style="font-size:13px;font-weight:500;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.display_name)}</div>
       <div class="${pnlClass(p.pnl_pct)}" style="font-family:var(--font-display);font-size:12px;flex-shrink:0">${pnlSign(p.pnl_pct)}${fmtPct(p.pnl_pct)}</div>
-    </div>`).join('');
-  return `<div>${rows}</div>`;
+    </div>`;
+  const label = txt => `<div style="font-size:10px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${txt}</div>`;
+  const sep   = `<hr style="border:none;border-top:1px solid var(--border);margin:10px 0"/>`;
+
+  return `<div>
+    ${gainers.length ? label('Top Winners') + gainers.map(row).join('') : ''}
+    ${gainers.length && losers.length ? sep : ''}
+    ${losers.length  ? label('Top Losers')  + losers.map(row).join('')  : ''}
+  </div>`;
 }
 
 function renderCoffreBalances(coffres) {
