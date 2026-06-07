@@ -135,8 +135,9 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
         and m.get("pnl_pct") is not None
     ]
     movers = sorted(tradeable, key=lambda x: x.get("pnl_pct") or 0, reverse=True)
-    top_gainers = movers[:3]
-    top_losers = sorted(tradeable, key=lambda x: x.get("pnl_pct") or 0)[:3]
+    top_gainers = [m for m in movers if (m.get("pnl_pct") or 0) > 0][:3]
+    top_losers = [m for m in sorted(tradeable, key=lambda x: x.get("pnl_pct") or 0)
+                  if (m.get("pnl_pct") or 0) < 0][:3]
 
     return {
         # Global
