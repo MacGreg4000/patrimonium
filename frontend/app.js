@@ -5,7 +5,6 @@
 
 const PAGES = ['dashboard', 'portfolio', 'coffres', 'assets', 'reserves', 'passwords', 'admin'];
 let _currentPage = 'dashboard';
-let _refreshInterval = null;
 
 // ── Navigation ────────────────────────────────────────────
 
@@ -69,7 +68,6 @@ function navigate(page) {
 function initApp() {
   injectPortfolioModals();
   navigate('dashboard');
-  startAutoRefresh();
 }
 
 // ── Refresh logic ─────────────────────────────────────────
@@ -85,28 +83,6 @@ async function globalRefresh() {
   } finally {
     if (btn) { btn.disabled = false; btn.style.opacity = ''; }
   }
-}
-
-function startAutoRefresh() {
-  if (_refreshInterval) clearInterval(_refreshInterval);
-  _refreshInterval = setInterval(async () => {
-    try {
-      if (_currentPage === 'dashboard') {
-        // Mise à jour légère : chiffres uniquement, les graphiques ne sont pas recréés
-        const d = await apiGet('/api/dashboard');
-        refreshDashboardValues(d);
-      } else if (_currentPage === 'portfolio') {
-        // Rafraîchissement léger : prix uniquement, sans re-rendre la page
-        // (évite de réinitialiser les formulaires, notamment le simulateur)
-        const data = await apiGet('/api/portfolio/summary');
-        updateLiveBadge(data.is_market_open, data.last_updated);
-        refreshPortfolioValues(data);
-      } else {
-        const data = await apiGet('/api/portfolio/summary');
-        updateLiveBadge(data.is_market_open, data.last_updated);
-      }
-    } catch (_) {}
-  }, 30_000);
 }
 
 function updateLiveBadge(isOpen, lastRefresh) {
