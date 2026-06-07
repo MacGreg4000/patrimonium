@@ -29,7 +29,6 @@ function renderPortfolioPage(data) {
         <div class="page-title">📈 Portefeuille boursier</div>
       </div>
       <div style="display:flex;gap:8px">
-        <button class="btn btn-secondary btn-sm" onclick="openSimulator()">📈 Simulateur</button>
         <button class="btn btn-secondary btn-sm" onclick="openSaxoImportModal()">📥 SaxoBank</button>
         ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="openAddPositionModal()">+ Position</button>` : ''}
       </div>
@@ -98,7 +97,7 @@ function renderPortfolioPage(data) {
     </div>
 
     <!-- Watched positions table -->
-    <div class="card" style="padding:0;overflow:hidden">
+    <div class="card" style="padding:0;overflow:hidden;margin-bottom:20px">
       <div class="section-header">
         <div class="section-title">Suivis <span class="section-count">${watched.length}</span></div>
         ${isAdmin() ? `<button class="btn btn-ghost btn-sm" style="margin-right:12px" onclick="openAddPositionModal()">+ Ajouter</button>` : ''}
@@ -112,13 +111,81 @@ function renderPortfolioPage(data) {
           <tbody id="watchedBody">${renderWatchedRows(watched)}</tbody>
         </table>
       </div>
+    </div>
+
+    <!-- ── Simulateur de rendement ── -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-title" style="margin-bottom:16px">📈 Simulateur de rendement
+        <span style="font-size:11px;color:var(--text-secondary);font-weight:400;margin-left:6px">— projection basée sur le CAGR historique (yfinance)</span>
+      </div>
+      <div style="display:grid;grid-template-columns:240px 1fr;gap:28px;align-items:start">
+
+        <!-- Panneau gauche -->
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div>
+            <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Actifs à simuler</div>
+            <div id="simAssetList" style="border:1px solid var(--border);border-radius:6px;padding:6px 8px;max-height:180px;overflow-y:auto">
+              ${positions.filter(p => p.asset_type !== 'cash' && p.ticker && p.ticker !== 'MANUAL').map(p => {
+                const typeLabel = (typeof ASSET_TYPE_LABELS !== 'undefined' && ASSET_TYPE_LABELS[p.asset_type]) || p.asset_type;
+                const checked = p.total_quantity > 0 ? 'checked' : '';
+                return `<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px">
+                  <input type="checkbox" value="${escHtml(p.ticker)}" ${checked}
+                    data-name="${escHtml(p.display_name)}"
+                    data-type="${escHtml(p.asset_type)}"
+                    data-invested="${p.total_invested || 0}"
+                    onchange="_onSimAssetChange()"
+                    style="accent-color:var(--accent);flex-shrink:0">
+                  <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.display_name)}</span>
+                  <span style="font-size:10px;color:var(--text-secondary);flex-shrink:0">${escHtml(typeLabel)}</span>
+                </label>`;
+              }).join('')}
+            </div>
+          </div>
+          <div>
+            <label class="form-label">Capital initial (€)</label>
+            <input id="simCapital" type="number" class="form-input" min="0" step="100" value="${Math.round(held.filter(p=>p.asset_type!=='cash').reduce((s,p)=>s+(p.total_invested||0),0))}" oninput="_updateSim()">
+          </div>
+          <div>
+            <label class="form-label">DCA mensuel (€) <span style="color:var(--text-secondary);font-weight:400">— optionnel</span></label>
+            <input id="simDCA" type="number" class="form-input" min="0" step="50" value="0" oninput="_updateSim()">
+          </div>
+          <div>
+            <label class="form-label">Durée : <strong id="simYearsLabel">20</strong> ans</label>
+            <input id="simYears" type="range" min="1" max="40" value="20"
+              style="width:100%;accent-color:var(--accent);margin-top:4px"
+              oninput="document.getElementById('simYearsLabel').textContent=this.value;_updateSim()">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary)"><span>1</span><span>40 ans</span></div>
+          </div>
+          <div>
+            <label class="form-label">Taux annuel (%) <span id="simRateInfo" style="color:var(--text-secondary);font-weight:400;font-size:11px"></span></label>
+            <input id="simRate" type="number" class="form-input" min="-20" max="50" step="0.1" value="8" oninput="_updateSim()">
+          </div>
+          <div id="simDivGroup" style="display:none">
+            <label class="form-label">Rendement dividende (%/an)</label>
+            <input id="simDiv" type="number" class="form-input" min="0" max="20" step="0.1" value="0" oninput="_updateSim()">
+          </div>
+          <div id="simDataInfo" style="font-size:11px;color:var(--text-secondary);line-height:1.4"></div>
+        </div>
+
+        <!-- Panneau droit -->
+        <div>
+          <div id="simKpis" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+            <div style="background:var(--bg-tertiary);border-radius:6px;padding:12px;color:var(--text-secondary);font-size:12px;grid-column:1/-1;text-align:center">
+              Chargement des données historiques…
+            </div>
+          </div>
+          <div style="height:220px;margin-bottom:16px"><canvas id="simChart"></canvas></div>
+          <div id="simTable"></div>
+        </div>
+      </div>
     </div>`;
 
-  // Charts (only held positions that have value)
+  // Initialisation après rendu DOM
   requestAnimationFrame(() => {
     const visiblePos = held.filter(p => p.current_value > 0);
     renderDonut('portDonut', visiblePos.map(p => p.display_name), visiblePos.map(p => p.current_value), 'portDonutLegend');
     loadPortfolioHistory();
+    _initSimulator();   // lancer la simulation avec les positions pré-cochées
   });
 
   // Re-expand
@@ -524,101 +591,13 @@ function floatOrNull(v) { const f = parseFloat(v); return isNaN(f) ? null : f; }
 
 // ── Simulateur de rendement ───────────────────────────────
 
-let _simRates  = {};    // {ticker: {cagr, dividend_yield, years_of_data}}
+let _simRates     = {};   // {ticker: {cagr, dividend_yield, years_of_data}}
 let _simChartInst = null;
 
-function _createSimulatorModal() {
-  const wrap = document.createElement('div');
-  wrap.innerHTML = `
-<div id="simulatorModal" class="modal-overlay">
-  <div class="modal" style="max-width:920px">
-    <div class="modal-header">
-      <div class="modal-title">📈 Simulateur de rendement</div>
-      <button class="modal-close" onclick="closeModal('simulatorModal')" type="button">✕</button>
-    </div>
-    <div style="display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:start">
-
-      <!-- Panneau gauche : sélection + paramètres -->
-      <div>
-        <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Actifs à simuler</div>
-        <div id="simAssetList" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:6px 8px"></div>
-
-        <div style="margin-top:16px;display:flex;flex-direction:column;gap:12px">
-          <div>
-            <label class="form-label">Capital initial (€)</label>
-            <input id="simCapital" type="number" class="form-input" min="0" step="100" value="10000" oninput="_updateSim()">
-          </div>
-          <div>
-            <label class="form-label">DCA mensuel (€) <span style="color:var(--text-secondary);font-weight:400">— optionnel</span></label>
-            <input id="simDCA" type="number" class="form-input" min="0" step="50" value="0" oninput="_updateSim()">
-          </div>
-          <div>
-            <label class="form-label">Durée : <strong id="simYearsLabel">20</strong> ans</label>
-            <input id="simYears" type="range" min="1" max="40" value="20"
-              style="width:100%;accent-color:var(--accent);margin-top:4px"
-              oninput="document.getElementById('simYearsLabel').textContent=this.value;_updateSim()">
-            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary)"><span>1</span><span>40 ans</span></div>
-          </div>
-          <div>
-            <label class="form-label">Taux annuel (%)
-              <span id="simRateInfo" style="color:var(--text-secondary);font-weight:400;font-size:11px"></span>
-            </label>
-            <input id="simRate" type="number" class="form-input" min="-20" max="50" step="0.1" value="8" oninput="_updateSim()">
-          </div>
-          <div id="simDivGroup" style="display:none">
-            <label class="form-label">Rendement dividende (%/an)</label>
-            <input id="simDiv" type="number" class="form-input" min="0" max="20" step="0.1" value="0" oninput="_updateSim()">
-          </div>
-          <div id="simDataInfo" style="font-size:11px;color:var(--text-secondary);line-height:1.4"></div>
-        </div>
-      </div>
-
-      <!-- Panneau droit : résultats -->
-      <div>
-        <div id="simKpis" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
-          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:14px;color:var(--text-secondary);font-size:12px;text-align:center">
-            Sélectionnez un ou plusieurs actifs pour lancer la simulation
-          </div>
-        </div>
-        <div style="height:200px;margin-bottom:16px"><canvas id="simChart"></canvas></div>
-        <div id="simTable"></div>
-      </div>
-    </div>
-  </div>
-</div>`;
-  document.body.appendChild(wrap.firstElementChild);
-}
-
-function openSimulator() {
-  if (!document.getElementById('simulatorModal')) _createSimulatorModal();
-  _populateSimAssets();
-  openModal('simulatorModal');
-}
-
-function _populateSimAssets() {
-  const positions = (_portfolioData?.positions || [])
-    .filter(p => p.asset_type !== 'cash' && p.ticker && p.ticker !== 'MANUAL');
-  const list = document.getElementById('simAssetList');
-  if (!list) return;
-
-  if (!positions.length) {
-    list.innerHTML = '<div style="color:var(--text-secondary);font-size:12px;padding:4px">Aucun actif disponible</div>';
-    return;
-  }
-
-  list.innerHTML = positions.map(p => {
-    const typeLabel = (typeof ASSET_TYPE_LABELS !== 'undefined' && ASSET_TYPE_LABELS[p.asset_type]) || p.asset_type;
-    return `<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px">
-      <input type="checkbox" value="${escHtml(p.ticker)}"
-        data-name="${escHtml(p.display_name)}"
-        data-type="${escHtml(p.asset_type)}"
-        data-invested="${p.total_invested || 0}"
-        onchange="_onSimAssetChange()"
-        style="accent-color:var(--accent);flex-shrink:0">
-      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.display_name)}</span>
-      <span style="font-size:10px;color:var(--text-secondary);flex-shrink:0">${escHtml(typeLabel)}</span>
-    </label>`;
-  }).join('');
+async function _initSimulator() {
+  // Déclenche _onSimAssetChange pour les cases pré-cochées (positions détenues)
+  const checked = [...document.querySelectorAll('#simAssetList input:checked')];
+  if (checked.length) await _onSimAssetChange();
 }
 
 async function _onSimAssetChange() {
