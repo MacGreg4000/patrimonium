@@ -275,6 +275,47 @@ function injectPortfolioModals() {
           </div>
         </form>
       </div>
+    </div>
+
+    <!-- Revolut import modal -->
+    <div class="modal-overlay" id="revolutImportModal">
+      <div class="modal" style="max-width:460px">
+        <div class="modal-header">
+          <span class="modal-title">📥 Importer depuis Revolut Invest</span>
+          <button class="modal-close" onclick="closeModal('revolutImportModal')">✕</button>
+        </div>
+        <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:10px;padding:14px 16px;margin-bottom:20px">
+          <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--accent-blue);margin-bottom:10px">📋 Où trouver le fichier ?</div>
+          <div style="display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px">
+              <span style="background:var(--accent-blue);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">1</span>
+              <span style="color:var(--text-secondary)">Revolut → onglet <strong style="color:var(--text-primary)">Invest</strong></span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px">
+              <span style="background:var(--accent-blue);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">2</span>
+              <span style="color:var(--text-secondary)"><strong style="color:var(--text-primary)">···</strong> → Documents → Stocks → Account Statement</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:10px;font-size:13px">
+              <span style="background:var(--accent-blue);color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0">3</span>
+              <span style="color:var(--text-secondary)">Choisir la période → <strong style="color:var(--text-primary)">Export CSV</strong></span>
+            </div>
+          </div>
+          <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(59,130,246,.2);font-size:11px;color:var(--text-muted)">
+            ✓ Les achats déjà importés ne seront jamais dupliqués — tu peux importer la même période plusieurs fois.
+          </div>
+        </div>
+        <form id="revolutImportForm" onsubmit="submitRevolutImport(event)">
+          <div class="form-group" style="margin-bottom:20px">
+            <label class="form-label">Fichier .csv Revolut</label>
+            <input type="file" class="form-input" id="revolutImportFile" required accept=".csv"/>
+          </div>
+          <div id="revolutImportResult" style="display:none;margin-bottom:16px;padding:12px;border-radius:8px;font-size:13px"></div>
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" onclick="closeModal('revolutImportModal')">Fermer</button>
+            <button type="submit" class="btn btn-primary" id="revolutImportBtn">📥 Importer</button>
+          </div>
+        </form>
+      </div>
     </div>`;
 
   const container = document.createElement('div');

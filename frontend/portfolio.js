@@ -30,6 +30,7 @@ function renderPortfolioPage(data) {
       </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary btn-sm" onclick="openSaxoImportModal()">📥 SaxoBank</button>
+        <button class="btn btn-secondary btn-sm" onclick="openRevolutImportModal()">📥 Revolut</button>
         ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="openAddPositionModal()">+ Position</button>` : ''}
       </div>
     </div>
@@ -591,6 +592,59 @@ async function submitSaxoImport(e) {
         ${created_positions} position${created_positions !== 1 ? 's' : ''} créée${created_positions !== 1 ? 's' : ''} ·
         ${created_purchases} achat${created_purchases !== 1 ? 's' : ''} importé${created_purchases !== 1 ? 's' : ''} ·
         ${skipped_purchases} doublon${skipped_purchases !== 1 ? 's' : ''} ignoré${skipped_purchases !== 1 ? 's' : ''}
+        ${cash_balance_eur != null ? ` · 💶 Liquidités : ${fmtEur(cash_balance_eur)}` : ''}
+      </span>`;
+    btn.textContent = '✓ Terminé';
+    await loadPortfolio();
+  } catch (err) {
+    res.style.display = 'block';
+    res.style.background = 'rgba(255,71,87,0.08)';
+    res.style.border = '1px solid rgba(255,71,87,0.3)';
+    res.style.color = 'var(--accent-red)';
+    res.textContent = '❌ ' + err.message;
+    btn.disabled = false;
+    btn.textContent = '📥 Importer';
+  }
+}
+
+// ── Revolut import ────────────────────────────────────────
+
+function openRevolutImportModal() {
+  document.getElementById('revolutImportForm').reset();
+  const res = document.getElementById('revolutImportResult');
+  res.style.display = 'none';
+  res.textContent = '';
+  document.getElementById('revolutImportBtn').disabled = false;
+  document.getElementById('revolutImportBtn').textContent = '📥 Importer';
+  openModal('revolutImportModal');
+}
+
+async function submitRevolutImport(e) {
+  e.preventDefault();
+  const file = document.getElementById('revolutImportFile').files[0];
+  if (!file) return;
+  const btn = document.getElementById('revolutImportBtn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Import en cours…';
+  const res = document.getElementById('revolutImportResult');
+  res.style.display = 'none';
+
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const data = await apiFetch('/api/revolut/import', { method: 'POST', body: fd });
+    const { created_positions, created_purchases, created_sales, skipped_purchases, skipped_sales, fuzzy_duplicates, cash_balance_eur } = data;
+    const skipped = skipped_purchases + skipped_sales + fuzzy_duplicates;
+    res.style.display = 'block';
+    res.style.background = 'rgba(0,214,143,0.08)';
+    res.style.border = '1px solid rgba(0,214,143,0.3)';
+    res.style.color = 'var(--accent-green)';
+    res.innerHTML = `✅ Import terminé<br/>
+      <span style="color:var(--text-secondary)">
+        ${created_positions} position${created_positions !== 1 ? 's' : ''} créée${created_positions !== 1 ? 's' : ''} ·
+        ${created_purchases} achat${created_purchases !== 1 ? 's' : ''} ·
+        ${created_sales} vente${created_sales !== 1 ? 's' : ''} ·
+        ${skipped} doublon${skipped !== 1 ? 's' : ''} ignoré${skipped !== 1 ? 's' : ''}
         ${cash_balance_eur != null ? ` · 💶 Liquidités : ${fmtEur(cash_balance_eur)}` : ''}
       </span>`;
     btn.textContent = '✓ Terminé';
