@@ -29,6 +29,7 @@ function renderPortfolioPage(data) {
         <div class="page-title">📈 Portefeuille boursier</div>
       </div>
       <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary btn-sm" onclick="openSimulator()">📈 Simulateur</button>
         <button class="btn btn-secondary btn-sm" onclick="openSaxoImportModal()">📥 SaxoBank</button>
         ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="openAddPositionModal()">+ Position</button>` : ''}
       </div>
@@ -513,3 +514,297 @@ function getVal(id) { return document.getElementById(id)?.value ?? ''; }
 function setVal(id, v) { const el = document.getElementById(id); if (el) el.value = v; }
 function setInner(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
 function floatOrNull(v) { const f = parseFloat(v); return isNaN(f) ? null : f; }
+
+// ── Simulateur de rendement ───────────────────────────────
+
+let _simRates  = {};    // {ticker: {cagr, dividend_yield, years_of_data}}
+let _simChartInst = null;
+
+function _createSimulatorModal() {
+  const wrap = document.createElement('div');
+  wrap.innerHTML = `
+<div id="simulatorModal" class="modal-overlay" style="display:none">
+  <div class="modal" style="max-width:920px;width:95vw;max-height:92vh;display:flex;flex-direction:column">
+    <div class="modal-header">
+      <div class="modal-title">📈 Simulateur de rendement</div>
+      <button class="modal-close" onclick="closeModal('simulatorModal')" type="button">✕</button>
+    </div>
+    <div class="modal-body" style="overflow:auto;flex:1;display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:start">
+
+      <!-- Panneau gauche : sélection + paramètres -->
+      <div>
+        <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Actifs à simuler</div>
+        <div id="simAssetList" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:6px 8px"></div>
+
+        <div style="margin-top:16px;display:flex;flex-direction:column;gap:12px">
+          <div>
+            <label class="form-label">Capital initial (€)</label>
+            <input id="simCapital" type="number" class="form-input" min="0" step="100" value="10000" oninput="_updateSim()">
+          </div>
+          <div>
+            <label class="form-label">DCA mensuel (€) <span style="color:var(--text-secondary);font-weight:400">— optionnel</span></label>
+            <input id="simDCA" type="number" class="form-input" min="0" step="50" value="0" oninput="_updateSim()">
+          </div>
+          <div>
+            <label class="form-label">Durée : <strong id="simYearsLabel">20</strong> ans</label>
+            <input id="simYears" type="range" min="1" max="40" value="20"
+              style="width:100%;accent-color:var(--accent);margin-top:4px"
+              oninput="document.getElementById('simYearsLabel').textContent=this.value;_updateSim()">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-secondary)"><span>1</span><span>40 ans</span></div>
+          </div>
+          <div>
+            <label class="form-label">Taux annuel (%)
+              <span id="simRateInfo" style="color:var(--text-secondary);font-weight:400;font-size:11px"></span>
+            </label>
+            <input id="simRate" type="number" class="form-input" min="-20" max="50" step="0.1" value="8" oninput="_updateSim()">
+          </div>
+          <div id="simDivGroup" style="display:none">
+            <label class="form-label">Rendement dividende (%/an)</label>
+            <input id="simDiv" type="number" class="form-input" min="0" max="20" step="0.1" value="0" oninput="_updateSim()">
+          </div>
+          <div id="simDataInfo" style="font-size:11px;color:var(--text-secondary);line-height:1.4"></div>
+        </div>
+      </div>
+
+      <!-- Panneau droit : résultats -->
+      <div>
+        <div id="simKpis" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">
+          <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:14px;color:var(--text-secondary);font-size:12px;text-align:center">
+            Sélectionnez un ou plusieurs actifs pour lancer la simulation
+          </div>
+        </div>
+        <div style="height:200px;margin-bottom:16px"><canvas id="simChart"></canvas></div>
+        <div id="simTable"></div>
+      </div>
+    </div>
+  </div>
+</div>`;
+  document.body.appendChild(wrap.firstElementChild);
+}
+
+function openSimulator() {
+  if (!document.getElementById('simulatorModal')) _createSimulatorModal();
+  _populateSimAssets();
+  openModal('simulatorModal');
+}
+
+function _populateSimAssets() {
+  const positions = (_portfolioData?.positions || [])
+    .filter(p => p.asset_type !== 'cash' && p.ticker && p.ticker !== 'MANUAL');
+  const list = document.getElementById('simAssetList');
+  if (!list) return;
+
+  if (!positions.length) {
+    list.innerHTML = '<div style="color:var(--text-secondary);font-size:12px;padding:4px">Aucun actif disponible</div>';
+    return;
+  }
+
+  list.innerHTML = positions.map(p => {
+    const typeLabel = (typeof ASSET_TYPE_LABELS !== 'undefined' && ASSET_TYPE_LABELS[p.asset_type]) || p.asset_type;
+    return `<label style="display:flex;align-items:center;gap:8px;padding:5px 2px;cursor:pointer;font-size:13px">
+      <input type="checkbox" value="${escHtml(p.ticker)}"
+        data-name="${escHtml(p.display_name)}"
+        data-type="${escHtml(p.asset_type)}"
+        data-invested="${p.total_invested || 0}"
+        onchange="_onSimAssetChange()"
+        style="accent-color:var(--accent);flex-shrink:0">
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(p.display_name)}</span>
+      <span style="font-size:10px;color:var(--text-secondary);flex-shrink:0">${escHtml(typeLabel)}</span>
+    </label>`;
+  }).join('');
+}
+
+async function _onSimAssetChange() {
+  const checked = [...document.querySelectorAll('#simAssetList input:checked')];
+  if (!checked.length) {
+    document.getElementById('simKpis').innerHTML = `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:14px;color:var(--text-secondary);font-size:12px;text-align:center;grid-column:1/-1">Sélectionnez un ou plusieurs actifs pour lancer la simulation</div>`;
+    document.getElementById('simTable').innerHTML = '';
+    document.getElementById('simDataInfo').textContent = '';
+    if (_simChartInst) { _simChartInst.destroy(); _simChartInst = null; }
+    return;
+  }
+
+  // Pré-remplir le capital initial avec la somme des investis si capital = 0
+  const capInput = document.getElementById('simCapital');
+  const totalInvested = checked.reduce((s, cb) => s + parseFloat(cb.dataset.invested || 0), 0);
+  if (parseFloat(capInput.value) === 0 && totalInvested > 0)
+    capInput.value = Math.round(totalInvested);
+
+  // Récupérer les taux manquants via l'API
+  const missing = checked.map(cb => cb.value).filter(t => !_simRates[t]);
+  if (missing.length) {
+    document.getElementById('simDataInfo').textContent = '⏳ Chargement des données historiques yfinance…';
+    try {
+      const rates = await apiGet('/api/portfolio/simulate-rates?tickers=' + encodeURIComponent(missing.join(',')));
+      Object.assign(_simRates, rates);
+    } catch (_) {}
+  }
+
+  // Calcul du taux blendé (pondéré par capital investi)
+  const totalW = checked.reduce((s, cb) => s + Math.max(1, parseFloat(cb.dataset.invested || 1)), 0);
+  let blendedCagr = 0, blendedDiv = 0, infos = [], hasDiv = false;
+
+  for (const cb of checked) {
+    const w = Math.max(1, parseFloat(cb.dataset.invested || 1)) / totalW;
+    const r = _simRates[cb.value] || {};
+    if (r.cagr != null)           blendedCagr += r.cagr * w;
+    if ((r.dividend_yield || 0) > 0) { blendedDiv += r.dividend_yield * w; hasDiv = true; }
+    if (r.years_of_data)          infos.push(`${cb.value} (${r.years_of_data}a)`);
+  }
+
+  document.getElementById('simRate').value = blendedCagr.toFixed(1);
+  document.getElementById('simRateInfo').textContent = blendedCagr ? `— CAGR historique` : '';
+  document.getElementById('simDiv').value  = blendedDiv.toFixed(1);
+  document.getElementById('simDivGroup').style.display = hasDiv ? '' : 'none';
+  document.getElementById('simDataInfo').textContent   = infos.length ? `Données: ${infos.join(' · ')}` : '';
+
+  _updateSim();
+}
+
+function _runSimulation() {
+  const capital = parseFloat(document.getElementById('simCapital').value) || 0;
+  const dca     = parseFloat(document.getElementById('simDCA').value)     || 0;
+  const years   = parseInt(document.getElementById('simYears').value)     || 20;
+  const rate    = parseFloat(document.getElementById('simRate').value)    || 0;
+  const divY    = parseFloat(document.getElementById('simDiv')?.value)    || 0;
+
+  // Pour les actions : séparer rendement prix et dividende
+  const priceReturnAnnual = Math.max(0, rate - divY) / 100;
+  const monthlyPriceRate  = Math.pow(1 + priceReturnAnnual, 1/12) - 1;
+  const monthlyDivRate    = divY / 100 / 12;
+  const monthlyTotalRate  = Math.pow(1 + rate / 100, 1/12) - 1;
+
+  let value = capital, invested = capital, cumDivs = 0;
+  const rows = [];
+
+  for (let y = 1; y <= years; y++) {
+    let yearDiv = 0;
+    for (let m = 0; m < 12; m++) {
+      value   += dca;
+      invested += dca;
+      if (divY > 0) {
+        yearDiv += value * monthlyDivRate;      // dividende perçu en cash
+        value    = value * (1 + monthlyPriceRate);
+      } else {
+        value    = value * (1 + monthlyTotalRate); // ETF accumulant
+      }
+    }
+    cumDivs += yearDiv;
+    rows.push({
+      year:    y,
+      invested: Math.round(invested),
+      value:    Math.round(value),
+      gain:     Math.round(value - invested),
+      gainPct:  invested > 0 ? (value - invested) / invested * 100 : 0,
+      yearDiv:  Math.round(yearDiv),
+      cumDivs:  Math.round(cumDivs),
+    });
+  }
+  return rows;
+}
+
+function _updateSim() {
+  const checked = [...document.querySelectorAll('#simAssetList input:checked')];
+  if (!checked.length) return;
+
+  const rows  = _runSimulation();
+  const last  = rows[rows.length - 1];
+  const hasDivs = (parseFloat(document.getElementById('simDiv')?.value) || 0) > 0;
+
+  // KPI cards
+  const kpis = [
+    { label: 'Valeur finale',   value: fmtEur(last.value),    color: 'var(--accent-green)' },
+    { label: 'Total investi',   value: fmtEur(last.invested),  color: 'var(--text-primary)' },
+    { label: hasDivs ? 'Gain capital' : 'Gain total',
+      value: fmtEur(last.gain), color: last.gain >= 0 ? 'var(--accent-green)' : 'var(--accent-red)' },
+  ];
+  if (hasDivs) kpis.push({ label: 'Dividendes cumulés', value: fmtEur(last.cumDivs), color: '#F59E0B' });
+
+  document.getElementById('simKpis').style.gridTemplateColumns = `repeat(${kpis.length},1fr)`;
+  document.getElementById('simKpis').innerHTML = kpis.map(k => `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:12px">
+      <div style="font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">${k.label}</div>
+      <div style="font-size:17px;font-weight:700;color:${k.color};font-family:var(--font-display)">${k.value}</div>
+    </div>`).join('');
+
+  // Graphique
+  _renderSimChart(rows, hasDivs);
+
+  // Tableau
+  document.getElementById('simTable').innerHTML = `
+    <div style="max-height:220px;overflow-y:auto">
+    <table class="data-table" style="font-size:11px">
+      <thead><tr>
+        <th class="left" style="position:sticky;top:0;background:var(--bg-surface,var(--bg))">Année</th>
+        <th style="position:sticky;top:0;background:var(--bg-surface,var(--bg))">Investi</th>
+        <th style="position:sticky;top:0;background:var(--bg-surface,var(--bg))">Valeur</th>
+        <th style="position:sticky;top:0;background:var(--bg-surface,var(--bg))">Gain €</th>
+        <th style="position:sticky;top:0;background:var(--bg-surface,var(--bg))">Gain %</th>
+        ${hasDivs ? '<th style="position:sticky;top:0;background:var(--bg-surface,var(--bg))">Div./an</th><th style="position:sticky;top:0;background:var(--bg-surface,var(--bg))">Div. cumulés</th>' : ''}
+      </tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr>
+          <td class="left" style="color:var(--text-secondary)">${r.year}</td>
+          <td>${fmtEur(r.invested)}</td>
+          <td style="font-weight:600">${fmtEur(r.value)}</td>
+          <td class="${r.gain >= 0 ? 'pos' : 'neg'}">${r.gain >= 0 ? '+' : ''}${fmtEur(r.gain)}</td>
+          <td class="${r.gain >= 0 ? 'pos' : 'neg'}">${r.gain >= 0 ? '+' : ''}${fmtPct(r.gainPct)}</td>
+          ${hasDivs ? `<td style="color:#F59E0B">${fmtEur(r.yearDiv)}</td><td>${fmtEur(r.cumDivs)}</td>` : ''}
+        </tr>`).join('')}
+      </tbody>
+    </table>
+    </div>`;
+}
+
+function _renderSimChart(rows, hasDivs) {
+  if (_simChartInst) { _simChartInst.destroy(); _simChartInst = null; }
+  const canvas = document.getElementById('simChart');
+  if (!canvas) return;
+
+  const ctx       = canvas.getContext('2d');
+  const gradGreen = ctx.createLinearGradient(0, 0, 0, 200);
+  gradGreen.addColorStop(0, 'rgba(0,214,143,.22)');
+  gradGreen.addColorStop(1, 'rgba(0,214,143,0)');
+
+  const datasets = [
+    { label: 'Valeur projetée', data: rows.map(r => r.value),
+      borderColor: '#00D68F', backgroundColor: gradGreen, borderWidth: 2,
+      pointRadius: 0, pointHoverRadius: 4, fill: true, tension: 0.4 },
+    { label: 'Capital investi', data: rows.map(r => r.invested),
+      borderColor: '#3B82F6', backgroundColor: 'transparent', borderWidth: 1.5,
+      borderDash: [5, 4], pointRadius: 0, fill: false, tension: 0 },
+  ];
+
+  if (hasDivs) {
+    const gradOrange = ctx.createLinearGradient(0, 0, 0, 200);
+    gradOrange.addColorStop(0, 'rgba(245,158,11,.18)');
+    gradOrange.addColorStop(1, 'rgba(245,158,11,0)');
+    datasets.push({
+      label: 'Dividendes cumulés', data: rows.map(r => r.cumDivs),
+      borderColor: '#F59E0B', backgroundColor: gradOrange, borderWidth: 1.5,
+      pointRadius: 0, fill: true, tension: 0.4,
+    });
+  }
+
+  _simChartInst = new Chart(canvas, {
+    type: 'line',
+    data: { labels: rows.map(r => `An ${r.year}`), datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, labels: { color: '#6B7280', font: { size: 11 }, boxWidth: 18, padding: 12 } },
+        tooltip: {
+          backgroundColor: '#1A1F2E', titleColor: '#E8ECF0', bodyColor: '#9BA3AF',
+          borderColor: '#1E2330', borderWidth: 1, padding: 10,
+          callbacks: { label: ctx => `  ${ctx.dataset.label}: ${fmtEur(ctx.parsed.y)}` },
+        },
+      },
+      scales: {
+        x: { grid: { color: '#1E2330' }, ticks: { maxTicksLimit: 10, color: '#3D4452', font: { size: 10 } }},
+        y: { position: 'right', grid: { color: '#1E2330' },
+             ticks: { color: '#3D4452', callback: v => fmtEurShort(v), font: { size: 10 } }},
+      },
+    },
+  });
+}

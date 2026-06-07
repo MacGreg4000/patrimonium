@@ -265,3 +265,64 @@ def get_history(db: Session = Depends(get_db), user: User = Depends(get_current_
     return [{"timestamp": s.timestamp, "total_value_eur": s.total_value_eur,
              "total_invested_eur": s.total_invested_eur, "total_pnl_eur": s.total_pnl_eur}
             for s in reversed(snaps)]
+
+
+# ── Simulator rates ────────────────────────────────────────
+
+_sim_rate_cache: dict = {}   # {ticker: {"data": {...}, "ts": float}}
+_SIM_CACHE_TTL  = 6 * 3600  # 6 h
+
+@router.get("/simulate-rates")
+def get_simulate_rates(tickers: str,
+                       db: Session = Depends(get_db),
+                       user: User = Depends(get_current_user)):
+    """Retourne le CAGR 10 ans et le rendement dividende pour une liste de tickers.
+    Le calcul de simulation est entièrement côté client — cet endpoint fournit
+    uniquement les paramètres historiques (appel yfinance mis en cache 6 h).
+    """
+    import yfinance as yf
+    import pandas as pd
+
+    now    = datetime.now(timezone.utc).timestamp()
+    result = {}
+
+    for ticker in [t.strip() for t in tickers.split(",") if t.strip()]:
+        cached = _sim_rate_cache.get(ticker)
+        if cached and (now - cached["ts"]) < _SIM_CACHE_TTL:
+            result[ticker] = cached["data"]
+            continue
+
+        try:
+            yf_t = yf.Ticker(ticker)
+            hist = yf_t.history(period="10y", auto_adjust=True)
+
+            if len(hist) < 50:
+                data: dict = {"cagr": None, "dividend_yield": 0.0, "years_of_data": 0}
+            else:
+                years = len(hist) / 252   # jours ouvrés → années
+                cagr  = (hist["Close"].iloc[-1] / hist["Close"].iloc[0]) ** (1 / years) - 1
+
+                # Rendement dividende : moyenne annuelle des 3 dernières années
+                divs      = yf_t.dividends
+                div_yield = 0.0
+                if len(divs) > 0:
+                    cutoff  = divs.index[-1] - pd.DateOffset(years=3)
+                    recent  = divs[divs.index > cutoff]
+                    if len(recent) > 0:
+                        annual_div = recent.sum() / 3
+                        cur_price  = float(hist["Close"].iloc[-1])
+                        div_yield  = annual_div / cur_price if cur_price > 0 else 0.0
+
+                data = {
+                    "cagr":           round(cagr * 100, 2),
+                    "dividend_yield": round(div_yield * 100, 2),
+                    "years_of_data":  round(years, 1),
+                }
+
+            _sim_rate_cache[ticker] = {"data": data, "ts": now}
+            result[ticker] = data
+
+        except Exception:
+            result[ticker] = {"cagr": None, "dividend_yield": 0.0, "years_of_data": 0}
+
+    return result
