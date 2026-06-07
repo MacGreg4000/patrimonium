@@ -49,6 +49,23 @@
   --transition: .18s cubic-bezier(.4,0,.2,1);
 }
 
+/* ── Light mode ──────────────────────────────────────────── */
+html.light {
+  --bg-primary:      #F0F3F8;
+  --bg-secondary:    #FFFFFF;
+  --bg-tertiary:     #E4E9F2;
+  --bg-hover:        #D9E0EE;
+  --bg-active:       #CDD5E6;
+  --border:          rgba(0,0,0,.10);
+  --border-light:    rgba(0,0,0,.06);
+  --border-strong:   rgba(0,0,0,.18);
+  --text-primary:    #0F1C2E;
+  --text-secondary:  #3D567A;
+  --text-muted:      #7D97BA;
+  --shadow-card:     0 2px 12px rgba(0,0,0,.08), 0 1px 0 rgba(255,255,255,.9) inset;
+  --shadow-lg:       0 8px 32px rgba(0,0,0,.12), 0 2px 8px rgba(0,0,0,.06);
+}
+
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{scroll-behavior:smooth}
 body{

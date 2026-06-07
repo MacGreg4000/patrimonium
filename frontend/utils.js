@@ -330,3 +330,26 @@ const CHART_COLORS = [
       tip.style.display = 'none';
   });
 })();
+
+// ── Thème clair / sombre ──────────────────────────────────
+function initTheme() {
+  if (localStorage.getItem('theme') === 'light')
+    document.documentElement.classList.add('light');
+  _updateThemeBtn();
+}
+
+function toggleTheme() {
+  const isLight = document.documentElement.classList.toggle('light');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  _updateThemeBtn();
+}
+
+function _updateThemeBtn() {
+  const btn = document.getElementById('themeToggleBtn');
+  if (!btn) return;
+  const isLight = document.documentElement.classList.contains('light');
+  btn.title = isLight ? 'Passer en mode sombre' : 'Passer en mode clair';
+  btn.innerHTML = isLight
+    ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>`
+    : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+}
