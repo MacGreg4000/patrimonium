@@ -143,7 +143,7 @@ function renderPortfolioPage(data) {
           </div>
           <div>
             <label class="form-label">Capital initial (€)</label>
-            <input id="simCapital" type="number" class="form-input" min="0" step="100" value="${Math.round(held.filter(p=>p.asset_type!=='cash').reduce((s,p)=>s+(p.total_invested||0),0))}" oninput="_updateSim()">
+            <input id="simCapital" type="number" class="form-input" min="0" step="100" value="0" oninput="_updateSim()">
           </div>
           <div>
             <label class="form-label">DCA mensuel (€) <span style="color:var(--text-secondary);font-weight:400">— optionnel</span></label>
@@ -637,10 +637,10 @@ async function _onSimAssetChange() {
     return;
   }
 
-  // Pré-remplir le capital initial avec la somme des investis si capital = 0
+  // Recalculer le capital initial en fonction des actifs sélectionnés
   const capInput = document.getElementById('simCapital');
   const totalInvested = checked.reduce((s, cb) => s + parseFloat(cb.dataset.invested || 0), 0);
-  if (parseFloat(capInput.value) === 0 && totalInvested > 0)
+  if (totalInvested > 0)
     capInput.value = Math.round(totalInvested);
 
   // Récupérer les taux manquants via l'API
