@@ -285,3 +285,48 @@ const CHART_COLORS = [
   '#3B82F6','#00D68F','#F59E0B','#FF4757',
   '#a855f7','#06b6d4','#f97316','#84cc16','#ec4899','#14b8a6',
 ];
+
+// ── Tooltip système (data-tip) ────────────────────────────
+// Unique div attaché au body — contourne overflow:hidden et apparaît
+// instantanément en suivant le curseur.
+(function () {
+  const tip = document.createElement('div');
+  Object.assign(tip.style, {
+    position: 'fixed', zIndex: '9999', pointerEvents: 'none', display: 'none',
+    background: 'var(--bg-secondary, #0C1628)',
+    color: 'var(--text-secondary, #9BA3AF)',
+    border: '1px solid var(--border-strong, #2C4878)',
+    borderRadius: 'var(--radius, 8px)',
+    padding: '7px 11px',
+    fontSize: '12px', lineHeight: '1.5',
+    maxWidth: '280px', whiteSpace: 'normal',
+    boxShadow: 'var(--shadow-lg, 0 8px 24px rgba(0,0,0,.6))',
+    fontFamily: 'var(--font-body, inherit)',
+  });
+
+  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(tip));
+
+  function pos(e) {
+    const m = 12, w = tip.offsetWidth, h = tip.offsetHeight;
+    let x = e.clientX + m, y = e.clientY - h - m;
+    if (y < 4)                       y = e.clientY + m;
+    if (x + w > window.innerWidth - 4) x = e.clientX - w - m;
+    tip.style.left = x + 'px';
+    tip.style.top  = y + 'px';
+  }
+
+  document.addEventListener('mouseover', e => {
+    const el = e.target.closest('[data-tip]');
+    if (!el) { tip.style.display = 'none'; return; }
+    tip.textContent = el.dataset.tip;
+    tip.style.display = 'block';
+    pos(e);
+  });
+  document.addEventListener('mousemove', e => {
+    if (tip.style.display !== 'none') pos(e);
+  });
+  document.addEventListener('mouseout', e => {
+    if (!e.relatedTarget || !e.relatedTarget.closest('[data-tip]'))
+      tip.style.display = 'none';
+  });
+})();
