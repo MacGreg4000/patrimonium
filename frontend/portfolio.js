@@ -159,6 +159,9 @@ function renderPortfolioPage(data) {
           <div>
             <label class="form-label">Taux annuel (%) <span id="simRateInfo" style="color:var(--text-secondary);font-weight:400;font-size:11px"></span></label>
             <input id="simRate" type="number" class="form-input" min="-20" max="50" step="0.1" value="8" oninput="_updateSim()">
+            <div id="simRateWarn" style="display:none;margin-top:4px;font-size:11px;color:#F59E0B;line-height:1.4">
+              ⚠ Taux basé sur les 10 dernières années (performance exceptionnelle). Moyenne historique long terme MSCI World : 7–9 %/an.
+            </div>
           </div>
           <div id="simDivGroup" style="display:none">
             <label class="form-label">Rendement dividende (%/an)</label>
@@ -720,6 +723,9 @@ function _updateSim() {
   const rows  = _runSimulation();
   const last  = rows[rows.length - 1];
   const hasDivs = (parseFloat(document.getElementById('simDiv')?.value) || 0) > 0;
+  const rate  = parseFloat(document.getElementById('simRate')?.value) || 0;
+  const warn  = document.getElementById('simRateWarn');
+  if (warn) warn.style.display = rate > 10 ? '' : 'none';
 
   // KPI cards
   const kpis = [
