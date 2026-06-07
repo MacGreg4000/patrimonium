@@ -194,12 +194,11 @@ def _parse_revolut_csv(content: bytes) -> tuple[list[dict], float]:
 
 
 @router.post("/import")
-@require_admin_csrf
 async def import_revolut(
     request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin_csrf),
 ):
     """Importe un relevé de transactions Revolut Invest (.csv)."""
     if not file.filename or not file.filename.lower().endswith(".csv"):
