@@ -38,17 +38,17 @@ function renderPortfolioPage(data) {
     <!-- Hero cards -->
     <div class="hero-grid" style="margin-bottom:20px">
       <div class="hero-card">
-        <div class="card-label">💼 Valeur totale</div>
+        <div class="card-label">💼 Valeur totale <span title="Valeur de marché actuelle de toutes les positions (ETF, actions, liquidités SaxoBank)" style="cursor:help;opacity:.6;font-size:11px">ⓘ</span></div>
         <div class="hero-card-value gold">${fmtEur(data.total_value_eur)}</div>
-        <div class="hero-card-sub">Investi: ${fmtEur(data.total_invested_eur)}</div>
+        <div class="hero-card-sub" title="Capital engagé résiduel : coût des parts encore détenues, hors liquidités">Investi: ${fmtEur(data.total_invested_eur)}</div>
       </div>
       <div class="hero-card">
-        <div class="card-label">📊 P&L Total</div>
+        <div class="card-label">📊 P&L Total <span title="Gain/perte total depuis l'achat sur toutes les positions actives (unrealized + realized sur ventes partielles), hors liquidités" style="cursor:help;opacity:.6;font-size:11px">ⓘ</span></div>
         <div class="hero-card-value ${pnlClass(data.total_pnl_eur)}">${pnlSign(data.total_pnl_eur)}${fmtEur(data.total_pnl_eur)}</div>
         <div class="hero-card-sub ${pnlClass(data.total_pnl_pct)}">${pnlSign(data.total_pnl_pct)}${fmtPct(data.total_pnl_pct)}</div>
       </div>
       <div class="hero-card">
-        <div class="card-label">📅 Variation jour</div>
+        <div class="card-label">📅 Variation jour <span title="Variation de valeur depuis la clôture d'hier, sur les positions cotées en bourse" style="cursor:help;opacity:.6;font-size:11px">ⓘ</span></div>
         <div class="hero-card-value ${pnlClass(data.day_change_eur)}">${pnlSign(data.day_change_eur)}${fmtEur(data.day_change_eur)}</div>
         <div class="hero-card-sub ${pnlClass(data.day_change_pct)}">${pnlSign(data.day_change_pct)}${fmtPct(data.day_change_pct)}</div>
       </div>
@@ -81,9 +81,16 @@ function renderPortfolioPage(data) {
         <table class="data-table">
           <thead><tr>
             <th class="left" style="padding-left:24px">Actif</th>
-            <th>Cours</th><th>Var. j.</th><th>Qté</th><th>PRU</th>
-            <th>Investi</th><th>Valeur</th><th>P&L €</th><th>P&L %</th>
-            <th>Alloc.</th><th>⚡</th><th>Actions</th>
+            <th title="Dernier cours coté">Cours</th>
+            <th title="Variation du cours depuis la clôture d'hier">Var. j.</th>
+            <th title="Nombre de parts détenues (achats − ventes)">Qté</th>
+            <th title="Prix de Revient Unitaire : coût moyen pondéré par part, frais inclus">PRU</th>
+            <th title="Capital engagé résiduel : coût des parts encore détenues (PRU × quantité)">Investi</th>
+            <th title="Valeur de marché actuelle (cours × quantité)">Valeur</th>
+            <th title="Gain/perte en € depuis l'achat (unrealized + realized sur ventes partielles)">P&L €</th>
+            <th title="Gain/perte % depuis l'achat, calculé sur le capital total investi dans cette position">P&L %</th>
+            <th title="Part de cet actif dans la valeur totale du portefeuille (hors liquidités)">Alloc.</th>
+            <th>⚡</th><th>Actions</th>
           </tr></thead>
           <tbody id="positionsBody">${renderHeldRows(held)}</tbody>
         </table>
