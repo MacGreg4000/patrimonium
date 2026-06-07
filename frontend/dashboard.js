@@ -110,7 +110,9 @@ function renderDashboard(d) {
 
       <!-- Portfolio top movers -->
       <div class="card card-sm">
-        <div class="card-title">Top movers <span style="font-size:11px;color:var(--text-secondary);font-weight:400">portefeuille</span></div>
+        <div class="card-title">Top movers <span style="font-size:11px;color:var(--text-secondary);font-weight:400">portefeuille</span>
+          <span title="% affiché = P&amp;L total depuis l'achat (gain/perte global), pas la variation du jour" style="cursor:help;color:var(--text-secondary);font-size:12px;font-weight:400;margin-left:4px">ⓘ</span>
+        </div>
         ${renderTopMovers(port)}
       </div>
 
