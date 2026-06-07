@@ -38,17 +38,17 @@ function renderPortfolioPage(data) {
     <!-- Hero cards -->
     <div class="hero-grid" style="margin-bottom:20px">
       <div class="hero-card">
-        <div class="card-label">💼 Valeur totale <span title="Valeur de marché actuelle de toutes les positions (ETF, actions, liquidités SaxoBank)" style="cursor:help;opacity:.6;font-size:11px">ⓘ</span></div>
+        <div class="card-label">💼 Valeur totale <span data-tip="Valeur de marché actuelle de toutes les positions (ETF, actions, liquidités SaxoBank)" style="opacity:.6;font-size:11px">ⓘ</span></div>
         <div class="hero-card-value gold">${fmtEur(data.total_value_eur)}</div>
-        <div class="hero-card-sub" title="Capital engagé résiduel : coût des parts encore détenues, hors liquidités">Investi: ${fmtEur(data.total_invested_eur)}</div>
+        <div class="hero-card-sub" data-tip="Capital engagé résiduel : coût des parts encore détenues, hors liquidités">Investi: ${fmtEur(data.total_invested_eur)}</div>
       </div>
       <div class="hero-card">
-        <div class="card-label">📊 P&L Total <span title="Gain/perte total depuis l'achat sur toutes les positions actives (unrealized + realized sur ventes partielles), hors liquidités" style="cursor:help;opacity:.6;font-size:11px">ⓘ</span></div>
+        <div class="card-label">📊 P&L Total <span data-tip="Gain/perte total depuis l'achat sur toutes les positions actives (unrealized + realized sur ventes partielles), hors liquidités" style="opacity:.6;font-size:11px">ⓘ</span></div>
         <div class="hero-card-value ${pnlClass(data.total_pnl_eur)}">${pnlSign(data.total_pnl_eur)}${fmtEur(data.total_pnl_eur)}</div>
         <div class="hero-card-sub ${pnlClass(data.total_pnl_pct)}">${pnlSign(data.total_pnl_pct)}${fmtPct(data.total_pnl_pct)}</div>
       </div>
       <div class="hero-card">
-        <div class="card-label">📅 Variation jour <span title="Variation de valeur depuis la clôture d'hier, sur les positions cotées en bourse" style="cursor:help;opacity:.6;font-size:11px">ⓘ</span></div>
+        <div class="card-label">📅 Variation jour <span data-tip="Variation de valeur depuis la clôture d'hier, sur les positions cotées en bourse" style="opacity:.6;font-size:11px">ⓘ</span></div>
         <div class="hero-card-value ${pnlClass(data.day_change_eur)}">${pnlSign(data.day_change_eur)}${fmtEur(data.day_change_eur)}</div>
         <div class="hero-card-sub ${pnlClass(data.day_change_pct)}">${pnlSign(data.day_change_pct)}${fmtPct(data.day_change_pct)}</div>
       </div>
@@ -81,15 +81,15 @@ function renderPortfolioPage(data) {
         <table class="data-table">
           <thead><tr>
             <th class="left" style="padding-left:24px">Actif</th>
-            <th title="Dernier cours coté">Cours</th>
-            <th title="Variation du cours depuis la clôture d'hier">Var. j.</th>
-            <th title="Nombre de parts détenues (achats − ventes)">Qté</th>
-            <th title="Prix de Revient Unitaire : coût moyen pondéré par part, frais inclus">PRU</th>
-            <th title="Capital engagé résiduel : coût des parts encore détenues (PRU × quantité)">Investi</th>
-            <th title="Valeur de marché actuelle (cours × quantité)">Valeur</th>
-            <th title="Gain/perte en € depuis l'achat (unrealized + realized sur ventes partielles)">P&L €</th>
-            <th title="Gain/perte % depuis l'achat, calculé sur le capital total investi dans cette position">P&L %</th>
-            <th title="Part de cet actif dans la valeur totale du portefeuille (hors liquidités)">Alloc.</th>
+            <th data-tip="Dernier cours coté">Cours</th>
+            <th data-tip="Variation du cours depuis la clôture d'hier">Var. j.</th>
+            <th data-tip="Nombre de parts détenues (achats − ventes)">Qté</th>
+            <th data-tip="Prix de Revient Unitaire : coût moyen pondéré par part, frais inclus">PRU</th>
+            <th data-tip="Capital engagé résiduel : coût des parts encore détenues (PRU × quantité)">Investi</th>
+            <th data-tip="Valeur de marché actuelle (cours × quantité)">Valeur</th>
+            <th data-tip="Gain/perte en € depuis l'achat (unrealized + realized sur ventes partielles)">P&L €</th>
+            <th data-tip="Gain/perte % depuis l'achat, calculé sur le capital total investi dans cette position">P&L %</th>
+            <th data-tip="Part de cet actif dans la valeur totale du portefeuille (hors liquidités)">Alloc.</th>
             <th>⚡</th><th>Actions</th>
           </tr></thead>
           <tbody id="positionsBody">${renderHeldRows(held)}</tbody>
@@ -530,13 +530,13 @@ let _simChartInst = null;
 function _createSimulatorModal() {
   const wrap = document.createElement('div');
   wrap.innerHTML = `
-<div id="simulatorModal" class="modal-overlay" style="display:none">
-  <div class="modal" style="max-width:920px;width:95vw;max-height:92vh;display:flex;flex-direction:column">
+<div id="simulatorModal" class="modal-overlay">
+  <div class="modal" style="max-width:920px">
     <div class="modal-header">
       <div class="modal-title">📈 Simulateur de rendement</div>
       <button class="modal-close" onclick="closeModal('simulatorModal')" type="button">✕</button>
     </div>
-    <div class="modal-body" style="overflow:auto;flex:1;display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:start">
+    <div style="display:grid;grid-template-columns:260px 1fr;gap:24px;align-items:start">
 
       <!-- Panneau gauche : sélection + paramètres -->
       <div>
