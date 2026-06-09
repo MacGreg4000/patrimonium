@@ -37,6 +37,12 @@ class MovementUpdate(BaseModel):
     amount: float
     description: Optional[str] = None
 
+class TransferCreate(BaseModel):
+    source_coffre_id: int
+    destination_coffre_id: int
+    amount: float
+    description: Optional[str] = None
+
 
 # ── Balance computation ───────────────────────────────────
 
@@ -156,6 +162,52 @@ def create_movement(data: MovementCreate, request: Request,
     log_audit(db, user.id, "MOVEMENT_CREATED",
               f"{data.type} {data.amount}€ — coffre '{coffre.name}'", request)
     return _fmt_movement(mv)
+
+
+@router.post("/movements/transfer", status_code=201)
+def transfer_between_coffres(data: TransferCreate, request: Request,
+                             db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
+    """Transfère un montant d'un coffre vers un autre (EXIT source + ENTRY destination)."""
+    import uuid
+    if data.source_coffre_id == data.destination_coffre_id:
+        raise HTTPException(status_code=400, detail="Source et destination identiques")
+    if data.amount <= 0:
+        raise HTTPException(status_code=400, detail="Montant invalide")
+
+    src = db.query(Coffre).filter(Coffre.id == data.source_coffre_id,  Coffre.is_active == True).first()  # noqa: E712
+    dst = db.query(Coffre).filter(Coffre.id == data.destination_coffre_id, Coffre.is_active == True).first()  # noqa: E712
+    if not src:
+        raise HTTPException(status_code=404, detail="Coffre source introuvable")
+    if not dst:
+        raise HTTPException(status_code=404, detail="Coffre destination introuvable")
+
+    balance_src = compute_balance(src.id, db)
+    if balance_src < data.amount:
+        raise HTTPException(status_code=400,
+                            detail=f"Solde insuffisant ({balance_src:.2f} € disponibles)")
+
+    ref = str(uuid.uuid4())
+    note = data.description or f"Transfert vers {dst.name}"
+
+    mv_exit = Movement(coffre_id=src.id, user_id=user.id,
+                       type="EXIT", amount=data.amount,
+                       description=note, transfer_ref=ref)
+    mv_entry = Movement(coffre_id=dst.id, user_id=user.id,
+                        type="ENTRY", amount=data.amount,
+                        description=data.description or f"Transfert depuis {src.name}",
+                        transfer_ref=ref)
+    db.add(mv_exit)
+    db.add(mv_entry)
+    db.commit()
+
+    log_audit(db, user.id, "TRANSFER",
+              f"Transfert {data.amount:.2f}€ : '{src.name}' → '{dst.name}' (ref {ref[:8]})", request)
+    return {
+        "transfer_ref": ref,
+        "amount": data.amount,
+        "source": src.name,
+        "destination": dst.name,
+    }
 
 
 @router.put("/movements/{movement_id}")
@@ -378,6 +430,7 @@ def _fmt_movement(m: Movement) -> dict:
     return {
         "id": m.id, "coffre_id": m.coffre_id, "user_id": m.user_id,
         "type": m.type, "amount": m.amount, "description": m.description,
+        "transfer_ref": m.transfer_ref,
         "created_at": m.created_at,
         "details": [{"denomination": d.denomination, "quantity": d.quantity} for d in m.details],
     }

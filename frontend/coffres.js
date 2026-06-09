@@ -6,7 +6,7 @@
 const DENOMS = [5, 10, 20, 50, 100, 200, 500];
 let _coffresData = [];
 let _selectedCoffreId = null;
-let _caissMode = 'entry'; // entry | exit | inventory
+let _caissMode = 'entry'; // entry | exit | inventory | transfer
 let _editMovementId = null;
 
 let _breakdowns = {}; // coffre_id → breakdown data
@@ -260,9 +260,10 @@ async function loadBalanceChart(coffreId) {
 
 function renderAdminCaisseSection(coffre) {
   const modeConfig = {
-    entry:     { label: 'Entrée de fonds',     color: 'var(--accent-green)', btnClass: 'btn-caisse-entry',     icon: '↑' },
-    exit:      { label: 'Sortie de fonds',      color: 'var(--accent-red)',  btnClass: 'btn-caisse-exit',      icon: '↓' },
-    inventory: { label: 'Inventaire complet',   color: 'var(--accent-blue)', btnClass: 'btn-caisse-inventory', icon: '≡' },
+    entry:     { label: 'Entrée de fonds',     color: 'var(--accent-green)',  btnClass: 'btn-caisse-entry',     icon: '↑' },
+    exit:      { label: 'Sortie de fonds',      color: 'var(--accent-red)',   btnClass: 'btn-caisse-exit',      icon: '↓' },
+    transfer:  { label: 'Transfert vers...',    color: 'var(--accent-gold)',  btnClass: 'btn-caisse-transfer',  icon: '⇄' },
+    inventory: { label: 'Inventaire complet',   color: 'var(--accent-blue)',  btnClass: 'btn-caisse-inventory', icon: '≡' },
   };
   const current = modeConfig[_caissMode];
 
@@ -274,13 +275,37 @@ function renderAdminCaisseSection(coffre) {
           class="btn-caisse-mode ${_caissMode === mode ? 'active ' + cfg.btnClass : ''}"
           style="${_caissMode === mode ? `background:${cfg.color};border-color:${cfg.color};color:#fff` : `border-color:${cfg.color};color:${cfg.color}`}">
           <span style="font-size:18px;line-height:1">${cfg.icon}</span>
-          <span>${mode === 'entry' ? 'Entrée' : mode === 'exit' ? 'Sortie' : 'Inventaire'}</span>
+          <span>${mode === 'entry' ? 'Entrée' : mode === 'exit' ? 'Sortie' : mode === 'transfer' ? 'Transfert' : 'Inventaire'}</span>
         </button>`).join('')}
     </div>
 
     <div style="font-size:12px;font-weight:500;color:${current.color};text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;text-align:center">${current.label}</div>
 
     <form onsubmit="submitCaisse(event)" id="caisseForm">
+      ${_caissMode === 'transfer' ? `
+        <div class="form-group" style="margin-bottom:16px">
+          <label class="form-label">Coffre destination</label>
+          <select class="form-input" id="transferDest">
+            <option value="">— Choisir un coffre —</option>
+            ${_coffresData.filter(c => c.id !== _selectedCoffreId).map(c =>
+              `<option value="${c.id}">${escHtml(c.name)} (${fmtEur(c.balance)})</option>`
+            ).join('')}
+          </select>
+        </div>
+        <div class="form-group" style="margin-bottom:16px">
+          <label class="form-label">Montant à transférer (€)</label>
+          <input type="number" class="form-input" id="transferAmount" min="0.01" step="0.01"
+            placeholder="0,00" required oninput="updateTransferPreview()"/>
+          <div id="transferPreview" style="margin-top:6px;font-size:12px;color:var(--text-secondary)"></div>
+        </div>
+        <div class="form-group" style="margin-bottom:16px">
+          <label class="form-label">Note (optionnel)</label>
+          <textarea class="form-textarea" id="caisseNote" rows="2" placeholder="Motif du transfert…"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:13px;background:var(--accent-gold);border-color:var(--accent-gold)">
+          ⇄ Valider le transfert
+        </button>
+      ` : `
       <div class="billet-grid">
         ${DENOMS.map(d => `
           <div class="billet-item">
@@ -301,6 +326,7 @@ function renderAdminCaisseSection(coffre) {
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:13px">
         ${_caissMode === 'inventory' ? 'Enregistrer l\'inventaire' : _caissMode === 'entry' ? 'Valider l\'entrée' : 'Valider la sortie'}
       </button>
+      `}
     </form>`;
 }
 
@@ -320,6 +346,18 @@ function updateCaisseTotal() {
 function setCaisseMode(mode) {
   _caissMode = mode;
   renderCoffresPage();
+}
+
+function updateTransferPreview() {
+  const amount = parseFloat(document.getElementById('transferAmount')?.value) || 0;
+  const src = _coffresData.find(c => c.id === _selectedCoffreId);
+  const preview = document.getElementById('transferPreview');
+  if (!preview || !src) return;
+  if (amount <= 0) { preview.textContent = ''; return; }
+  const remaining = src.balance - amount;
+  preview.innerHTML = remaining < 0
+    ? `<span style="color:var(--accent-red)">⚠ Solde insuffisant (${fmtEur(src.balance)} disponibles)</span>`
+    : `Solde restant dans <strong>${escHtml(src.name)}</strong> : ${fmtEur(remaining)}`;
 }
 
 async function toggleFavoriteCoffre(coffreId) {
@@ -355,25 +393,40 @@ function selectCoffre(coffreId) {
 
 async function submitCaisse(e) {
   e.preventDefault();
-  const details = DENOMS.map(d => ({
-    denomination: d,
-    quantity: parseInt(document.getElementById(`billet_${d}`)?.value || 0) || 0,
-  })).filter(d => d.quantity > 0);
-
-  const total = details.reduce((s, d) => s + d.denomination * d.quantity, 0);
   const note = document.getElementById('caisseNote')?.value || null;
   const coffreId = _selectedCoffreId;
 
   try {
-    if (_caissMode === 'inventory') {
-      await apiPost('/api/inventories', { coffre_id: coffreId, total_amount: total, notes: note, details });
-      showToast('Inventaire enregistré', 'success');
-    } else {
-      await apiPost('/api/movements', {
-        coffre_id: coffreId, type: _caissMode === 'entry' ? 'ENTRY' : 'EXIT',
-        amount: total, description: note, details,
+    if (_caissMode === 'transfer') {
+      const destId = parseInt(document.getElementById('transferDest')?.value);
+      const amount = parseFloat(document.getElementById('transferAmount')?.value);
+      if (!destId) { showToast('Choisissez un coffre destination', 'error'); return; }
+      if (!amount || amount <= 0) { showToast('Montant invalide', 'error'); return; }
+      await apiPost('/api/movements/transfer', {
+        source_coffre_id: coffreId,
+        destination_coffre_id: destId,
+        amount,
+        description: note,
       });
-      showToast(_caissMode === 'entry' ? 'Entrée enregistrée' : 'Sortie enregistrée', 'success');
+      const destName = _coffresData.find(c => c.id === destId)?.name || '';
+      showToast(`⇄ ${fmtEur(amount)} transféré vers ${destName}`, 'success');
+    } else {
+      const details = DENOMS.map(d => ({
+        denomination: d,
+        quantity: parseInt(document.getElementById(`billet_${d}`)?.value || 0) || 0,
+      })).filter(d => d.quantity > 0);
+      const total = details.reduce((s, d) => s + d.denomination * d.quantity, 0);
+
+      if (_caissMode === 'inventory') {
+        await apiPost('/api/inventories', { coffre_id: coffreId, total_amount: total, notes: note, details });
+        showToast('Inventaire enregistré', 'success');
+      } else {
+        await apiPost('/api/movements', {
+          coffre_id: coffreId, type: _caissMode === 'entry' ? 'ENTRY' : 'EXIT',
+          amount: total, description: note, details,
+        });
+        showToast(_caissMode === 'entry' ? 'Entrée enregistrée' : 'Sortie enregistrée', 'success');
+      }
     }
     await loadCoffres();
   } catch (err) {
@@ -439,7 +492,10 @@ async function loadHistory() {
           <tr class="no-cursor" onclick="${hasDetails ? `toggleHistRow('${rowId}')` : ''}" style="${hasDetails ? 'cursor:pointer' : ''}">
             <td class="left">${date}</td>
             <td class="left">${escHtml(coffreName)}</td>
-            <td class="left"><span class="badge badge-${item.type.toLowerCase()}">${item.type === 'ENTRY' ? 'Entrée' : 'Sortie'}</span></td>
+            <td class="left">${item.transfer_ref
+              ? `<span class="badge" style="background:rgba(249,168,37,.15);color:var(--accent-gold);border:1px solid rgba(249,168,37,.3)">⇄ Transfert</span>`
+              : `<span class="badge badge-${item.type.toLowerCase()}">${item.type === 'ENTRY' ? 'Entrée' : 'Sortie'}</span>`
+            }</td>
             <td class="${item.type === 'ENTRY' ? 'pos' : 'neg'}">${item.type === 'EXIT' ? '-' : '+'}${fmtEur(item.amount)}</td>
             <td class="left" style="color:var(--text-secondary)">${escHtml(item.description || '—')}</td>
             ${isAdmin() ? `<td style="display:flex;gap:4px">${expandBtn}

@@ -66,6 +66,7 @@ class Movement(Base):
     type = Column(String(10), nullable=False)   # ENTRY | EXIT
     amount = Column(Float, nullable=False)
     description = Column(Text, nullable=True)
+    transfer_ref = Column(String(36), nullable=True, index=True)  # UUID partagé entre EXIT+ENTRY d'un transfert
     deleted_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, index=True)
 
