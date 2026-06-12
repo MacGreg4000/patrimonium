@@ -151,6 +151,35 @@ app.add_middleware(
     allow_headers=["Content-Type", "X-CSRF-Token", "Authorization"],
 )
 
+# ── Security headers ──────────────────────────────────────
+# 'unsafe-inline' (script) reste nécessaire tant que les handlers onclick
+# inline et Chart.js (CDN jsdelivr) sont utilisés dans le frontend.
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "img-src 'self' data:; "
+    "connect-src 'self'; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "frame-ancestors 'none'"
+)
+_HSTS_ENABLED = os.getenv("SECURE_COOKIES", "false").lower() == "true"
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Content-Security-Policy"] = _CSP
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    if _HSTS_ENABLED:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
 # ── Register routers ──────────────────────────────────────
 from routers import auth, admin, coffres, portfolio, physical_assets, reserves, password_files, dashboard, export, saxo_import, revolut_import
 
@@ -184,7 +213,13 @@ if FRONTEND_DIR.exists():
 
     @app.get("/{full_path:path}")
     def serve_spa(full_path: str):
-        fp = FRONTEND_DIR / full_path
-        if fp.exists() and fp.is_file():
+        index = FRONTEND_DIR / "index.html"
+        root = FRONTEND_DIR.resolve()
+        try:
+            fp = (FRONTEND_DIR / full_path).resolve()
+        except (ValueError, OSError):
+            return FileResponse(str(index))
+        # N'autoriser que les fichiers strictement contenus dans FRONTEND_DIR
+        if fp.is_file() and (fp == root or root in fp.parents):
             return FileResponse(str(fp))
-        return FileResponse(str(FRONTEND_DIR / "index.html"))
+        return FileResponse(str(index))

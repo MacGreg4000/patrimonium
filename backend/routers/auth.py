@@ -99,7 +99,8 @@ def logout(response: Response, refresh_token: str = Cookie(default=None), db: Se
 
 
 @router.post("/refresh")
-def refresh(response: Response, refresh_token: str = Cookie(default=None), db: Session = Depends(get_db)):
+@limiter.limit("30/minute")
+def refresh(request: Request, response: Response, refresh_token: str = Cookie(default=None), db: Session = Depends(get_db)):
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Token manquant")
     payload = auth_utils.decode_token(refresh_token)
@@ -226,6 +227,14 @@ def regenerate_backup(request: Request, db: Session = Depends(get_db),
 
 # ── Change password ───────────────────────────────────────
 
+def _revoke_all_refresh_tokens(db: Session, user_id: int) -> None:
+    """Révoque toutes les sessions actives d'un utilisateur (refresh tokens)."""
+    db.query(RefreshToken).filter(
+        RefreshToken.user_id == user_id,
+        RefreshToken.revoked == False,  # noqa: E712
+    ).update({"revoked": True})
+
+
 @router.post("/change-password")
 def change_password(body: dict, request: Request, db: Session = Depends(get_db),
                     current_user: User = Depends(get_current_user)):
@@ -236,6 +245,7 @@ def change_password(body: dict, request: Request, db: Session = Depends(get_db),
     if len(new_pw) < 8:
         raise HTTPException(status_code=400, detail="Mot de passe trop court (8 caractères minimum)")
     current_user.hashed_password = auth_utils.hash_password(new_pw)
+    _revoke_all_refresh_tokens(db, current_user.id)
     db.commit()
     log_audit(db, current_user.id, "PASSWORD_CHANGED", "Mot de passe modifié", request)
     return {"ok": True}
@@ -252,6 +262,7 @@ class ResetPasswordRequest(BaseModel):
 
 
 @router.post("/forgot-password")
+@limiter.limit("5/minute")
 def forgot_password(data: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == data.email.lower(), User.is_active == True).first()  # noqa: E712
     # Always return 200 to avoid email enumeration
@@ -281,6 +292,7 @@ def forgot_password(data: ForgotPasswordRequest, request: Request, db: Session =
 
 
 @router.post("/reset-password")
+@limiter.limit("5/minute")
 def reset_password(data: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
     if len(data.new_password) < 8:
         raise HTTPException(status_code=400, detail="Mot de passe trop court (8 caractères minimum)")
@@ -300,6 +312,7 @@ def reset_password(data: ResetPasswordRequest, request: Request, db: Session = D
 
     user.hashed_password = auth_utils.hash_password(data.new_password)
     rt.used = True
+    _revoke_all_refresh_tokens(db, user.id)
     db.commit()
 
     log_audit(db, user.id, "PASSWORD_RESET_DONE", f"Mot de passe réinitialisé pour {user.email}", request)
