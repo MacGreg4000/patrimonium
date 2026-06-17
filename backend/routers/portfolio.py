@@ -1,8 +1,9 @@
 """Stock portfolio router: positions, purchases, market data."""
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import calculations
@@ -257,14 +258,53 @@ def force_refresh(db: Session = Depends(get_db), user: User = Depends(get_curren
     return {"ok": True, "refreshed_at": md.get_last_refresh()}
 
 
+# period → (fenêtre temporelle, granularité du bucket pour sous-échantillonnage)
+# Bucket None = données brutes (la fenêtre est assez courte pour rester légère).
+_HISTORY_PERIODS = {
+    "day":   (timedelta(days=1),    None),
+    "week":  (timedelta(days=7),    "hour"),
+    "month": (timedelta(days=30),   "day"),
+    "year":  (timedelta(days=365),  "day"),
+    "max":   (None,                 "day"),
+    # "ytd" est traité à part (depuis le 1ᵉʳ janvier de l'année courante)
+}
+
+
 @router.get("/history")
-def get_history(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    snaps = (db.query(PortfolioSnapshot)
-             .order_by(PortfolioSnapshot.timestamp.desc())
-             .limit(300).all())
+def get_history(period: str = "month",
+                db: Session = Depends(get_db),
+                user: User = Depends(get_current_user)):
+    """Historique des snapshots de portefeuille pour une période donnée.
+
+    period ∈ {day, week, month, ytd, year, max}. Les périodes longues sont
+    sous-échantillonnées (dernier snapshot par heure/jour) pour rester légères.
+    """
+    now = datetime.now(timezone.utc)
+
+    if period == "ytd":
+        cutoff, bucket = datetime(now.year, 1, 1, tzinfo=timezone.utc), "day"
+    else:
+        window, bucket = _HISTORY_PERIODS.get(period, _HISTORY_PERIODS["month"])
+        cutoff = (now - window) if window else None
+
+    q = db.query(PortfolioSnapshot)
+    if cutoff is not None:
+        q = q.filter(PortfolioSnapshot.timestamp >= cutoff)
+
+    if bucket:
+        # DISTINCT ON (bucket) : conserve le dernier snapshot de chaque bucket
+        trunc = func.date_trunc(bucket, PortfolioSnapshot.timestamp)
+        snaps = (q.distinct(trunc)
+                  .order_by(trunc.desc(), PortfolioSnapshot.timestamp.desc())
+                  .limit(800).all())
+    else:
+        snaps = (q.order_by(PortfolioSnapshot.timestamp.desc())
+                  .limit(800).all())
+
+    snaps = sorted(snaps, key=lambda s: s.timestamp)
     return [{"timestamp": s.timestamp, "total_value_eur": s.total_value_eur,
              "total_invested_eur": s.total_invested_eur, "total_pnl_eur": s.total_pnl_eur}
-            for s in reversed(snaps)]
+            for s in snaps]
 
 
 # ── Simulator rates ────────────────────────────────────────

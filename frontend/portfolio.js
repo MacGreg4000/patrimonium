@@ -18,6 +18,7 @@ async function loadPortfolio() {
 function renderPortfolioPage(data) {
   const page = document.getElementById('page-portfolio');
   if (!page) return;
+  _simInitialized = false;   // le DOM du simulateur est recréé à chaque rendu
 
   const positions = data.positions || [];
   const held    = positions.filter(p => p.total_quantity > 0);
@@ -72,6 +73,24 @@ function renderPortfolioPage(data) {
       </div>
     </div>
 
+    <!-- Investissement & gains réels -->
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+        <span>💰 Investissement & gains réels
+          <span style="font-size:11px;color:var(--text-secondary);font-weight:400;margin-left:6px">— capital investi et valeur du portefeuille dans le temps</span>
+        </span>
+        <div id="igPeriodSel" class="seg-ctrl">
+          <button class="seg-btn" onclick="setInvestGainPeriod('day',this)">Jour</button>
+          <button class="seg-btn" onclick="setInvestGainPeriod('week',this)">Sem.</button>
+          <button class="seg-btn active" onclick="setInvestGainPeriod('month',this)">Mois</button>
+          <button class="seg-btn" onclick="setInvestGainPeriod('ytd',this)">YTD</button>
+          <button class="seg-btn" onclick="setInvestGainPeriod('year',this)">1 an</button>
+          <button class="seg-btn" onclick="setInvestGainPeriod('max',this)">Max</button>
+        </div>
+      </div>
+      <div style="height:260px"><canvas id="investGainLine"></canvas></div>
+    </div>
+
     <!-- Held positions table -->
     <div class="card" style="padding:0;overflow:hidden;margin-bottom:20px">
       <div class="section-header">
@@ -116,10 +135,17 @@ function renderPortfolioPage(data) {
 
     <!-- ── Simulateur de rendement ── -->
     <div class="card" style="margin-bottom:20px">
-      <div class="card-title" style="margin-bottom:16px">📈 Simulateur de rendement
-        <span style="font-size:11px;color:var(--text-secondary);font-weight:400;margin-left:6px">— projection basée sur le CAGR historique (yfinance)</span>
+      <div class="card-title" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <span>📈 Simulateur de rendement
+          <span style="font-size:11px;color:var(--text-secondary);font-weight:400;margin-left:6px">— projection basée sur le CAGR historique (yfinance)</span>
+        </span>
+        <label class="ui-switch" title="Plier / déplier le simulateur">
+          <input type="checkbox" id="simToggle" onchange="_toggleSimulator(this.checked)">
+          <span class="ui-switch-track"></span>
+          <span class="ui-switch-thumb"></span>
+        </label>
       </div>
-      <div style="display:grid;grid-template-columns:240px 1fr;gap:28px;align-items:start">
+      <div id="simBody" class="collapsible" style="display:grid;grid-template-columns:240px 1fr;gap:28px;align-items:start">
 
         <!-- Panneau gauche -->
         <div style="display:flex;flex-direction:column;gap:12px">
@@ -189,7 +215,7 @@ function renderPortfolioPage(data) {
     const visiblePos = held.filter(p => p.current_value > 0);
     renderDonut('portDonut', visiblePos.map(p => p.display_name), visiblePos.map(p => p.current_value), 'portDonutLegend');
     loadPortfolioHistory();
-    _initSimulator();   // lancer la simulation avec les positions pré-cochées
+    _restoreSimToggle();   // applique l'état plié/déplié mémorisé (+ init si déplié)
   });
 
   // Re-expand
@@ -223,10 +249,24 @@ function refreshPortfolioValues(data) {
   });
 }
 
+let _investGainPeriod = 'month';
+
 async function loadPortfolioHistory() {
   try {
-    const history = await apiGet('/api/portfolio/history');
-    renderPortfolioLine('portLine', history);
+    const history = await apiGet('/api/portfolio/history?period=month');
+    renderPortfolioLine('portLine', history);          // « Évolution 30 jours »
+    renderInvestGainChart('investGainLine', history);  // période par défaut : mois
+  } catch (_) {}
+}
+
+// Sélecteur d'échelle de temps du graphique investissement/gains
+async function setInvestGainPeriod(period, btn) {
+  _investGainPeriod = period;
+  document.querySelectorAll('#igPeriodSel .seg-btn')
+    .forEach(b => b.classList.toggle('active', b === btn));
+  try {
+    const history = await apiGet('/api/portfolio/history?period=' + encodeURIComponent(period));
+    renderInvestGainChart('investGainLine', history);
   } catch (_) {}
 }
 
@@ -679,6 +719,26 @@ function floatOrNull(v) { const f = parseFloat(v); return isNaN(f) ? null : f; }
 
 let _simRates     = {};   // {ticker: {cagr, dividend_yield, years_of_data}}
 let _simChartInst = null;
+
+// Pli/dépli du simulateur — état persistant (plié par défaut)
+// Init paresseux : les données yfinance ne sont chargées qu'au premier dépli.
+let _simInitialized = false;
+
+function _restoreSimToggle() {
+  const expanded = localStorage.getItem('simExpanded') === 'true';
+  const toggle = document.getElementById('simToggle');
+  const body   = document.getElementById('simBody');
+  if (toggle) toggle.checked = expanded;
+  if (body)   body.classList.toggle('collapsed', !expanded);
+  if (expanded && !_simInitialized) { _simInitialized = true; _initSimulator(); }
+}
+
+function _toggleSimulator(expanded) {
+  const body = document.getElementById('simBody');
+  if (body) body.classList.toggle('collapsed', !expanded);
+  localStorage.setItem('simExpanded', expanded ? 'true' : 'false');
+  if (expanded && !_simInitialized) { _simInitialized = true; _initSimulator(); }
+}
 
 async function _initSimulator() {
   // Déclenche _onSimAssetChange pour les cases pré-cochées (positions détenues)

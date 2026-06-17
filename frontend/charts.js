@@ -89,6 +89,69 @@ function renderPortfolioLine(canvasId, history) {
   });
 }
 
+// ── Investissement vs gains réels ─────────────────────────
+// Zone d'investissement : ligne + aire bleue remplie en dessous.
+// Par-dessus, la valeur du portefeuille : VERTE tant qu'elle est au-dessus
+// de l'investi, ROUGE dès qu'elle croise et passe en dessous (perte).
+function renderInvestGainChart(canvasId, history) {
+  destroyChart(canvasId);
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || !history?.length) return;
+
+  const labels   = history.map(h => fmtDate(h.timestamp));
+  const invested = history.map(h => h.total_invested_eur);
+  const value    = history.map(h => h.total_value_eur != null
+    ? h.total_value_eur
+    : (h.total_invested_eur + (h.total_pnl_eur || 0)));
+
+  const ctx = canvas.getContext('2d');
+  const gradInvest = ctx.createLinearGradient(0, 0, 0, 260);
+  gradInvest.addColorStop(0, 'rgba(79,142,247,.30)');
+  gradInvest.addColorStop(1, 'rgba(79,142,247,0)');
+
+  // Couleur du trait de valeur, segment par segment : vert si ≥ investi, sinon rouge
+  const segColor = c => {
+    const i = c.p1DataIndex;
+    return value[i] >= invested[i] ? '#10D98A' : '#F5465D';
+  };
+
+  _charts[canvasId] = new Chart(canvas, {
+    type: 'line',
+    data: { labels, datasets: [
+      // Zone d'investissement (dessinée en premier = en dessous)
+      { label: 'Montants investis', data: invested,
+        borderColor: '#4F8EF7', backgroundColor: gradInvest, borderWidth: 2,
+        pointRadius: 0, pointHoverRadius: 4, fill: true, tension: 0.35 },
+      // Valeur du portefeuille (au-dessus), colorée vert/rouge par segment
+      { label: 'Valeur du portefeuille', data: value,
+        borderColor: '#10D98A', backgroundColor: 'transparent', borderWidth: 2.5,
+        pointRadius: 0, pointHoverRadius: 5, fill: false, tension: 0.35,
+        segment: { borderColor: segColor } },
+    ]},
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, labels: { color: '#7D97BA', font: { size: 11 }, boxWidth: 16, padding: 14, usePointStyle: true }},
+        tooltip: { ...tooltipStyle(), callbacks: {
+          label: ctx => `  ${ctx.dataset.label}: ${fmtEur(ctx.parsed.y)}`,
+          afterBody: items => {
+            const i = items[0].dataIndex;
+            const gain = value[i] - invested[i];
+            const sign = gain >= 0 ? '+' : '';
+            return `\n  Gain/perte: ${sign}${fmtEur(gain)}`;
+          },
+        }},
+      },
+      scales: {
+        x: { grid: { color: '#1E2330' }, ticks: { maxTicksLimit: 8, color: '#3D4452', font: { size: 10 } }},
+        y: { position: 'right', grid: { color: '#1E2330' },
+             ticks: { color: '#3D4452', callback: fmtEurShort, font: { size: 10 } }},
+      },
+    },
+  });
+}
+
 // ── Bar (monthly cash flow) ───────────────────────────────
 
 function renderMonthlyBar(canvasId, entries, exits) {
