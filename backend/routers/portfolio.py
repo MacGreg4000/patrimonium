@@ -287,7 +287,7 @@ def get_history(period: str = "month",
         window, bucket = _HISTORY_PERIODS.get(period, _HISTORY_PERIODS["month"])
         cutoff = (now - window) if window else None
 
-    q = db.query(PortfolioSnapshot)
+    q = db.query(PortfolioSnapshot).filter(PortfolioSnapshot.total_value_eur > 0)
     if cutoff is not None:
         q = q.filter(PortfolioSnapshot.timestamp >= cutoff)
 

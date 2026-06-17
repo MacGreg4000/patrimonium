@@ -43,6 +43,8 @@ async def refresh_job():
                               "alert_gain_pct": pos.alert_gain_pct, "alert_loss_pct": pos.alert_loss_pct})
 
         portfolio = calculations.calc_portfolio_metrics(pos_data)
+        if portfolio["total_value_eur"] == 0 and not pos_data:
+            return
         snap = PortfolioSnapshot(
             total_value_eur=portfolio["total_value_eur"],
             total_invested_eur=portfolio["total_invested_eur"],
