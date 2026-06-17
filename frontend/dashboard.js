@@ -90,6 +90,13 @@ function renderDashboard(d) {
       </div>
     </div>
 
+    <!-- Analyse détaillée (repliable) -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin:4px 2px 12px">
+      <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em">Analyse détaillée</div>
+      ${collapseSwitch('dashDetails', 'dashDetailsBody', true)}
+    </div>
+    <div id="dashDetailsBody" class="${collapseBodyClass('dashDetails', true)}">
+
     <!-- Charts row -->
     <div class="grid-chart" style="margin-bottom:24px">
       <div class="card">
@@ -139,6 +146,8 @@ function renderDashboard(d) {
         ${renderAllocBar('Réserves libérables',  resPct,   '#F59E0B', res.total_releasable)}
       </div>
     </div>
+
+    </div><!-- /dashDetailsBody -->
   `;
 
   // Render charts after DOM is ready

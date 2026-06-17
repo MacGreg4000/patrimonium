@@ -404,11 +404,16 @@ body{
 .seg-btn:hover{color:var(--text-primary);}
 .seg-btn.active{background:var(--accent-blue);color:#fff;}
 
+/* switch de thème : icônes lune (sombre) / soleil (clair) aux extrémités */
+.theme-switch .ui-switch-track{position:relative;}
+.theme-switch .ui-switch-track::before{content:'🌙';position:absolute;left:4px;top:50%;transform:translateY(-50%);font-size:11px;line-height:1;opacity:.7;}
+.theme-switch .ui-switch-track::after{content:'☀';position:absolute;right:4px;top:50%;transform:translateY(-50%);font-size:11px;line-height:1;opacity:.7;}
+
 /* corps repliable animé (max-height) */
 .collapsible{
   overflow:hidden;
   transition:max-height .35s ease,opacity .3s ease,margin .35s ease;
-  max-height:2000px;opacity:1;
+  max-height:3000px;opacity:1;
 }
 .collapsible.collapsed{max-height:0;opacity:0;margin-top:0 !important;margin-bottom:0 !important;}
 

@@ -253,8 +253,12 @@ function renderSoldAssetsSection() {
     <div class="card" style="padding:0;overflow:hidden;margin-top:20px">
       <div class="section-header">
         <div class="section-title">🏷️ Historique des ventes <span class="section-count">${_soldAssetsData.length}</span></div>
-        <div style="font-family:var(--font-display);font-size:14px;color:var(--accent-green)">${fmtEur(totalSale)}</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div style="font-family:var(--font-display);font-size:14px;color:var(--accent-green)">${fmtEur(totalSale)}</div>
+          ${collapseSwitch('assetsSold', 'soldHistBody', false)}
+        </div>
       </div>
+      <div id="soldHistBody" class="${collapseBodyClass('assetsSold', false)}">
       <div class="table-wrap">
         <table class="data-table">
           <thead><tr>
@@ -268,6 +272,7 @@ function renderSoldAssetsSection() {
           </tr></thead>
           <tbody>${rows}</tbody>
         </table>
+      </div>
       </div>
     </div>`;
 }

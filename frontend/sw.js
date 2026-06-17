@@ -5,7 +5,7 @@
    ═══════════════════════════════════════════════ */
 'use strict';
 
-const CACHE_NAME = 'patrimonium-v2';
+const CACHE_NAME = 'patrimonium-v3';
 
 // Assets statiques à mettre en cache lors de l'installation
 const STATIC_ASSETS = [

@@ -76,29 +76,37 @@ function renderCoffresPage() {
 
     <!-- Balance chart -->
     <div class="card" style="margin-top:20px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:10px">
         <div class="card-title" style="margin:0">Évolution du solde — <span id="balanceChartCoffreName" style="color:var(--accent-gold)"></span></div>
-        <select class="form-select" style="width:auto;padding:5px 10px;font-size:12px" id="balanceChartCoffreSelect" onchange="switchBalanceChart(parseInt(this.value))">
-          ${_coffresData.map(c => `<option value="${c.id}" ${c.id === _selectedCoffreId ? 'selected' : ''}>${escHtml(c.name)}</option>`).join('')}
-        </select>
+        <div style="display:flex;align-items:center;gap:10px">
+          <select class="form-select" style="width:auto;padding:5px 10px;font-size:12px" id="balanceChartCoffreSelect" onchange="switchBalanceChart(parseInt(this.value))">
+            ${_coffresData.map(c => `<option value="${c.id}" ${c.id === _selectedCoffreId ? 'selected' : ''}>${escHtml(c.name)}</option>`).join('')}
+          </select>
+          ${collapseSwitch('coffreBalance', 'coffreBalanceBody', false)}
+        </div>
       </div>
-      <div style="height:220px"><canvas id="coffreBalanceChart"></canvas></div>
-      <div id="coffreBalanceChartEmpty" style="display:none;text-align:center;padding:40px 0;color:var(--text-muted);font-size:13px">Aucun mouvement enregistré</div>
+      <div id="coffreBalanceBody" class="${collapseBodyClass('coffreBalance', false)}">
+        <div style="height:220px"><canvas id="coffreBalanceChart"></canvas></div>
+        <div id="coffreBalanceChartEmpty" style="display:none;text-align:center;padding:40px 0;color:var(--text-muted);font-size:13px">Aucun mouvement enregistré</div>
+      </div>
     </div>
 
     <!-- History -->
     <div class="card" style="padding:0;overflow:hidden;margin-top:20px" id="coffresHistorySection">
       <div class="section-header">
-        <div class="section-title">Historique <span class="section-count" id="historyCount">—</span></div>
-        <div style="display:flex;gap:8px">
+        <div class="section-title">Historique des mouvements <span class="section-count" id="historyCount">—</span></div>
+        <div style="display:flex;align-items:center;gap:8px">
           <select class="form-select" style="width:auto;padding:6px 10px" id="histCoffreFilter" onchange="loadHistory()">
             <option value="">Tous les coffres</option>
             ${_coffresData.map(c => `<option value="${c.id}">${escHtml(c.name)}</option>`).join('')}
           </select>
+          ${collapseSwitch('coffreHistory', 'historyBodyWrap', false)}
         </div>
       </div>
-      <div id="historyBody" style="padding:0">
-        <div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">Chargement…</div></div>
+      <div id="historyBodyWrap" class="${collapseBodyClass('coffreHistory', false)}">
+        <div id="historyBody" style="padding:0">
+          <div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">Chargement…</div></div>
+        </div>
       </div>
     </div>
 

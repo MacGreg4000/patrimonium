@@ -331,6 +331,39 @@ const CHART_COLORS = [
   });
 })();
 
+// ── Panneaux repliables (toggle switch + état persistant) ──
+// Approche déclarative : l'état est calculé au rendu (checked + classe du corps),
+// aucune init post-rendu n'est nécessaire. Réutilisable sur toutes les pages.
+
+function _collapseExpanded(key, defaultExpanded) {
+  const v = localStorage.getItem('collapse:' + key);
+  return v === null ? !!defaultExpanded : v === 'true';
+}
+
+// Markup du switch à insérer dans un en-tête de carte/section.
+function collapseSwitch(key, bodyId, defaultExpanded = true) {
+  const expanded = _collapseExpanded(key, defaultExpanded);
+  return `<label class="ui-switch" title="Plier / déplier" onclick="event.stopPropagation()">
+    <input type="checkbox" ${expanded ? 'checked' : ''}
+      onchange="onCollapseToggle('${key}','${bodyId}',this.checked)">
+    <span class="ui-switch-track"></span><span class="ui-switch-thumb"></span>
+  </label>`;
+}
+
+// Classes à poser sur le corps repliable (id = bodyId).
+function collapseBodyClass(key, defaultExpanded = true) {
+  return 'collapsible' + (_collapseExpanded(key, defaultExpanded) ? '' : ' collapsed');
+}
+
+function onCollapseToggle(key, bodyId, expanded) {
+  const b = document.getElementById(bodyId);
+  if (b) b.classList.toggle('collapsed', !expanded);
+  localStorage.setItem('collapse:' + key, expanded ? 'true' : 'false');
+  // Les graphiques rendus pendant que le panneau était plié ont une taille 0 :
+  // un resize après la transition CSS les recalcule.
+  if (expanded) setTimeout(() => window.dispatchEvent(new Event('resize')), 360);
+}
+
 // ── Thème clair / sombre ──────────────────────────────────
 function initTheme() {
   if (localStorage.getItem('theme') === 'light')
@@ -345,11 +378,9 @@ function toggleTheme() {
 }
 
 function _updateThemeBtn() {
-  const btn = document.getElementById('themeToggleBtn');
-  if (!btn) return;
+  const input = document.getElementById('themeToggleInput');
+  const wrap  = document.getElementById('themeSwitch');
   const isLight = document.documentElement.classList.contains('light');
-  btn.title = isLight ? 'Passer en mode sombre' : 'Passer en mode clair';
-  btn.innerHTML = isLight
-    ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>`
-    : `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>`;
+  if (input) input.checked = isLight;            // switch activé = mode clair
+  if (wrap)  wrap.title = isLight ? 'Passer en mode sombre' : 'Passer en mode clair';
 }
