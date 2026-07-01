@@ -27,11 +27,11 @@ async def refresh_job():
         from models import Position, PortfolioSnapshot
         import calculations
         positions = db.query(Position).filter(Position.is_active == True).all()  # noqa: E712
-        md.refresh_all_prices([p.ticker for p in positions])
+        md.refresh_all_prices([p.ticker for p in positions if p.ticker != "MANUAL" and p.asset_type != "cash"])
 
         pos_data = []
         for pos in positions:
-            if pos.ticker == "MANUAL":
+            if pos.ticker == "MANUAL" or pos.asset_type == "cash":
                 price = pos.manual_price or 0.0
                 prev = price
             else:
