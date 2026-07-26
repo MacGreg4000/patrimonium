@@ -277,7 +277,7 @@ function renderAdminCaisseSection(coffre) {
 
   return `
     <!-- Mode selector — large, centred buttons -->
-    <div style="display:flex;justify-content:center;gap:12px;margin-bottom:24px">
+    <div style="display:flex;gap:12px;margin-bottom:24px;overflow-x:auto;padding-bottom:4px">
       ${Object.entries(modeConfig).map(([mode, cfg]) => `
         <button onclick="setCaisseMode('${mode}')"
           class="btn-caisse-mode ${_caissMode === mode ? 'active ' + cfg.btnClass : ''}"
