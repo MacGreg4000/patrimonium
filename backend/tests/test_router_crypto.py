@@ -231,6 +231,30 @@ def test_cash_balance_is_updated_not_duplicated(auth_admin, db, fake_exchange):
     assert db.query(Purchase).filter(Purchase.position_id == cash[0].id).count() == 1
 
 
+def test_scheduler_refreshes_cash_without_reimporting_trades(auth_admin, db, fake_exchange):
+    """Le scheduler doit rafraîchir les soldes, sans rejouer l'import des trades."""
+    from routers.crypto import refresh_cash_balances
+    client, _ = auth_admin
+    acc_id = _create_account(client, "bitvavo", "Bitvavo - Bot").json()["id"]
+    fake_exchange.trades = [_trade("t1", "BTC", "buy", 1.0, 100.0, 2)]
+    fake_exchange.balances = {"EUR": 100.0}
+    client.post(f"/api/crypto/accounts/{acc_id}/sync", json={})
+
+    calls = {"trades": 0}
+    original = FakeClient.get_trades
+    def counting(self, extra_assets=None):
+        calls["trades"] += 1
+        return original(self, extra_assets)
+
+    fake_exchange.balances = {"EUR": 250.0}
+    with patch.object(FakeClient, "get_trades", counting):
+        assert refresh_cash_balances(db) == 1
+
+    cash = db.query(Position).filter(Position.ticker == "BITVAVO:EUR").one()
+    assert cash.manual_price == pytest.approx(250.0)
+    assert calls["trades"] == 0          # aucun import de trades déclenché
+
+
 def test_exchange_cash_excluded_from_securities_portfolio(auth_admin, db, fake_exchange):
     """Les liquidités Bitvavo ne doivent pas polluer le portefeuille titres."""
     client, _ = auth_admin

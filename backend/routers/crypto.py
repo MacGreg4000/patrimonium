@@ -273,6 +273,34 @@ def _sync_cash(acc: ExchangeAccount, client, db: Session) -> Optional[float]:
     return balance
 
 
+def refresh_cash_balances(db: Session) -> int:
+    """Met à jour les soldes de liquidités de tous les comptes actifs.
+
+    Appelé par le scheduler : un seul appel API par compte, contrairement à
+    l'import des trades qui pagine marché par marché. Retourne le nombre de
+    comptes rafraîchis.
+    """
+    accounts = db.query(ExchangeAccount).filter(
+        ExchangeAccount.is_active == True).all()  # noqa: E712
+    updated = 0
+    for acc in accounts:
+        try:
+            client = get_client(
+                acc.exchange,
+                encryption.decrypt_str(acc.encrypted_api_key),
+                encryption.decrypt_str(acc.encrypted_api_secret),
+            )
+            _sync_cash(acc, client, db)
+            # Valider compte par compte : sinon le rollback d'un compte en échec
+            # annulerait aussi les mises à jour réussies des comptes précédents.
+            db.commit()
+            updated += 1
+        except Exception as e:
+            logger.warning(f"{acc.label} : rafraîchissement des liquidités échoué ({e})")
+            db.rollback()
+    return updated
+
+
 def _account_positions(acc: ExchangeAccount, db: Session) -> list[Position]:
     """Positions déjà importées pour ce compte.
 

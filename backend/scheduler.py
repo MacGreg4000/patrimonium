@@ -39,7 +39,20 @@ def _refresh_and_snapshot() -> list:
             Position.asset_type != "crypto",
             Position.ticker.notin_(CASH_TICKERS),
         ).all()
-        md.refresh_all_prices([p.ticker for p in positions if p.ticker != "MANUAL" and p.asset_type != "cash"])
+
+        # Les cours crypto sont rafraîchis ici aussi (sans entrer dans le snapshot) :
+        # sinon ils ne seraient récupérés qu'à l'expiration du cache, au chargement
+        # de la page Crypto — qui attendrait alors un appel réseau par position.
+        crypto_tickers = [
+            p.ticker for p in db.query(Position).filter(
+                Position.is_active == True,      # noqa: E712
+                Position.asset_type == "crypto",
+            ).all()
+        ]
+        md.refresh_all_prices(
+            [p.ticker for p in positions if p.ticker != "MANUAL" and p.asset_type != "cash"]
+            + crypto_tickers
+        )
 
         pos_data = []
         for pos in positions:
@@ -64,6 +77,15 @@ def _refresh_and_snapshot() -> list:
         )
         db.add(snap)
         db.commit()
+
+        # Soldes de liquidités des exchanges : un appel API par compte, sans
+        # rejouer l'import des trades (bien plus coûteux, resté manuel).
+        try:
+            from routers.crypto import refresh_cash_balances
+            refresh_cash_balances(db)
+        except Exception as e:
+            logger.warning(f"Rafraîchissement des liquidités crypto échoué : {e}")
+
         return pos_data
     except Exception as e:
         logger.error(f"Refresh job error: {e}", exc_info=True)
