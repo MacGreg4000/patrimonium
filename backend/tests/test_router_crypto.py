@@ -176,6 +176,68 @@ def test_summary_excludes_crypto_from_portfolio(auth_admin, db, fake_exchange):
     assert all(p["asset_type"] != "crypto" for p in portfolio["positions"])
 
 
+# ── Exports ───────────────────────────────────────────────
+
+def _seed_crypto(client, fake_exchange):
+    acc_id = _create_account(client).json()["id"]
+    fake_exchange.trades = [_trade("t1", "BTC", "buy", 1.0, 30000.0, 2)]
+    client.post(f"/api/crypto/accounts/{acc_id}/sync", json={})
+
+
+def test_export_data_separates_crypto_totals(auth_admin, db, fake_exchange):
+    """Le crypto doit être compté à part, sans disparaître du patrimoine total."""
+    from routers.export import _collect_data
+    client, _ = auth_admin
+    _seed_crypto(client, fake_exchange)
+
+    with patch("market_data.get_price_eur", return_value=(50000.0, 49000.0, 2.0)):
+        data = _collect_data(db, db.query(__import__("models").User).first())
+
+    s = data["summary"]
+    assert s["total_crypto_eur"] == pytest.approx(50000.0)
+    assert s["total_portfolio_eur"] == 0.0        # aucune action/ETF
+    assert s["grand_total_eur"] == pytest.approx(50000.0)   # mais bien dans le total
+
+    crypto_rows = [p for p in data["portfolio"] if p["type"] == "crypto"]
+    assert len(crypto_rows) == 1
+    assert crypto_rows[0]["purchases"]           # l'historique suit
+
+
+def test_export_html_contains_crypto_tab(auth_admin, fake_exchange):
+    client, _ = auth_admin
+    _seed_crypto(client, fake_exchange)
+
+    with patch("market_data.get_price_eur", return_value=(50000.0, 49000.0, 2.0)):
+        r = client.post("/api/export", json={"passphrase": "TestPassphrase123!"})
+    assert r.status_code == 200, r.text
+    html = r.text
+    assert "tab-crypto" in html and "renderCrypto" in html
+
+
+def test_export_excel_has_crypto_sheet(auth_admin, fake_exchange):
+    import openpyxl
+    from io import BytesIO
+    client, _ = auth_admin
+    _seed_crypto(client, fake_exchange)
+
+    with patch("market_data.get_price_eur", return_value=(50000.0, 49000.0, 2.0)):
+        r = client.get("/api/export/patrimoine-excel")
+    assert r.status_code == 200, r.text
+
+    wb = openpyxl.load_workbook(BytesIO(r.content))
+    assert "Crypto" in wb.sheetnames
+    assert wb["Crypto"].max_row == 2                      # en-tête + 1 ligne
+    assert wb["Crypto"].cell(2, 1).value == "BTC"
+    assert wb["Crypto"].cell(2, 2).value == "Kraken test"
+
+    # La synthèse doit inclure le crypto dans le patrimoine total
+    ws = wb["Synthèse"]
+    headers = [c.value for c in ws[1]]
+    idx = headers.index("Total crypto (€)") + 1
+    assert ws.cell(2, idx).value == pytest.approx(50000.0)
+    assert ws.cell(2, headers.index("Patrimoine total (€)") + 1).value == pytest.approx(50000.0)
+
+
 def test_delete_account_keeps_positions(auth_admin, db, fake_exchange):
     client, _ = auth_admin
     acc_id = _create_account(client).json()["id"]
