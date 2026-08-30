@@ -28,6 +28,8 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
     total_portfolio_invested = 0.0
     total_portfolio_pnl = 0.0
     day_change_eur = 0.0
+    total_crypto_value = 0.0
+    total_crypto_invested = 0.0
 
     pos_data = []
     for pos in positions:
@@ -45,17 +47,28 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
         # Ne compter dans les KPI que les positions avec des achats réels
         has_holdings = (m.get("total_bought") or 0) > 0
         pos_data.append(m)
-        if has_holdings:
+        if not has_holdings:
+            continue
+        if pos.asset_type == "crypto":          # le crypto a sa propre carte
+            total_crypto_value += m["current_value"]
+            total_crypto_invested += m["total_invested"]
+        else:
             total_portfolio_value += m["current_value"]
             if m.get("asset_type") != "cash":   # le cash n'est pas du capital "investi"
                 total_portfolio_invested += m["total_invested"]
-            day_change_eur += m["day_change_eur"]
+        day_change_eur += m["day_change_eur"]
 
     # P&L total = unrealized + realized (inclut les ventes partielles sur positions actives)
     total_portfolio_pnl = sum(
         (m.get("pnl_eur") or 0.0)
         for m in pos_data
-        if (m.get("total_bought") or 0) > 0 and m.get("asset_type") != "cash"
+        if (m.get("total_bought") or 0) > 0
+        and m.get("asset_type") not in ("cash", "crypto")
+    )
+    total_crypto_pnl = sum(
+        (m.get("pnl_eur") or 0.0)
+        for m in pos_data
+        if (m.get("total_bought") or 0) > 0 and m.get("asset_type") == "crypto"
     )
     total_portfolio_pnl_pct = (
         total_portfolio_pnl / total_portfolio_invested * 100
@@ -64,7 +77,12 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
     # Nombre de positions réelles (avec achats, hors cash)
     real_position_count = sum(
         1 for m in pos_data
-        if (m.get("total_bought") or 0) > 0 and m.get("asset_type") != "cash"
+        if (m.get("total_bought") or 0) > 0
+        and m.get("asset_type") not in ("cash", "crypto")
+    )
+    crypto_position_count = sum(
+        1 for m in pos_data
+        if (m.get("total_bought") or 0) > 0 and m.get("asset_type") == "crypto"
     )
 
     # ── 2. Liquidités coffres ──────────────────────────────
@@ -99,7 +117,8 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
 
     # ── 5. Grand total patrimoine ─────────────────────────
     # Les réserves sont incluses en valeur brute (= non encore libérées)
-    grand_total = total_portfolio_value + total_cash + total_assets_value + total_releasable
+    grand_total = (total_portfolio_value + total_crypto_value + total_cash
+                   + total_assets_value + total_releasable)
 
     # ── 6. Monthly cash flow (last 6 months) ─────────────
     from sqlalchemy import func, extract
@@ -155,6 +174,16 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
             "position_count": real_position_count,
             "top_gainers": top_gainers[:3],
             "top_losers": [l for l in top_losers if (l.get("pnl_pct") or 0) < 0][:3],
+        },
+
+        # Crypto (Kraken, Bitvavo)
+        "crypto": {
+            "total_value_eur": total_crypto_value,
+            "total_invested_eur": total_crypto_invested,
+            "total_pnl_eur": total_crypto_pnl,
+            "total_pnl_pct": (total_crypto_pnl / total_crypto_invested * 100)
+                             if total_crypto_invested > 0 else None,
+            "position_count": crypto_position_count,
         },
 
         # Liquidités

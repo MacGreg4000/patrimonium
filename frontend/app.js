@@ -57,6 +57,7 @@ function navigate(page) {
     case 'portfolio':  loadPortfolio();  break;
     case 'coffres':    loadCoffres();    break;
     case 'assets':     loadAssets();     break;
+    case 'crypto':     loadCrypto();     break;
     case 'reserves':   loadReserves();   break;
     case 'passwords':  loadPasswords();  break;
     case 'admin':      loadAdmin();      break;

@@ -84,7 +84,11 @@ def _build_position(pos: Position, portfolio_total: float) -> dict:
 
 
 def _all_positions_with_total(db: Session) -> tuple[list, float]:
-    positions = db.query(Position).filter(Position.is_active == True).all()  # noqa: E712
+    # Le crypto a sa propre page (/api/crypto/summary) → exclu du portefeuille titres
+    positions = db.query(Position).filter(
+        Position.is_active == True,          # noqa: E712
+        Position.asset_type != "crypto",
+    ).all()
     total = 0.0
     for pos in positions:
         if pos.ticker == "MANUAL" or pos.asset_type == "cash":

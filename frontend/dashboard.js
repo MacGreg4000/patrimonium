@@ -23,6 +23,7 @@ function renderDashboard(d) {
   const cash  = d.cash;
   const assets = d.assets;
   const res   = d.reserves;
+  const cry   = d.crypto || { total_value_eur: 0, total_pnl_eur: 0, position_count: 0 };
   const files = d.files || {};
 
   // Allocation percentages
@@ -89,6 +90,32 @@ function renderDashboard(d) {
         <div class="hero-card-sub" style="color:var(--text-muted)">${files.password_count ?? 0} mots de passe · ${files.asset_doc_count ?? 0} doc${(files.asset_doc_count ?? 0) > 1 ? 's' : ''} actifs</div>
       </div>
     </div>
+
+    <!-- Ligne 3 : crypto (affichée uniquement si des positions existent) -->
+    ${cry.position_count > 0 ? `
+    <div style="font-size:11px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;padding-left:2px">${ICONS.bitcoin} Crypto</div>
+    <div class="hero-grid" style="margin-bottom:20px">
+      <div class="hero-card" style="cursor:pointer" onclick="navigate('crypto')">
+        <div class="card-label">Valeur crypto <span data-tip="Valeur de marché des cryptos détenues sur Kraken et Bitvavo" style="cursor:help;opacity:.6;font-size:11px">ⓘ</span></div>
+        <div class="hero-card-value blue">${fmtEur(cry.total_value_eur)}</div>
+        <div class="hero-card-sub">${cry.position_count} position${cry.position_count > 1 ? 's' : ''}</div>
+      </div>
+      <div class="hero-card">
+        <div class="card-label">${ICONS.coins} Capital investi</div>
+        <div class="hero-card-value gold">${fmtEur(cry.total_invested_eur)}</div>
+        <div class="hero-card-sub" style="color:var(--text-muted)">coût des parts détenues</div>
+      </div>
+      <div class="hero-card">
+        <div class="card-label">${ICONS.chartUp} Performance crypto</div>
+        <div class="hero-card-value ${pnlClass(cry.total_pnl_eur)}">${pnlSign(cry.total_pnl_eur)}${fmtEur(cry.total_pnl_eur)}</div>
+        <div class="hero-card-sub ${pnlClass(cry.total_pnl_pct)}">${cry.total_pnl_pct != null ? pnlSign(cry.total_pnl_pct) + fmtPct(cry.total_pnl_pct) : '—'}</div>
+      </div>
+      <div class="hero-card" style="cursor:pointer" onclick="navigate('crypto')">
+        <div class="card-label">${ICONS.key} Part du patrimoine</div>
+        <div class="hero-card-value">${grandTotal > 0 ? fmtPct(cry.total_value_eur / grandTotal * 100) : '—'}</div>
+        <div class="hero-card-sub" style="color:var(--text-muted)">voir le détail →</div>
+      </div>
+    </div>` : ''}
 
     <!-- Analyse détaillée (repliable) -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin:4px 2px 12px">

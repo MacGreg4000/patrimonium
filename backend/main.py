@@ -181,7 +181,7 @@ async def security_headers(request: Request, call_next):
     return response
 
 # ── Register routers ──────────────────────────────────────
-from routers import auth, admin, coffres, portfolio, physical_assets, reserves, password_files, dashboard, export, saxo_import, revolut_import
+from routers import auth, admin, coffres, portfolio, physical_assets, reserves, password_files, dashboard, export, saxo_import, revolut_import, crypto
 
 app.include_router(auth.router)
 app.include_router(admin.router)
@@ -194,6 +194,7 @@ app.include_router(dashboard.router)
 app.include_router(export.router)
 app.include_router(saxo_import.router)
 app.include_router(revolut_import.router)
+app.include_router(crypto.router)
 
 # ── Health ────────────────────────────────────────────────
 

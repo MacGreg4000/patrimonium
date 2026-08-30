@@ -38,6 +38,11 @@ function fmtDateTime(iso) {
     + ' ' + d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
 }
 
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 function fmtSize(bytes) {
   if (!bytes) return '—';
   if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
@@ -272,12 +277,17 @@ const ICONS = {
   box:        `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
   // Dashboard card icons (12px)
   pieChart:   `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 118 2.83"/><path d="M22 12A10 10 0 0012 2v10z"/></svg>`,
+  // Crypto
+  bitcoin:    `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h6a3 3 0 010 6H8zM8 12h7a3 3 0 010 6H8zM8 6V3m4 0v3m-4 15v-3m4 3v-3M8 6H6m2 6H6m2 6H6"/></svg>`,
+  bitcoinSm:  `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h6a3 3 0 010 6H8zM8 12h7a3 3 0 010 6H8zM8 6V3m4 0v3m-4 15v-3m4 3v-3M8 6H6m2 6H6m2 6H6"/></svg>`,
+  key:        `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3"/></svg>`,
+  refresh:    `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>`,
 };
 
 // ── Asset type / category helpers ─────────────────────────
 
-const ASSET_TYPE_LABELS = { action: 'Action', etf: 'ETF', commodity: 'Or / Mat. première', bond_manual: 'Obligation / Fond', obligation: 'Obligation', cash: 'Liquidités' };
-const ASSET_TYPE_ICONS  = { action: ICONS.chartUp, etf: ICONS.layers, commodity: ICONS.coins, bond_manual: ICONS.bank, obligation: ICONS.bank, cash: ICONS.bank };
+const ASSET_TYPE_LABELS = { action: 'Action', etf: 'ETF', commodity: 'Or / Mat. première', bond_manual: 'Obligation / Fond', obligation: 'Obligation', cash: 'Liquidités', crypto: 'Crypto' };
+const ASSET_TYPE_ICONS  = { action: ICONS.chartUp, etf: ICONS.layers, commodity: ICONS.coins, bond_manual: ICONS.bank, obligation: ICONS.bank, cash: ICONS.bank, crypto: ICONS.bitcoinSm };
 const ASSET_CAT_LABELS  = { bijou: 'Bijou', immo: 'Immobilier', vehicule: 'Véhicule', art: 'Art', metal: 'Métaux précieux', autre: 'Autre' };
 const ASSET_CAT_ICONS   = { bijou: ICONS.gemSm, immo: ICONS.home, vehicule: ICONS.car, art: ICONS.frame, metal: ICONS.coins, autre: ICONS.box };
 

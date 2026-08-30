@@ -109,6 +109,10 @@
             <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg></span>
             <span>Portefeuille</span>
           </button>
+          <button class="nav-item" data-page="crypto" onclick="navigate('crypto')">
+            <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h6a3 3 0 010 6H8zM8 12h7a3 3 0 010 6H8zM8 6V3m4 0v3m-4 15v-3m4 3v-3M8 6H6m2 6H6m2 6H6"/></svg></span>
+            <span>Crypto</span>
+          </button>
           <button class="nav-item" data-page="reserves" onclick="navigate('reserves')">
             <span class="nav-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 010-4h14v4"/><path d="M3 5v14a2 2 0 002 2h16v-5"/><path d="M18 12a2 2 0 000 4h4v-4z"/></svg></span>
             <span>Réserves</span>
@@ -164,7 +168,8 @@
       <div id="page-portfolio" class="page"></div>
       <div id="page-coffres" class="page"></div>
       <div id="page-assets" class="page"></div>
-      <div id="page-reserves" class="page"></div>
+      <div id="page-crypto" class="page"></div>
+    <div id="page-reserves" class="page"></div>
       <div id="page-passwords" class="page"></div>
       <div id="page-admin" class="page"></div>
     </div>
@@ -262,17 +267,18 @@
   }
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
-<script src="/static/utils.js?v=3"></script>
+<script src="/static/utils.js?v=4"></script>
 <script src="/static/charts.js?v=2"></script>
 <script src="/static/auth.js"></script>
-<script src="/static/dashboard.js?v=3"></script>
+<script src="/static/dashboard.js?v=4"></script>
 <script src="/static/portfolio.js?v=3"></script>
 <script src="/static/coffres.js?v=2"></script>
 <script src="/static/assets.js?v=2"></script>
+<script src="/static/crypto.js?v=1"></script>
 <script src="/static/reserves.js"></script>
 <script src="/static/passwords.js"></script>
 <script src="/static/admin.js"></script>
-<script src="/static/app.js?v=2"></script>
+<script src="/static/app.js?v=3"></script>
 <script>initTheme();</script>
 </body>
 </html>

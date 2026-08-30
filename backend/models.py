@@ -265,6 +265,24 @@ class Reserve(Base):
     user = relationship("User", back_populates="reserves")
 
 
+# ── Exchange accounts (crypto) ────────────────────────────────────────────────
+
+class ExchangeAccount(Base):
+    """Compte d'exchange crypto (Kraken, Bitvavo) — clés API en LECTURE SEULE."""
+    __tablename__ = "exchange_accounts"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    exchange = Column(String(20), nullable=False)          # kraken | bitvavo
+    label = Column(String(100), nullable=False)            # nom affiché
+    encrypted_api_key = Column(Text, nullable=False)       # AES-256-GCM
+    encrypted_api_secret = Column(Text, nullable=False)    # AES-256-GCM
+    is_active = Column(Boolean, default=True)
+    last_sync_at = Column(DateTime(timezone=True), nullable=True)
+    last_sync_status = Column(String(200), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+
 # ── Password Files ────────────────────────────────────────────────────────────
 
 class PasswordFile(Base):

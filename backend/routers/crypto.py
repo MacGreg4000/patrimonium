@@ -1,0 +1,296 @@
+"""Crypto router : comptes d'exchange (Kraken, Bitvavo) et positions crypto.
+
+Les clés API sont chiffrées en AES-256-GCM et utilisées uniquement en lecture.
+Aucun ordre, trade ou retrait n'est possible depuis cette application.
+"""
+import logging
+from datetime import datetime, timezone
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+import calculations
+import encryption
+import market_data as md
+from database import get_db
+from dependencies import get_current_user, log_audit, require_admin_csrf
+from exchanges import EXCHANGE_LABELS, get_client
+from models import ExchangeAccount, Position, Purchase, Sale, User
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/crypto", tags=["crypto"])
+
+FIAT = {"EUR", "USD", "GBP", "CHF", "CAD", "JPY", "AUD"}
+
+
+class AccountCreate(BaseModel):
+    exchange: str          # kraken | bitvavo
+    label: str
+    api_key: str
+    api_secret: str
+
+
+# ── Comptes d'exchange ────────────────────────────────────────
+
+@router.get("/accounts")
+def list_accounts(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    accounts = (db.query(ExchangeAccount)
+                  .filter(ExchangeAccount.user_id == user.id)
+                  .order_by(ExchangeAccount.created_at).all())
+    return [_fmt_account(a) for a in accounts]
+
+
+@router.post("/accounts", status_code=201)
+def create_account(data: AccountCreate, request: Request,
+                   db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
+    exchange = data.exchange.lower().strip()
+    if exchange not in EXCHANGE_LABELS:
+        raise HTTPException(status_code=400, detail=f"Exchange non supporté : {exchange}")
+    if not data.api_key.strip() or not data.api_secret.strip():
+        raise HTTPException(status_code=400, detail="Clé API et secret sont requis")
+
+    # Vérifie les clés avant de les enregistrer
+    try:
+        client = get_client(exchange, data.api_key.strip(), data.api_secret.strip())
+        status = client.test_connection()
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Connexion échouée — {e}") from e
+
+    acc = ExchangeAccount(
+        user_id=user.id,
+        exchange=exchange,
+        label=data.label.strip() or EXCHANGE_LABELS[exchange],
+        encrypted_api_key=encryption.encrypt_str(data.api_key.strip()),
+        encrypted_api_secret=encryption.encrypt_str(data.api_secret.strip()),
+        last_sync_status=f"Connexion vérifiée — {status}",
+    )
+    db.add(acc)
+    db.commit()
+    db.refresh(acc)
+    log_audit(db, user.id, "EXCHANGE_ACCOUNT_CREATED",
+              f"Compte {EXCHANGE_LABELS[exchange]} ajouté : {acc.label}", request)
+    return _fmt_account(acc)
+
+
+@router.delete("/accounts/{account_id}")
+def delete_account(account_id: int, request: Request,
+                   db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
+    acc = _get_account(account_id, db, user)
+    label = acc.label
+    db.delete(acc)
+    db.commit()
+    log_audit(db, user.id, "EXCHANGE_ACCOUNT_DELETED", f"Compte supprimé : {label}", request)
+    return {"ok": True}
+
+
+# ── Synchronisation ───────────────────────────────────────────
+
+@router.post("/accounts/{account_id}/sync")
+def sync_account(account_id: int, request: Request,
+                 db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
+    acc = _get_account(account_id, db, user)
+    result = _sync(acc, db)
+    db.commit()
+    log_audit(db, user.id, "EXCHANGE_SYNCED",
+              f"{acc.label} : {result['created_purchases']} achat(s), "
+              f"{result['created_sales']} vente(s)", request)
+    return result
+
+
+@router.post("/sync-all")
+def sync_all(request: Request,
+             db: Session = Depends(get_db), user: User = Depends(require_admin_csrf)):
+    accounts = (db.query(ExchangeAccount)
+                  .filter(ExchangeAccount.user_id == user.id,
+                          ExchangeAccount.is_active == True).all())  # noqa: E712
+    results = []
+    for acc in accounts:
+        try:
+            results.append(_sync(acc, db))
+        except HTTPException as e:
+            results.append({"account_id": acc.id, "label": acc.label, "error": e.detail})
+    db.commit()
+    log_audit(db, user.id, "EXCHANGE_SYNCED_ALL", f"{len(accounts)} compte(s) synchronisé(s)", request)
+    return {"results": results}
+
+
+def _sync(acc: ExchangeAccount, db: Session) -> dict:
+    """Importe l'historique des trades d'un compte dans Positions/Purchases/Sales."""
+    try:
+        client = get_client(
+            acc.exchange,
+            encryption.decrypt_str(acc.encrypted_api_key),
+            encryption.decrypt_str(acc.encrypted_api_secret),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Clés illisibles — {e}") from e
+
+    try:
+        if acc.exchange == "bitvavo":
+            known = {p.ticker.split("-")[0] for p in _account_positions(acc, db)}
+            trades = client.get_trades(extra_assets=known)
+        else:
+            trades = client.get_trades()
+    except Exception as e:
+        acc.last_sync_at = datetime.now(timezone.utc)
+        acc.last_sync_status = f"Échec : {e}"
+        db.commit()
+        raise HTTPException(status_code=400, detail=f"Synchronisation échouée — {e}") from e
+
+    prefix = acc.exchange.upper()
+    created_purchases = created_sales = skipped = 0
+    unsupported: set[str] = set()
+
+    for t in sorted(trades, key=lambda x: x["date"]):
+        if t["asset"] in FIAT or t["quantity"] <= 0:
+            continue
+        if t.get("quote") not in ("EUR", None):
+            unsupported.add(f"{t['asset']}/{t['quote']}")
+            continue
+
+        tag = f"[{prefix}:{acc.id}:{t['ref']}]"
+        pos = _get_or_create_position(acc, t["asset"], db)
+
+        if t["side"] == "sell":
+            if db.query(Sale).filter(Sale.position_id == pos.id,
+                                     Sale.note.like(f"%{tag}%")).first():
+                skipped += 1
+                continue
+            purchases = db.query(Purchase).filter(Purchase.position_id == pos.id).all()
+            total_b = sum(p.quantity for p in purchases)
+            total_i = sum(p.quantity * p.unit_price + (p.fees or 0) for p in purchases)
+            avg_cost = total_i / total_b if total_b > 0 else 0.0
+            db.add(Sale(
+                position_id=pos.id, sale_date=t["date"], quantity=t["quantity"],
+                unit_price=t["unit_price"], fees=t["fee"],
+                realized_pnl=(t["unit_price"] - avg_cost) * t["quantity"] - t["fee"],
+                note=tag,
+            ))
+            created_sales += 1
+            sold = sum(s.quantity for s in db.query(Sale)
+                       .filter(Sale.position_id == pos.id).all()) + t["quantity"]
+            if total_b - sold <= 1e-9:
+                pos.is_active = False
+        else:
+            if db.query(Purchase).filter(Purchase.position_id == pos.id,
+                                         Purchase.note.like(f"%{tag}%")).first():
+                skipped += 1
+                continue
+            db.add(Purchase(
+                position_id=pos.id, purchase_date=t["date"], quantity=t["quantity"],
+                unit_price=t["unit_price"], fees=t["fee"], note=tag,
+            ))
+            created_purchases += 1
+            pos.is_active = True
+        db.flush()
+
+    acc.last_sync_at = datetime.now(timezone.utc)
+    acc.last_sync_status = (f"{created_purchases} achat(s), {created_sales} vente(s), "
+                            f"{skipped} déjà connu(s)")
+    return {
+        "account_id": acc.id, "label": acc.label,
+        "created_purchases": created_purchases,
+        "created_sales": created_sales,
+        "skipped": skipped,
+        "unsupported_pairs": sorted(unsupported),
+    }
+
+
+def _account_positions(acc: ExchangeAccount, db: Session) -> list[Position]:
+    return db.query(Position).filter(
+        Position.asset_type == "crypto",
+        Position.display_name.like(f"%· {acc.label}"),
+    ).all()
+
+
+def _get_or_create_position(acc: ExchangeAccount, asset: str, db: Session) -> Position:
+    """Une position par (actif, compte) — le PRU reste séparé par exchange."""
+    display_name = f"{asset} · {acc.label}"
+    pos = db.query(Position).filter(
+        Position.display_name == display_name,
+        Position.asset_type == "crypto",
+    ).first()
+    if pos is None:
+        pos = Position(
+            display_name=display_name,
+            ticker=f"{asset}-EUR",       # format yfinance (BTC-EUR, ETH-EUR…)
+            asset_type="crypto",
+            currency="EUR",
+        )
+        db.add(pos)
+        db.flush()
+    return pos
+
+
+# ── Vue d'ensemble ────────────────────────────────────────────
+
+@router.get("/summary")
+def get_summary(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    positions = db.query(Position).filter(
+        Position.asset_type == "crypto",
+        Position.is_active == True,  # noqa: E712
+    ).all()
+
+    items = []
+    for pos in positions:
+        price, prev, _ = md.get_price_eur(pos.ticker, pos.currency)
+        price = price or 0.0
+        m = calculations.calc_position_metrics(pos, price, prev or price, 1.0)
+        if (m.get("total_bought") or 0) <= 0:
+            continue
+        items.append({
+            **m,
+            "id": pos.id,
+            "display_name": pos.display_name,
+            "ticker": pos.ticker,
+            "asset": pos.ticker.split("-")[0],
+            "current_price": price,
+        })
+
+    total_value = sum(i["current_value"] for i in items)
+    total_invested = sum(i["total_invested"] for i in items)
+    total_pnl = sum(i["pnl_eur"] for i in items)
+    for i in items:
+        i["allocation_pct"] = (i["current_value"] / total_value * 100) if total_value > 0 else 0.0
+
+    accounts = (db.query(ExchangeAccount)
+                  .filter(ExchangeAccount.user_id == user.id).all())
+    return {
+        "stats": {
+            "total_value_eur": total_value,
+            "total_invested_eur": total_invested,
+            "total_pnl_eur": total_pnl,
+            "total_pnl_pct": (total_pnl / total_invested * 100) if total_invested > 0 else None,
+            "position_count": len(items),
+            "account_count": len(accounts),
+        },
+        "positions": sorted(items, key=lambda i: i["current_value"], reverse=True),
+        "accounts": [_fmt_account(a) for a in accounts],
+    }
+
+
+# ── Helpers ───────────────────────────────────────────────────
+
+def _get_account(account_id: int, db: Session, user: User) -> ExchangeAccount:
+    acc = db.query(ExchangeAccount).filter(
+        ExchangeAccount.id == account_id,
+        ExchangeAccount.user_id == user.id,
+    ).first()
+    if not acc:
+        raise HTTPException(status_code=404, detail="Compte introuvable")
+    return acc
+
+
+def _fmt_account(a: ExchangeAccount) -> dict:
+    """Ne renvoie JAMAIS les clés API, même chiffrées."""
+    return {
+        "id": a.id,
+        "exchange": a.exchange,
+        "exchange_label": EXCHANGE_LABELS.get(a.exchange, a.exchange),
+        "label": a.label,
+        "is_active": a.is_active,
+        "last_sync_at": a.last_sync_at,
+        "last_sync_status": a.last_sync_status,
+    }
