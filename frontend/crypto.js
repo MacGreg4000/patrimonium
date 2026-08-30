@@ -172,8 +172,8 @@ function renderCryptoRow(p) {
         <div style="display:flex;align-items:center;gap:10px">
           <div class="pos-icon" style="background:rgba(247,147,26,.14);color:#F7931A">${ICONS.bitcoinSm}</div>
           <div>
-            <div style="font-weight:600">${escapeHtml(p.display_name)}</div>
-            <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">${escapeHtml(p.ticker)}</div>
+            <div style="font-weight:600">${escHtml(p.display_name)}</div>
+            <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">${escHtml(p.ticker)}</div>
           </div>
         </div>
       </td>
@@ -197,16 +197,16 @@ function renderExchangeCard(a) {
                 padding:14px 16px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:10px">
       <div style="min-width:0">
         <div style="font-weight:600;display:flex;align-items:center;gap:8px">
-          ${escapeHtml(a.label)}
-          <span class="badge" style="background:rgba(79,142,247,.15);color:var(--accent-blue)">${escapeHtml(a.exchange_label)}</span>
+          ${escHtml(a.label)}
+          <span class="badge" style="background:rgba(79,142,247,.15);color:var(--accent-blue)">${escHtml(a.exchange_label)}</span>
         </div>
-        <div style="font-size:12px;color:var(--text-muted);margin-top:3px">${escapeHtml(sync)}</div>
-        ${a.last_sync_status ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${escapeHtml(a.last_sync_status)}</div>` : ''}
+        <div style="font-size:12px;color:var(--text-muted);margin-top:3px">${escHtml(sync)}</div>
+        ${a.last_sync_status ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${escHtml(a.last_sync_status)}</div>` : ''}
       </div>
       ${isAdmin() ? `
         <div style="display:flex;gap:8px;flex-shrink:0">
           <button class="btn btn-secondary btn-sm" onclick="syncExchange(${a.id}, this)">Synchroniser</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteExchange(${a.id}, '${escapeHtml(a.label).replace(/'/g, "\\'")}')">Supprimer</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteExchange(${a.id})">Supprimer</button>
         </div>` : ''}
     </div>`;
 }
@@ -267,7 +267,7 @@ async function syncExchange(id, btn) {
     const r = await apiPost(`/api/crypto/accounts/${id}/sync`, {});
     showToast(`${r.created_purchases} achat(s), ${r.created_sales} vente(s) importé(s)`, 'success');
     if (r.unsupported_pairs?.length)
-      showToast(`Paires non EUR ignorées : ${r.unsupported_pairs.join(', ')}`, 'warning');
+      showToast(`Paires non EUR ignorées : ${r.unsupported_pairs.join(', ')}`, 'info');
     await loadCrypto();
   } catch (err) {
     showToast(err.message, 'error');
@@ -277,7 +277,7 @@ async function syncExchange(id, btn) {
 
 async function syncAllExchanges(btn) {
   if (!_cryptoData.accounts?.length) {
-    showToast('Ajoute d\'abord un compte d\'exchange', 'warning');
+    showToast('Ajoute d\'abord un compte d\'exchange', 'info');
     return;
   }
   const original = btn ? btn.textContent : '';
@@ -298,7 +298,8 @@ async function syncAllExchanges(btn) {
   }
 }
 
-async function deleteExchange(id, label) {
+async function deleteExchange(id) {
+  const label = (_cryptoData.accounts || []).find(a => a.id === id)?.label || 'ce compte';
   if (!confirm(`Supprimer le compte « ${label} » ?\n\nLes positions et transactions déjà importées sont conservées.`))
     return;
   try {

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -19,14 +20,23 @@ def init_scheduler(session_local):
     _SessionLocal = session_local
 
 
-async def refresh_job():
-    if not _SessionLocal:
-        return
+def _refresh_and_snapshot() -> list:
+    """Rafraîchit les cours et enregistre un snapshot. Retourne les positions.
+
+    Bloquant (réseau yfinance + pauses anti-rate-limit) : à exécuter dans un
+    thread, jamais directement sur la boucle asyncio.
+    """
     db = _SessionLocal()
     try:
         from models import Position, PortfolioSnapshot
         import calculations
-        positions = db.query(Position).filter(Position.is_active == True).all()  # noqa: E712
+        # Le crypto est exclu des snapshots : le graphique « Investissement & gains
+        # réels » vit sur la page Portefeuille, qui n'affiche pas le crypto. L'inclure
+        # ici ferait bondir la courbe à la première synchro sans contrepartie visible.
+        positions = db.query(Position).filter(
+            Position.is_active == True,          # noqa: E712
+            Position.asset_type != "crypto",
+        ).all()
         md.refresh_all_prices([p.ticker for p in positions if p.ticker != "MANUAL" and p.asset_type != "cash"])
 
         pos_data = []
@@ -44,7 +54,7 @@ async def refresh_job():
 
         portfolio = calculations.calc_portfolio_metrics(pos_data)
         if portfolio["total_value_eur"] == 0 and not pos_data:
-            return
+            return pos_data
         snap = PortfolioSnapshot(
             total_value_eur=portfolio["total_value_eur"],
             total_invested_eur=portfolio["total_invested_eur"],
@@ -52,13 +62,30 @@ async def refresh_job():
         )
         db.add(snap)
         db.commit()
-        await check_alerts(pos_data)
-        _reschedule()
+        return pos_data
     except Exception as e:
         logger.error(f"Refresh job error: {e}", exc_info=True)
         db.rollback()
+        return []
     finally:
         db.close()
+
+
+async def refresh_job():
+    """Job planifié : délègue le travail bloquant à un thread.
+
+    Sans cela, les appels réseau et les pauses anti-rate-limit gèleraient la
+    boucle asyncio — donc toute l'API — pendant plusieurs secondes à chaque cycle.
+    """
+    if not _SessionLocal:
+        return
+    try:
+        pos_data = await asyncio.to_thread(_refresh_and_snapshot)
+        if pos_data:
+            await check_alerts(pos_data)
+        _reschedule()
+    except Exception as e:
+        logger.error(f"Refresh job error: {e}", exc_info=True)
 
 
 def _reschedule():

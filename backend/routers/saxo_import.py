@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from sqlalchemy.orm import Session
 
 from database import get_db
-from dependencies import get_current_user, log_audit, require_admin_csrf
+from dependencies import log_audit, require_admin_csrf
 from models import Position, Purchase, Sale, User
 
 router = APIRouter(prefix="/api/saxo", tags=["saxo"])
@@ -179,7 +179,7 @@ async def import_saxo(
     request: Request,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_admin_csrf),
 ):
     """Importe un relevé de transactions SaxoBank (.xlsx)."""
     if not file.filename or not file.filename.lower().endswith(".xlsx"):

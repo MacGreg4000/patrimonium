@@ -199,10 +199,18 @@ def _sync(acc: ExchangeAccount, db: Session) -> dict:
 
 
 def _account_positions(acc: ExchangeAccount, db: Session) -> list[Position]:
-    return db.query(Position).filter(
-        Position.asset_type == "crypto",
-        Position.display_name.like(f"%· {acc.label}"),
-    ).all()
+    """Positions déjà importées pour ce compte.
+
+    On filtre sur le tag d'import ([KRAKEN:<id>:<ref>]), pas sur le libellé du
+    compte : celui-ci est saisi par l'utilisateur et pourrait contenir des
+    jokers SQL ou être le suffixe d'un autre libellé.
+    """
+    tag_prefix = f"[{acc.exchange.upper()}:{acc.id}:"
+    return (db.query(Position)
+              .join(Purchase, Purchase.position_id == Position.id)
+              .filter(Position.asset_type == "crypto",
+                      Purchase.note.startswith(tag_prefix))
+              .distinct().all())
 
 
 def _get_or_create_position(acc: ExchangeAccount, asset: str, db: Session) -> Position:

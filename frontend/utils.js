@@ -38,11 +38,6 @@ function fmtDateTime(iso) {
     + ' ' + d.toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
 }
 
-function escapeHtml(s) {
-  return String(s ?? '').replace(/[&<>"']/g, c =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-}
-
 function fmtSize(bytes) {
   if (!bytes) return '—';
   if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
