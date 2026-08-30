@@ -6,6 +6,7 @@ import calculations
 import market_data as md
 from database import get_db
 from dependencies import get_current_user
+from exchanges import CASH_TICKERS
 from models import AssetDocument, Coffre, Inventory, Movement, PasswordFile, PhysicalAsset, Position, Reserve, User
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
@@ -49,9 +50,12 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
         pos_data.append(m)
         if not has_holdings:
             continue
-        if pos.asset_type == "crypto":          # le crypto a sa propre carte
+        if pos.asset_type == "crypto" or pos.ticker in CASH_TICKERS:
+            # Crypto et liquidités d'exchange → carte Crypto du dashboard.
+            # Le cash n'est pas du capital « investi ».
             total_crypto_value += m["current_value"]
-            total_crypto_invested += m["total_invested"]
+            if pos.asset_type == "crypto":
+                total_crypto_invested += m["total_invested"]
         else:
             total_portfolio_value += m["current_value"]
             if m.get("asset_type") != "cash":   # le cash n'est pas du capital "investi"

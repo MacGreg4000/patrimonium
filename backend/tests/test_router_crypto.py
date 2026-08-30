@@ -19,6 +19,11 @@ class FakeClient:
     def test_connection(self):
         return "2 actif(s) détecté(s)"
 
+    balances: dict = {}
+
+    def get_balances(self):
+        return dict(self.balances)
+
     def get_trades(self, extra_assets=None):
         return list(self.trades)
 
@@ -34,6 +39,7 @@ def _trade(ref, asset, side, qty, price, day, fee=0.0):
 @pytest.fixture
 def fake_exchange():
     FakeClient.trades = []
+    FakeClient.balances = {}
     with patch("routers.crypto.get_client", lambda *a, **k: FakeClient()):
         yield FakeClient
 
@@ -174,6 +180,57 @@ def test_summary_excludes_crypto_from_portfolio(auth_admin, db, fake_exchange):
     assert crypto["stats"]["position_count"] == 1
     assert crypto["stats"]["total_value_eur"] == pytest.approx(50000.0)
     assert all(p["asset_type"] != "crypto" for p in portfolio["positions"])
+
+
+# ── Liquidités d'exchange ─────────────────────────────────
+
+def test_sync_records_eur_cash_balance(auth_admin, db, fake_exchange):
+    """L'argent non investi qui dort sur l'exchange doit remonter aussi."""
+    client, _ = auth_admin
+    acc_id = _create_account(client, "bitvavo", "Bitvavo - Bot").json()["id"]
+    fake_exchange.trades = [_trade("t1", "BTC", "buy", 1.0, 100.0, 2)]
+    fake_exchange.balances = {"EUR": 282.92, "BTC": 1.0}
+
+    r = client.post(f"/api/crypto/accounts/{acc_id}/sync", json={}).json()
+    assert r["cash_balance_eur"] == pytest.approx(282.92)
+
+    with patch("market_data.get_price_eur", return_value=(217.19, 217.0, 0.1)):
+        summary = client.get("/api/crypto/summary").json()
+    assert summary["stats"]["total_cash_eur"] == pytest.approx(282.92)
+    # Capital total = investi + liquidités (les 500 € du compte Bitvavo)
+    assert summary["stats"]["total_account_eur"] == pytest.approx(217.19 + 282.92)
+    assert summary["cash"][0]["display_name"] == "Liquidités · Bitvavo - Bot"
+
+
+def test_cash_balance_is_updated_not_duplicated(auth_admin, db, fake_exchange):
+    client, _ = auth_admin
+    acc_id = _create_account(client, "bitvavo", "Bitvavo - Bot").json()["id"]
+    fake_exchange.balances = {"EUR": 100.0}
+    client.post(f"/api/crypto/accounts/{acc_id}/sync", json={})
+    fake_exchange.balances = {"EUR": 250.0}
+    client.post(f"/api/crypto/accounts/{acc_id}/sync", json={})
+
+    cash = db.query(Position).filter(Position.ticker == "BITVAVO:EUR").all()
+    assert len(cash) == 1                      # mise à jour, pas de doublon
+    assert cash[0].manual_price == pytest.approx(250.0)
+    assert db.query(Purchase).filter(Purchase.position_id == cash[0].id).count() == 1
+
+
+def test_exchange_cash_excluded_from_securities_portfolio(auth_admin, db, fake_exchange):
+    """Les liquidités Bitvavo ne doivent pas polluer le portefeuille titres."""
+    client, _ = auth_admin
+    acc_id = _create_account(client, "bitvavo", "Bitvavo - Bot").json()["id"]
+    fake_exchange.balances = {"EUR": 282.92}
+    client.post(f"/api/crypto/accounts/{acc_id}/sync", json={})
+
+    with patch("market_data.get_price_eur", return_value=(1.0, 1.0, 0.0)):
+        portfolio = client.get("/api/portfolio/summary").json()
+        dashboard = client.get("/api/dashboard").json()
+
+    assert all(p["ticker"] != "BITVAVO:EUR" for p in portfolio["positions"])
+    # Comptabilisé côté crypto, et présent dans le patrimoine total
+    assert dashboard["crypto"]["total_value_eur"] == pytest.approx(282.92)
+    assert dashboard["grand_total_eur"] >= 282.92
 
 
 def test_archived_position_stays_archived_after_resync(auth_admin, db, fake_exchange):

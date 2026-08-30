@@ -10,6 +10,7 @@ import calculations
 import market_data as md
 from database import get_db
 from dependencies import get_current_user, log_audit, require_admin_csrf
+from exchanges import CASH_TICKERS
 from models import Position, PortfolioSnapshot, Purchase, Sale, User
 
 router = APIRouter(prefix="/api/portfolio", tags=["portfolio"])
@@ -84,10 +85,12 @@ def _build_position(pos: Position, portfolio_total: float) -> dict:
 
 
 def _all_positions_with_total(db: Session) -> tuple[list, float]:
-    # Le crypto a sa propre page (/api/crypto/summary) → exclu du portefeuille titres
+    # Le crypto et les liquidités d'exchange ont leur propre page
+    # (/api/crypto/summary) → exclus du portefeuille titres
     positions = db.query(Position).filter(
         Position.is_active == True,          # noqa: E712
         Position.asset_type != "crypto",
+        Position.ticker.notin_(CASH_TICKERS),
     ).all()
     total = 0.0
     for pos in positions:

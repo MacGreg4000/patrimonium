@@ -73,9 +73,20 @@ function renderCryptoPage() {
         <div class="hero-card-sub">${stats.total_pnl_pct != null ? fmtPct(stats.total_pnl_pct) : '—'}</div>
       </div>
       <div class="hero-card">
-        <div class="card-label">${ICONS.key} Comptes connectés</div>
-        <div class="hero-card-value">${stats.account_count || 0}</div>
-        <div class="hero-card-sub">Kraken · Bitvavo</div>
+        <div class="card-label">${ICONS.coins} Liquidités disponibles</div>
+        <div class="hero-card-value green">${fmtEur(stats.total_cash_eur || 0)}</div>
+        <div class="hero-card-sub">non investi sur les exchanges</div>
+      </div>
+    </div>
+
+    <div class="hero-grid" style="margin-bottom:20px;grid-template-columns:1fr">
+      <div class="hero-card">
+        <div class="card-label">${ICONS.key} Capital total sur les exchanges</div>
+        <div class="hero-card-value gold">${fmtEur(stats.total_account_eur || 0)}</div>
+        <div class="hero-card-sub">
+          ${fmtEur(stats.total_value_eur || 0)} investi + ${fmtEur(stats.total_cash_eur || 0)} de liquidités
+          · ${stats.account_count || 0} compte${(stats.account_count || 0) > 1 ? 's' : ''} connecté${(stats.account_count || 0) > 1 ? 's' : ''}
+        </div>
       </div>
     </div>
 
@@ -95,7 +106,7 @@ function renderCryptoPage() {
               <th>Alloc.</th>
               ${isAdmin() ? '<th>Actions</th>' : ''}
             </tr></thead>
-            <tbody>${positions.map(renderCryptoRow).join('')}</tbody>
+            <tbody>${positions.map(renderCryptoRow).join('')}${renderCashRows(_cryptoData.cash)}</tbody>
           </table>
         </div>
       </div>` : `
@@ -189,6 +200,27 @@ function renderCryptoRow(p) {
       ${isAdmin() ? `<td><button class="btn btn-ghost danger" title="Archiver cette position"
         onclick="archiveCryptoPosition(${p.id})">🗑</button></td>` : ''}
     </tr>`;
+}
+
+// Lignes « liquidités » : un solde, pas une position — la plupart des colonnes
+// (PRU, P&L, allocation) n'ont pas de sens ici.
+function renderCashRows(cash) {
+  return (cash || []).map(c => `
+    <tr>
+      <td class="left" style="padding-left:24px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="pos-icon" style="background:rgba(16,217,138,.14);color:var(--accent-green)">${ICONS.coins}</div>
+          <div>
+            <div style="font-weight:600">${escHtml(c.display_name)}</div>
+            <div style="font-size:11px;color:var(--text-muted)">EUR disponible sur le compte</div>
+          </div>
+        </div>
+      </td>
+      <td>—</td><td>—</td><td>—</td><td>—</td>
+      <td style="font-weight:700;color:var(--accent-green)">${fmtEur(c.balance_eur || 0)}</td>
+      <td>—</td><td>—</td><td>—</td>
+      ${isAdmin() ? '<td></td>' : ''}
+    </tr>`).join('');
 }
 
 async function archiveCryptoPosition(posId) {

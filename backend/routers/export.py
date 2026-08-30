@@ -21,6 +21,7 @@ import encryption as enc
 import market_data as md
 from database import get_db
 from dependencies import get_current_user, verify_csrf
+from exchanges import CASH_TICKERS
 from models import Coffre, Movement, PasswordFile, PhysicalAsset, Position, Reserve, Sale, User
 from routers.coffres import compute_balance
 from calculations import calc_position_metrics
@@ -74,7 +75,8 @@ def _collect_data(db: Session, user: User) -> dict:
         portfolio_items.append({
             "name": pos.display_name,
             "ticker": pos.ticker,
-            "type": pos.asset_type,
+            # Les liquidités d'exchange sont rattachées à la section Crypto
+            "type": "crypto_cash" if pos.ticker in CASH_TICKERS else pos.asset_type,
             "currency": pos.currency,
             "current_price_eur": price_eur,
             "quantity": m.get("total_quantity"),
@@ -198,9 +200,10 @@ def _collect_data(db: Session, user: User) -> dict:
 
     # Totaux (cash SaxoBank et crypto séparés du portefeuille boursier)
     total_portfolio      = sum(p["value_eur"] or 0 for p in portfolio_items
-                               if p["type"] not in ("cash", "crypto"))
+                               if p["type"] not in ("cash", "crypto", "crypto_cash"))
     total_saxo_cash      = sum(p["value_eur"] or 0 for p in portfolio_items if p["type"] == "cash")
-    total_crypto         = sum(p["value_eur"] or 0 for p in portfolio_items if p["type"] == "crypto")
+    total_crypto         = sum(p["value_eur"] or 0 for p in portfolio_items
+                               if p["type"] in ("crypto", "crypto_cash"))
     total_cash           = sum(c["balance"] for c in coffres_data)
     total_assets         = sum((a["estimated_value"] or 0) for a in assets_data)
     total_releasable_res = sum(r["releasable"] for r in reserves_data)
@@ -326,6 +329,7 @@ tr:hover td{background:var(--bg3)}
 .badge-commodity{background:rgba(245,158,11,.15);color:var(--yellow)}
 .badge-bond_manual{background:rgba(168,85,247,.15);color:var(--purple)}
 .badge-crypto{background:rgba(247,147,26,.15);color:#F7931A}
+.badge-crypto_cash{background:rgba(0,214,143,.15);color:var(--green)}
 .badge-cash{background:rgba(0,214,143,.15);color:var(--green)}
 .badge-bijou{background:rgba(168,85,247,.15);color:var(--purple)}
 .badge-immo{background:rgba(59,130,246,.15);color:var(--accent)}
@@ -498,7 +502,7 @@ function fmtDate(iso) {
 
 const CAT_LABELS = {bijou:'Bijou',immo:'Immobilier',vehicule:'Véhicule',art:'Art',metal:'Métaux précieux',autre:'Autre'};
 const CAT_ICONS  = {bijou:'💎',immo:'🏠',vehicule:'🚗',art:'🎨',metal:'🪙',autre:'📦'};
-const TYPE_LABELS = {action:'Action',etf:'ETF',commodity:'Or',bond_manual:'Obligation',crypto:'Crypto',cash:'Liquidités'};
+const TYPE_LABELS = {action:'Action',etf:'ETF',commodity:'Or',bond_manual:'Obligation',crypto:'Crypto',cash:'Liquidités',crypto_cash:'Liquidités'};
 
 // ── Donut SVG (pur JS, sans dépendance) ─────────────────────────────────
 function buildDonut(segs, size) {
@@ -615,12 +619,16 @@ function toggleCard(card) {
   if (ch) ch.style.transform = open ? '' : 'rotate(90deg)';
 }
 
+var CRYPTO_TYPES = ['crypto', 'crypto_cash'];
+
 function renderPortfolio(data) {
-  renderPositionsTab(data, 'tab-portfolio', function(p){ return p.type !== 'crypto'; });
+  renderPositionsTab(data, 'tab-portfolio',
+    function(p){ return CRYPTO_TYPES.indexOf(p.type) === -1; });
 }
 
 function renderCrypto(data) {
-  renderPositionsTab(data, 'tab-crypto', function(p){ return p.type === 'crypto'; });
+  renderPositionsTab(data, 'tab-crypto',
+    function(p){ return CRYPTO_TYPES.indexOf(p.type) !== -1; });
 }
 
 // Rend un onglet de positions (portefeuille ou crypto) selon le filtre `keep`.
@@ -628,7 +636,7 @@ function renderPositionsTab(data, targetId, keep) {
   const portfolio = (data.portfolio || []).filter(keep);
   const sold = (data.sold_positions || []).filter(keep);
   // Exclure le cash des totaux P&L portefeuille
-  const positions_only = portfolio.filter(function(p){ return p.type !== 'cash'; });
+  const positions_only = portfolio.filter(function(p){ return p.type !== 'cash' && p.type !== 'crypto_cash'; });
   const total_val  = positions_only.reduce(function(s,p){ return s+(p.value_eur||0); }, 0);
   const total_inv  = positions_only.reduce(function(s,p){ return s+(p.invested_eur||0); }, 0);
   const total_pnl  = positions_only.reduce(function(s,p){ return s+(p.pnl_eur||0); }, 0);
@@ -638,7 +646,7 @@ function renderPositionsTab(data, targetId, keep) {
   for (let i = 0; i < portfolio.length; i++) {
     const p = portfolio[i];
     // Pour le cash, l'alloc est sur le grand total ; pour les positions, sur le total_val seul
-    const alloc = p.type === 'cash'
+    const alloc = (p.type === 'cash' || p.type === 'crypto_cash')
       ? (data.summary && data.summary.grand_total_eur > 0 ? ((p.value_eur||0) / data.summary.grand_total_eur * 100) : 0)
       : (total_val > 0 ? ((p.value_eur||0) / total_val * 100) : 0);
 
@@ -688,7 +696,7 @@ function renderPositionsTab(data, targetId, keep) {
         + pnlLine + '</div>';
     }
 
-    const isCash = p.type === 'cash';
+    const isCash = p.type === 'cash' || p.type === 'crypto_cash';
     const metricsHtml = isCash
       ? '<div class="metric"><span class="metric-lbl">Solde disponible</span><span class="metric-val" style="font-size:18px;color:var(--green)"><strong>' + eur(p.value_eur) + '</strong></span></div>'
       : '<div class="metric"><span class="metric-lbl">QTÉ</span><span class="metric-val">' + num(p.quantity,4) + '</span></div>'
@@ -1137,11 +1145,14 @@ def export_patrimoine_excel(
 
     portfolio_items = data["portfolio"]
     # Exclure les liquidités SaxoBank (type='cash') et le crypto du total "bourse"
-    stock_items     = [p for p in portfolio_items if p.get("type") not in ("cash", "crypto")]
+    stock_items     = [p for p in portfolio_items
+                       if p.get("type") not in ("cash", "crypto", "crypto_cash")]
     crypto_items    = [p for p in portfolio_items if p.get("type") == "crypto"]
+    crypto_cash     = [p for p in portfolio_items if p.get("type") == "crypto_cash"]
     saxo_cash_items = [p for p in portfolio_items if p.get("type") == "cash"]
     total_portfolio = sum(p.get("value_eur") or 0.0 for p in stock_items)
-    total_crypto_xl = sum(p.get("value_eur") or 0.0 for p in crypto_items)
+    total_crypto_xl = (sum(p.get("value_eur") or 0.0 for p in crypto_items)
+                       + sum(p.get("value_eur") or 0.0 for p in crypto_cash))
     total_saxo_cash_xl = sum(p.get("value_eur") or 0.0 for p in saxo_cash_items)
 
     wb = openpyxl.Workbook()
@@ -1178,7 +1189,7 @@ def export_patrimoine_excel(
     _xl_autowidth(ws1)
 
     # ── Feuille Crypto (uniquement si des positions existent) ──
-    if crypto_items:
+    if crypto_items or crypto_cash:
         wsc = wb.create_sheet("Crypto")
         _xl_write_headers(wsc, [
             "Actif", "Compte", "Quantité", "PRU (€)", "Cours actuel (€)",
@@ -1201,6 +1212,16 @@ def export_patrimoine_excel(
                 p.get("pnl_eur") or 0.0,
                 p.get("pnl_pct") or 0.0,
                 alloc,
+            ])
+        # Liquidités disponibles sur les exchanges (argent non investi)
+        for c in crypto_cash:
+            bal = c.get("value_eur") or 0.0
+            alloc = bal / total_crypto_xl * 100.0 if total_crypto_xl > 0 else 0.0
+            name_parts = (c.get("name") or "").split("·")
+            wsc.append([
+                "Liquidités (EUR)",
+                name_parts[1].strip() if len(name_parts) > 1 else "",
+                "", "", "", bal, "", "", alloc,
             ])
         for col in (4, 5, 6, 7):
             _xl_fmt_col(wsc, col, _EUR_FMT)

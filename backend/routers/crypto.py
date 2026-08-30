@@ -16,7 +16,7 @@ import encryption
 import market_data as md
 from database import get_db
 from dependencies import get_current_user, log_audit, require_admin_csrf
-from exchanges import EXCHANGE_LABELS, get_client
+from exchanges import CASH_TICKERS, EXCHANGE_LABELS, cash_ticker, get_client
 from models import ExchangeAccount, Position, Purchase, Sale, User
 
 logger = logging.getLogger(__name__)
@@ -186,6 +186,8 @@ def _sync(acc: ExchangeAccount, db: Session) -> dict:
             pos.is_active = True
         db.flush()
 
+    cash_balance = _sync_cash(acc, client, db)
+
     acc.last_sync_at = datetime.now(timezone.utc)
     acc.last_sync_status = (f"{created_purchases} achat(s), {created_sales} vente(s), "
                             f"{skipped} déjà connu(s)")
@@ -194,8 +196,57 @@ def _sync(acc: ExchangeAccount, db: Session) -> dict:
         "created_purchases": created_purchases,
         "created_sales": created_sales,
         "skipped": skipped,
+        "cash_balance_eur": cash_balance,
         "unsupported_pairs": sorted(unsupported),
     }
+
+
+def _sync_cash(acc: ExchangeAccount, client, db: Session) -> Optional[float]:
+    """Enregistre le solde EUR disponible sur l'exchange comme position cash.
+
+    Sans cela, seul le capital investi remonterait : l'argent non investi qui
+    dort sur le compte disparaîtrait du patrimoine.
+    """
+    try:
+        balance = float(client.get_balances().get("EUR") or 0.0)
+    except Exception as e:
+        logger.warning(f"{acc.label} : solde EUR non récupéré ({e})")
+        return None
+
+    balance = round(balance, 2)
+    ticker = cash_ticker(acc.exchange)
+    display_name = f"Liquidités · {acc.label}"
+    pos = db.query(Position).filter(
+        Position.ticker == ticker,
+        Position.display_name == display_name,
+    ).first()
+    today = datetime.now(timezone.utc).date()
+    tag = f"[{acc.exchange.upper()}:{acc.id}:CASH]"
+
+    if pos is None:
+        # Ne pas créer de ligne « Liquidités » à 0 € : elle encombrerait le tableau
+        if balance <= 0:
+            return balance
+        pos = Position(display_name=display_name, ticker=ticker, asset_type="cash",
+                       currency="EUR", manual_price=balance,
+                       manual_price_updated_at=datetime.now(timezone.utc))
+        db.add(pos)
+        db.flush()
+    else:
+        pos.manual_price = balance
+        pos.manual_price_updated_at = datetime.now(timezone.utc)
+        pos.is_active = True
+
+    # Une seule ligne d'achat, réécrite à chaque synchro (quantité 1 × solde)
+    line = db.query(Purchase).filter(Purchase.position_id == pos.id,
+                                     Purchase.note == tag).first()
+    if line is None:
+        db.add(Purchase(position_id=pos.id, purchase_date=today, quantity=1.0,
+                        unit_price=balance, fees=0.0, note=tag))
+    else:
+        line.unit_price = balance
+        line.purchase_date = today
+    return balance
 
 
 def _account_positions(acc: ExchangeAccount, db: Session) -> list[Position]:
@@ -263,6 +314,17 @@ def get_summary(db: Session = Depends(get_db), user: User = Depends(get_current_
     for i in items:
         i["allocation_pct"] = (i["current_value"] / total_value * 100) if total_value > 0 else 0.0
 
+    # Liquidités disponibles sur les exchanges (argent non investi)
+    cash_positions = db.query(Position).filter(
+        Position.ticker.in_(CASH_TICKERS),
+        Position.is_active == True,  # noqa: E712
+    ).all()
+    cash_items = [{"id": p.id, "display_name": p.display_name,
+                   "balance_eur": p.manual_price or 0.0,
+                   "updated_at": p.manual_price_updated_at}
+                  for p in cash_positions]
+    total_cash = sum(c["balance_eur"] for c in cash_items)
+
     accounts = (db.query(ExchangeAccount)
                   .filter(ExchangeAccount.user_id == user.id).all())
     return {
@@ -271,10 +333,13 @@ def get_summary(db: Session = Depends(get_db), user: User = Depends(get_current_
             "total_invested_eur": total_invested,
             "total_pnl_eur": total_pnl,
             "total_pnl_pct": (total_pnl / total_invested * 100) if total_invested > 0 else None,
+            "total_cash_eur": total_cash,
+            "total_account_eur": total_value + total_cash,   # capital total sur les exchanges
             "position_count": len(items),
             "account_count": len(accounts),
         },
         "positions": sorted(items, key=lambda i: i["current_value"], reverse=True),
+        "cash": sorted(cash_items, key=lambda c: c["balance_eur"], reverse=True),
         "accounts": [_fmt_account(a) for a in accounts],
     }
 

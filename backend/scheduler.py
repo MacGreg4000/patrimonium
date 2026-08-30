@@ -33,9 +33,11 @@ def _refresh_and_snapshot() -> list:
         # Le crypto est exclu des snapshots : le graphique « Investissement & gains
         # réels » vit sur la page Portefeuille, qui n'affiche pas le crypto. L'inclure
         # ici ferait bondir la courbe à la première synchro sans contrepartie visible.
+        from exchanges import CASH_TICKERS
         positions = db.query(Position).filter(
             Position.is_active == True,          # noqa: E712
             Position.asset_type != "crypto",
+            Position.ticker.notin_(CASH_TICKERS),
         ).all()
         md.refresh_all_prices([p.ticker for p in positions if p.ticker != "MANUAL" and p.asset_type != "cash"])
 

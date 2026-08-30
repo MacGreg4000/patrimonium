@@ -18,6 +18,20 @@ EXCHANGE_LABELS = {
 }
 
 
+def cash_ticker(exchange: str) -> str:
+    """Ticker de la position « liquidités » d'un exchange (ex. BITVAVO:EUR).
+
+    Même convention que SAXO:EUR / REVOLUT:EUR. Ces tickers ne sont jamais
+    envoyés à yfinance : les positions portent asset_type="cash" et un
+    manual_price.
+    """
+    return f"{exchange.upper()}:EUR"
+
+
+# Tickers de liquidités rattachés à la page Crypto (et non au portefeuille titres)
+CASH_TICKERS = {cash_ticker(e) for e in CLIENTS}
+
+
 def get_client(exchange: str, api_key: str, api_secret: str):
     cls = CLIENTS.get(exchange)
     if cls is None:
