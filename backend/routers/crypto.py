@@ -25,10 +25,6 @@ router = APIRouter(prefix="/api/crypto", tags=["crypto"])
 FIAT = {"EUR", "USD", "GBP", "CHF", "CAD", "JPY", "AUD"}
 
 
-class CashSyncError(RuntimeError):
-    """Le solde de liquidités n'a pas pu être lu — à remonter à l'utilisateur."""
-
-
 class AccountCreate(BaseModel):
     exchange: str          # kraken | bitvavo
     label: str
@@ -191,16 +187,24 @@ def _sync(acc: ExchangeAccount, db: Session) -> dict:
         db.flush()
 
     try:
-        cash_balance, cash_error = _sync_cash(acc, client, db), None
-    except CashSyncError as e:
-        cash_balance, cash_error = None, str(e)
+        balances = client.get_balances()
+    except Exception as e:
+        balances, cash_error = None, str(e)
+    else:
+        cash_error = None
+
+    cash_balance = _sync_cash(acc, balances, db) if balances is not None else None
+    reconciled, no_price = (_reconcile_holdings(acc, balances, db)
+                            if balances is not None else ([], []))
 
     status = (f"{created_purchases} achat(s), {created_sales} vente(s), "
               f"{skipped} déjà connu(s)")
     if cash_error:
-        status += f" — liquidités : {cash_error}"
-    elif cash_balance is not None:
+        status += f" — soldes illisibles : {cash_error}"
+    else:
         status += f", {cash_balance:.2f} € de liquidités"
+        if reconciled:
+            status += f", {len(reconciled)} avoir(s) hors trades : {', '.join(reconciled)}"
 
     acc.last_sync_at = datetime.now(timezone.utc)
     acc.last_sync_status = status[:200]
@@ -211,33 +215,74 @@ def _sync(acc: ExchangeAccount, db: Session) -> dict:
         "skipped": skipped,
         "cash_balance_eur": cash_balance,
         "cash_error": cash_error,
+        "reconciled_assets": reconciled,
+        "assets_without_price": no_price,
         "unsupported_pairs": sorted(unsupported),
     }
 
 
+def _reconcile_holdings(acc: ExchangeAccount, balances: dict,
+                        db: Session) -> tuple[list[str], list[str]]:
+    """Fait correspondre les positions aux soldes réellement détenus.
 
-def _sync_cash(acc: ExchangeAccount, client, db: Session) -> Optional[float]:
+    Les avoirs arrivés par dépôt ou transfert n'ont aucun trade sur l'exchange :
+    sans cette réconciliation ils resteraient invisibles alors qu'ils font partie
+    du capital. Leur prix d'achat est inconnu — on retient le cours du jour où
+    l'écart apparaît, ce qui rend la valeur juste mais le P&L seulement indicatif.
+    """
+    reconciled: list[str] = []
+    no_price: list[str] = []
+    tag = f"[{acc.exchange.upper()}:{acc.id}:BALANCE]"
+
+    for asset, held in sorted(balances.items()):
+        if asset in FIAT or held <= 0:
+            continue
+
+        pos = _get_or_create_position(acc, asset, db)
+        db.flush()
+        line = db.query(Purchase).filter(Purchase.position_id == pos.id,
+                                         Purchase.note == tag).first()
+        traded = (sum(p.quantity for p in pos.purchases if p.note != tag)
+                  - sum(s.quantity for s in pos.sales))
+        delta = round(held - traded, 12)
+
+        if delta <= 1e-9:                       # les trades expliquent tout le solde
+            if line is not None:
+                db.delete(line)
+            continue
+
+        price, _, _ = md.get_price_eur(pos.ticker, pos.currency)
+        if not price:
+            no_price.append(asset)
+            price = 0.0
+
+        if line is None:
+            db.add(Purchase(position_id=pos.id, purchase_date=datetime.now(timezone.utc).date(),
+                            quantity=delta, unit_price=price, fees=0.0, note=tag))
+        elif delta > line.quantity and price:
+            # Apport supplémentaire : moyenne pondérée avec le cours du jour
+            added = delta - line.quantity
+            line.unit_price = ((line.quantity * line.unit_price + added * price) / delta)
+            line.quantity = delta
+        else:
+            line.quantity = delta               # retrait : le PRU d'origine est conservé
+        pos.is_active = True
+        reconciled.append(asset)
+
+    db.flush()
+    return reconciled, no_price
+
+
+
+def _sync_cash(acc: ExchangeAccount, balances: dict, db: Session) -> float:
     """Enregistre le solde EUR disponible sur l'exchange comme position cash.
 
     Sans cela, seul le capital investi remonterait : l'argent non investi qui
     dort sur le compte disparaîtrait du patrimoine.
     """
-    try:
-        balances = client.get_balances()
-    except Exception as e:
-        logger.warning(f"{acc.label} : soldes non récupérés ({e})")
-        raise CashSyncError(str(e)) from e
-
-    # Trace ce que l'exchange a réellement renvoyé : un 0 « normal » et une clé
-    # API sans droit de lecture des fonds sont sinon indiscernables.
-    logger.info(f"{acc.label} : soldes lus = {sorted(balances)}")
-    if "EUR" not in balances:
-        raise CashSyncError(
-            "aucun solde EUR renvoyé par l'exchange — vérifie que la clé API a bien "
-            f"le droit de lecture des fonds (actifs vus : {', '.join(sorted(balances)) or 'aucun'})"
-        )
-
-    balance = round(float(balances["EUR"] or 0.0), 2)
+    # L'absence d'EUR signifie simplement qu'il n'y a pas de liquidités en euros
+    # sur ce compte : seul l'échec de l'appel (géré par l'appelant) est une erreur.
+    balance = round(float(balances.get("EUR") or 0.0), 2)
     ticker = cash_ticker(acc.exchange)
     display_name = f"Liquidités · {acc.label}"
     pos = db.query(Position).filter(
@@ -290,7 +335,9 @@ def refresh_cash_balances(db: Session) -> int:
                 encryption.decrypt_str(acc.encrypted_api_key),
                 encryption.decrypt_str(acc.encrypted_api_secret),
             )
-            _sync_cash(acc, client, db)
+            balances = client.get_balances()
+            _sync_cash(acc, balances, db)
+            _reconcile_holdings(acc, balances, db)
             # Valider compte par compte : sinon le rollback d'un compte en échec
             # annulerait aussi les mises à jour réussies des comptes précédents.
             db.commit()

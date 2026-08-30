@@ -202,19 +202,101 @@ def test_sync_records_eur_cash_balance(auth_admin, db, fake_exchange):
     assert summary["cash"][0]["display_name"] == "Liquidités · Bitvavo - Bot"
 
 
-def test_missing_eur_balance_is_reported_not_silently_zero(auth_admin, db, fake_exchange):
-    """Une clé sans droit sur les fonds ne doit pas ressembler à « 0 € de cash »."""
+def test_holdings_without_trades_are_reconciled(auth_admin, db, fake_exchange):
+    """Un avoir arrivé par dépôt (aucun trade) doit quand même apparaître."""
     client, _ = auth_admin
-    acc_id = _create_account(client, "bitvavo", "Bitvavo - Bot").json()["id"]
-    fake_exchange.balances = {"BTC": 1.0}          # l'exchange ne renvoie pas EUR
+    acc_id = _create_account(client, "kraken", "Kraken").json()["id"]
+    fake_exchange.trades = []                     # rien n'a été acheté sur Kraken
+    fake_exchange.balances = {"BTC": 0.25, "ETH": 2.0, "EUR": 0.0}
+
+    with patch("market_data.get_price_eur", return_value=(40000.0, 39000.0, 1.0)):
+        r = client.post(f"/api/crypto/accounts/{acc_id}/sync", json={}).json()
+    assert r["created_purchases"] == 0            # aucun trade importé
+    assert set(r["reconciled_assets"]) == {"BTC", "ETH"}
+
+    btc = db.query(Position).filter(Position.display_name == "BTC · Kraken").one()
+    assert btc.is_active is True
+    assert sum(p.quantity for p in btc.purchases) == pytest.approx(0.25)
+
+
+def test_reconciliation_only_covers_the_untracked_part(auth_admin, db, fake_exchange):
+    """Si des trades expliquent une partie du solde, seul l'écart est ajouté."""
+    client, _ = auth_admin
+    acc_id = _create_account(client, "kraken", "Kraken").json()["id"]
+    fake_exchange.trades = [_trade("t1", "BTC", "buy", 0.10, 30000.0, 3)]
+    fake_exchange.balances = {"BTC": 0.25}        # 0,10 tradé + 0,15 déposé
+
+    with patch("market_data.get_price_eur", return_value=(40000.0, 39000.0, 1.0)):
+        client.post(f"/api/crypto/accounts/{acc_id}/sync", json={})
+
+    btc = db.query(Position).filter(Position.display_name == "BTC · Kraken").one()
+    assert sum(p.quantity for p in btc.purchases) == pytest.approx(0.25)
+    extra = [p for p in btc.purchases if p.note.endswith(":BALANCE]")]
+    assert len(extra) == 1 and extra[0].quantity == pytest.approx(0.15)
+    # le PRU issu du trade réel n'est pas écrasé
+    assert any(p.unit_price == 30000.0 for p in btc.purchases)
+
+
+def test_reconciliation_is_idempotent(auth_admin, db, fake_exchange):
+    """Resynchroniser ne doit pas empiler des lignes de réconciliation."""
+    client, _ = auth_admin
+    acc_id = _create_account(client, "kraken", "Kraken").json()["id"]
+    fake_exchange.balances = {"BTC": 0.25}
+    with patch("market_data.get_price_eur", return_value=(40000.0, 39000.0, 1.0)):
+        client.post(f"/api/crypto/accounts/{acc_id}/sync", json={})
+        client.post(f"/api/crypto/accounts/{acc_id}/sync", json={})
+
+    btc = db.query(Position).filter(Position.display_name == "BTC · Kraken").one()
+    assert len(btc.purchases) == 1
+    assert btc.purchases[0].quantity == pytest.approx(0.25)
+
+
+def test_same_asset_on_two_exchanges_stays_on_separate_lines(auth_admin, db, fake_exchange):
+    """Le BTC Kraken et le BTC du bot Bitvavo doivent rester deux lignes."""
+    client, _ = auth_admin
+    kraken = _create_account(client, "kraken", "Kraken").json()["id"]
+    bitvavo = _create_account(client, "bitvavo", "Bitvavo - Bot").json()["id"]
+
+    with patch("market_data.get_price_eur", return_value=(40000.0, 39000.0, 1.0)):
+        fake_exchange.balances = {"BTC": 0.25}
+        client.post(f"/api/crypto/accounts/{kraken}/sync", json={})
+        fake_exchange.balances = {"BTC": 0.0015}
+        client.post(f"/api/crypto/accounts/{bitvavo}/sync", json={})
+
+        summary = client.get("/api/crypto/summary").json()
+
+    names = {p["display_name"]: p["total_quantity"] for p in summary["positions"]}
+    assert names["BTC · Kraken"] == pytest.approx(0.25)
+    assert names["BTC · Bitvavo - Bot"] == pytest.approx(0.0015)
+
+
+def test_no_eur_on_account_is_zero_not_an_error(auth_admin, db, fake_exchange):
+    """Un compte sans euros vaut 0 € — ce n'est pas un problème de clé API."""
+    client, _ = auth_admin
+    acc_id = _create_account(client, "kraken", "Kraken").json()["id"]
+    fake_exchange.balances = {"BTC": 1.0, "ETH": 2.0}   # aucun EUR détenu
 
     r = client.post(f"/api/crypto/accounts/{acc_id}/sync", json={}).json()
-    assert r["cash_balance_eur"] is None
-    assert "EUR" in r["cash_error"] and "lecture des fonds" in r["cash_error"]
+    assert r["cash_error"] is None
+    assert r["cash_balance_eur"] == 0.0
+    # et aucune ligne « Liquidités » à 0 € n'encombre le tableau
+    assert db.query(Position).filter(Position.ticker == "KRAKEN:EUR").count() == 0
 
-    # et l'erreur reste lisible sur la fiche du compte
+
+def test_unreadable_balances_are_reported(auth_admin, db, fake_exchange):
+    """En revanche, un appel qui échoue doit être signalé, pas masqué en 0 €."""
+    client, _ = auth_admin
+    acc_id = _create_account(client, "kraken", "Kraken").json()["id"]
+
+    def boom(self):
+        raise RuntimeError("EAPI:Invalid key")
+
+    with patch.object(FakeClient, "get_balances", boom):
+        r = client.post(f"/api/crypto/accounts/{acc_id}/sync", json={}).json()
+    assert r["cash_balance_eur"] is None
+    assert "Invalid key" in r["cash_error"]
     accounts = client.get("/api/crypto/accounts").json()
-    assert "liquidités" in accounts[0]["last_sync_status"]
+    assert "soldes illisibles" in accounts[0]["last_sync_status"]
 
 
 def test_cash_balance_is_updated_not_duplicated(auth_admin, db, fake_exchange):

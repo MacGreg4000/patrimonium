@@ -317,7 +317,12 @@ async function syncExchange(id, btn) {
   try {
     const r = await apiPost(`/api/crypto/accounts/${id}/sync`, {});
     showToast(`${r.created_purchases} achat(s), ${r.created_sales} vente(s) importé(s)`, 'success');
-    if (r.cash_error) showToast(`Liquidités : ${r.cash_error}`, 'error');
+    if (r.cash_error) showToast(`Soldes illisibles : ${r.cash_error}`, 'error');
+    if (r.reconciled_assets?.length)
+      showToast(`Avoirs sans trade repris depuis les soldes : ${r.reconciled_assets.join(', ')} `
+        + `— leur PRU est estimé au cours du jour`, 'info');
+    if (r.assets_without_price?.length)
+      showToast(`Cours introuvable pour ${r.assets_without_price.join(', ')} — valorisé à 0 €`, 'error');
     if (r.unsupported_pairs?.length)
       showToast(`Paires non EUR ignorées : ${r.unsupported_pairs.join(', ')}`, 'info');
     await loadCrypto();
