@@ -3,7 +3,7 @@
    ═══════════════════════════════════════════════ */
 'use strict';
 
-const PAGES = ['dashboard', 'portfolio', 'coffres', 'assets', 'reserves', 'passwords', 'admin'];
+const PAGES = ['dashboard', 'portfolio', 'coffres', 'assets', 'crypto', 'reserves', 'passwords', 'admin'];
 let _currentPage = 'dashboard';
 
 // ── Navigation ────────────────────────────────────────────

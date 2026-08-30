@@ -176,6 +176,32 @@ def test_summary_excludes_crypto_from_portfolio(auth_admin, db, fake_exchange):
     assert all(p["asset_type"] != "crypto" for p in portfolio["positions"])
 
 
+def test_archived_position_stays_archived_after_resync(auth_admin, db, fake_exchange):
+    """Une position archivée à la main ne doit pas réapparaître à la resynchro.
+
+    C'est ce que promet la boîte de dialogue d'archivage sur la page Crypto.
+    """
+    client, _ = auth_admin
+    acc_id = _create_account(client).json()["id"]
+    fake_exchange.trades = [_trade("t1", "BTC", "buy", 1.0, 30000.0, 2)]
+    client.post(f"/api/crypto/accounts/{acc_id}/sync", json={})
+
+    pos = db.query(Position).filter(Position.asset_type == "crypto").one()
+    assert client.delete(f"/api/portfolio/positions/{pos.id}").status_code == 200
+
+    # Resynchro : tous les trades sont déjà connus → rien ne doit changer
+    r = client.post(f"/api/crypto/accounts/{acc_id}/sync", json={}).json()
+    assert r["created_purchases"] == 0 and r["skipped"] == 1
+    db.refresh(pos)
+    assert pos.is_active is False
+
+    # En revanche, un nouvel achat la réactive
+    fake_exchange.trades.append(_trade("t2", "BTC", "buy", 0.5, 31000.0, 9))
+    client.post(f"/api/crypto/accounts/{acc_id}/sync", json={})
+    db.refresh(pos)
+    assert pos.is_active is True
+
+
 # ── Exports ───────────────────────────────────────────────
 
 def _seed_crypto(client, fake_exchange):

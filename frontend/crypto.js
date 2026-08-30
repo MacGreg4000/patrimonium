@@ -93,6 +93,7 @@ function renderCryptoPage() {
               <th>P&amp;L €</th>
               <th>P&amp;L %</th>
               <th>Alloc.</th>
+              ${isAdmin() ? '<th>Actions</th>' : ''}
             </tr></thead>
             <tbody>${positions.map(renderCryptoRow).join('')}</tbody>
           </table>
@@ -185,7 +186,25 @@ function renderCryptoRow(p) {
       <td class="${cls}">${pnl >= 0 ? '+' : ''}${fmtEur(pnl)}</td>
       <td class="${cls}">${p.pnl_pct != null ? fmtPct(p.pnl_pct) : '—'}</td>
       <td>${(p.allocation_pct || 0).toFixed(1)}%</td>
+      ${isAdmin() ? `<td><button class="btn btn-ghost danger" title="Archiver cette position"
+        onclick="archiveCryptoPosition(${p.id})">🗑</button></td>` : ''}
     </tr>`;
+}
+
+async function archiveCryptoPosition(posId) {
+  const pos = (_cryptoData.positions || []).find(p => p.id === posId);
+  if (!pos) return;
+  confirm('Archiver la position',
+    `Archiver « ${pos.display_name} » ? Elle disparaîtra de la page Crypto, mais son `
+    + `historique est conservé. Resynchroniser ne la fera pas revenir : seul un nouvel `
+    + `achat sur cet actif la réactivera.`,
+    async () => {
+      try {
+        await apiDelete(`/api/portfolio/positions/${posId}`);
+        showToast('Position archivée', 'success');
+        await loadCrypto();
+      } catch (err) { showToast(err.message, 'error'); }
+    });
 }
 
 function renderExchangeCard(a) {
@@ -298,15 +317,16 @@ async function syncAllExchanges(btn) {
   }
 }
 
-async function deleteExchange(id) {
+function deleteExchange(id) {
   const label = (_cryptoData.accounts || []).find(a => a.id === id)?.label || 'ce compte';
-  if (!confirm(`Supprimer le compte « ${label} » ?\n\nLes positions et transactions déjà importées sont conservées.`))
-    return;
-  try {
-    await apiDelete(`/api/crypto/accounts/${id}`);
-    showToast('Compte supprimé', 'success');
-    await loadCrypto();
-  } catch (err) {
-    showToast(err.message, 'error');
-  }
+  confirm('Supprimer le compte',
+    `Supprimer « ${label} » ? Les clés API sont effacées, mais les positions et `
+    + `transactions déjà importées sont conservées.`,
+    async () => {
+      try {
+        await apiDelete(`/api/crypto/accounts/${id}`);
+        showToast('Compte supprimé', 'success');
+        await loadCrypto();
+      } catch (err) { showToast(err.message, 'error'); }
+    });
 }
