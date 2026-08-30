@@ -14,8 +14,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import encryption                     # noqa: E402
 from database import SessionLocal     # noqa: E402
-from exchanges import get_client      # noqa: E402
-from models import ExchangeAccount    # noqa: E402
+from exchanges import CASH_TICKERS, get_client   # noqa: E402
+from models import ExchangeAccount, Position     # noqa: E402
 
 
 def main():
@@ -58,6 +58,26 @@ def main():
                     print(f"   Solde EUR    : {parsed['EUR']}")
             except Exception as e:
                 print(f"!! Parsing échoué : {type(e).__name__}: {e}")
+
+            print(f"\n--- Dernière synchro enregistrée ---")
+            print(f"   {acc.last_sync_at or 'jamais'}")
+            print(f"   {acc.last_sync_status or '—'}")
+
+        # ── État en base des positions de liquidités ──────────
+        print(f"\n{'=' * 60}\nPositions « liquidités » en base\n{'=' * 60}")
+        print(f"Tickers recherchés par l'application : {sorted(CASH_TICKERS)}")
+        rows = db.query(Position).filter(Position.ticker.in_(CASH_TICKERS)).all()
+        if not rows:
+            print("\n!! AUCUNE position de liquidités en base.")
+            print("   → la synchronisation n'a pas encore tourné depuis la mise à jour :")
+            print("     clique « Synchroniser » sur la page Crypto, puis relance ce script.")
+        for p in rows:
+            print(f"\n   id={p.id}  ticker={p.ticker}")
+            print(f"   nom      : {p.display_name}")
+            print(f"   type     : {p.asset_type}")
+            print(f"   solde    : {p.manual_price}")
+            print(f"   active   : {p.is_active}   (si False, la page ne l'affiche pas)")
+            print(f"   maj      : {p.manual_price_updated_at}")
     finally:
         db.close()
 
