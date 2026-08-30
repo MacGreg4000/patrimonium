@@ -317,6 +317,7 @@ async function syncExchange(id, btn) {
   try {
     const r = await apiPost(`/api/crypto/accounts/${id}/sync`, {});
     showToast(`${r.created_purchases} achat(s), ${r.created_sales} vente(s) importé(s)`, 'success');
+    if (r.cash_error) showToast(`Liquidités : ${r.cash_error}`, 'error');
     if (r.unsupported_pairs?.length)
       showToast(`Paires non EUR ignorées : ${r.unsupported_pairs.join(', ')}`, 'info');
     await loadCrypto();
@@ -340,6 +341,8 @@ async function syncAllExchanges(btn) {
     const p = ok.reduce((s, r) => s + r.created_purchases, 0);
     const s = ok.reduce((acc, r) => acc + r.created_sales, 0);
     showToast(`${p} achat(s), ${s} vente(s) importé(s)`, 'success');
+    ok.filter(r => r.cash_error)
+      .forEach(r => showToast(`${r.label} — liquidités : ${r.cash_error}`, 'error'));
     ko.forEach(r => showToast(`${r.label} : ${r.error}`, 'error'));
     await loadCrypto();
   } catch (err) {

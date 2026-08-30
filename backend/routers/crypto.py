@@ -25,6 +25,10 @@ router = APIRouter(prefix="/api/crypto", tags=["crypto"])
 FIAT = {"EUR", "USD", "GBP", "CHF", "CAD", "JPY", "AUD"}
 
 
+class CashSyncError(RuntimeError):
+    """Le solde de liquidités n'a pas pu être lu — à remonter à l'utilisateur."""
+
+
 class AccountCreate(BaseModel):
     exchange: str          # kraken | bitvavo
     label: str
@@ -186,19 +190,30 @@ def _sync(acc: ExchangeAccount, db: Session) -> dict:
             pos.is_active = True
         db.flush()
 
-    cash_balance = _sync_cash(acc, client, db)
+    try:
+        cash_balance, cash_error = _sync_cash(acc, client, db), None
+    except CashSyncError as e:
+        cash_balance, cash_error = None, str(e)
+
+    status = (f"{created_purchases} achat(s), {created_sales} vente(s), "
+              f"{skipped} déjà connu(s)")
+    if cash_error:
+        status += f" — liquidités : {cash_error}"
+    elif cash_balance is not None:
+        status += f", {cash_balance:.2f} € de liquidités"
 
     acc.last_sync_at = datetime.now(timezone.utc)
-    acc.last_sync_status = (f"{created_purchases} achat(s), {created_sales} vente(s), "
-                            f"{skipped} déjà connu(s)")
+    acc.last_sync_status = status[:200]
     return {
         "account_id": acc.id, "label": acc.label,
         "created_purchases": created_purchases,
         "created_sales": created_sales,
         "skipped": skipped,
         "cash_balance_eur": cash_balance,
+        "cash_error": cash_error,
         "unsupported_pairs": sorted(unsupported),
     }
+
 
 
 def _sync_cash(acc: ExchangeAccount, client, db: Session) -> Optional[float]:
@@ -208,12 +223,21 @@ def _sync_cash(acc: ExchangeAccount, client, db: Session) -> Optional[float]:
     dort sur le compte disparaîtrait du patrimoine.
     """
     try:
-        balance = float(client.get_balances().get("EUR") or 0.0)
+        balances = client.get_balances()
     except Exception as e:
-        logger.warning(f"{acc.label} : solde EUR non récupéré ({e})")
-        return None
+        logger.warning(f"{acc.label} : soldes non récupérés ({e})")
+        raise CashSyncError(str(e)) from e
 
-    balance = round(balance, 2)
+    # Trace ce que l'exchange a réellement renvoyé : un 0 « normal » et une clé
+    # API sans droit de lecture des fonds sont sinon indiscernables.
+    logger.info(f"{acc.label} : soldes lus = {sorted(balances)}")
+    if "EUR" not in balances:
+        raise CashSyncError(
+            "aucun solde EUR renvoyé par l'exchange — vérifie que la clé API a bien "
+            f"le droit de lecture des fonds (actifs vus : {', '.join(sorted(balances)) or 'aucun'})"
+        )
+
+    balance = round(float(balances["EUR"] or 0.0), 2)
     ticker = cash_ticker(acc.exchange)
     display_name = f"Liquidités · {acc.label}"
     pos = db.query(Position).filter(

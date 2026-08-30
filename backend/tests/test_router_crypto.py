@@ -202,6 +202,21 @@ def test_sync_records_eur_cash_balance(auth_admin, db, fake_exchange):
     assert summary["cash"][0]["display_name"] == "Liquidités · Bitvavo - Bot"
 
 
+def test_missing_eur_balance_is_reported_not_silently_zero(auth_admin, db, fake_exchange):
+    """Une clé sans droit sur les fonds ne doit pas ressembler à « 0 € de cash »."""
+    client, _ = auth_admin
+    acc_id = _create_account(client, "bitvavo", "Bitvavo - Bot").json()["id"]
+    fake_exchange.balances = {"BTC": 1.0}          # l'exchange ne renvoie pas EUR
+
+    r = client.post(f"/api/crypto/accounts/{acc_id}/sync", json={}).json()
+    assert r["cash_balance_eur"] is None
+    assert "EUR" in r["cash_error"] and "lecture des fonds" in r["cash_error"]
+
+    # et l'erreur reste lisible sur la fiche du compte
+    accounts = client.get("/api/crypto/accounts").json()
+    assert "liquidités" in accounts[0]["last_sync_status"]
+
+
 def test_cash_balance_is_updated_not_duplicated(auth_admin, db, fake_exchange):
     client, _ = auth_admin
     acc_id = _create_account(client, "bitvavo", "Bitvavo - Bot").json()["id"]
