@@ -315,6 +315,30 @@ class RefreshToken(Base):
     user = relationship("User")
 
 
+# ── API Tokens (connecteur MCP) ──────────────────────────────────────────────
+
+class ApiToken(Base):
+    """Jeton d'accès en LECTURE SEULE, utilisé par le connecteur MCP.
+
+    Le jeton brut n'est jamais stocké : seul son SHA-256 l'est, comme pour les
+    refresh tokens. La portée est fixée à "read" et la dépendance qui le valide
+    refuse toute requête mutante — l'accès est donc en lecture par construction,
+    pas seulement par convention.
+    """
+    __tablename__ = "api_tokens"
+
+    id = Column(Integer, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    label = Column(String(100), nullable=False)
+    token_hash = Column(String(64), nullable=False, unique=True, index=True)   # SHA-256 hex
+    scope = Column(String(20), nullable=False, default="read")
+    revoked = Column(Boolean, default=False, nullable=False)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+
+    user = relationship("User")
+
+
 # ── Password Reset Tokens ────────────────────────────────────────────────────
 
 class PasswordResetToken(Base):

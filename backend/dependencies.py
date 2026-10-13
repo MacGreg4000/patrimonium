@@ -1,11 +1,13 @@
 """FastAPI dependency injection helpers."""
 import json
-from fastapi import Cookie, Depends, HTTPException, Request, status
+from datetime import datetime, timezone
+
+from fastapi import Cookie, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 import auth as auth_utils
 from database import get_db
-from models import AuditLog, User
+from models import ApiToken, AuditLog, User
 
 
 def get_current_user(
@@ -40,6 +42,47 @@ def verify_csrf(request: Request, current_user: User = Depends(get_current_user)
 def require_admin_csrf(user: User = Depends(verify_csrf)) -> User:
     if user.role != "ADMIN":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Accès administrateur requis")
+    return user
+
+
+def require_read_token(
+    request: Request,
+    authorization: str = Header(default=""),
+    db: Session = Depends(get_db),
+) -> User:
+    """Valide un jeton d'API en lecture seule (en-tête `Authorization: Bearer …`).
+
+    Trois garde-fous cumulés :
+      - la méthode HTTP doit être GET : un jeton de lecture ne peut structurellement
+        pas muter quoi que ce soit, même si une route mutante l'utilisait par erreur ;
+      - la portée enregistrée doit valoir "read" ;
+      - le jeton doit être actif et son empreinte correspondre.
+    """
+    if request.method != "GET":
+        raise HTTPException(status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+                            detail="Jeton en lecture seule : seules les requêtes GET sont permises")
+
+    scheme, _, raw = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not raw.strip():
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Jeton d'API manquant")
+
+    token = db.query(ApiToken).filter(
+        ApiToken.token_hash == auth_utils.hash_token(raw.strip()),
+        ApiToken.revoked == False,  # noqa: E712
+    ).first()
+    if not token or token.scope != "read":
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Jeton d'API invalide ou révoqué")
+
+    user = db.query(User).filter(User.id == token.user_id,
+                                 User.is_active == True).first()  # noqa: E712
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Utilisateur introuvable")
+
+    token.last_used_at = datetime.now(timezone.utc)
+    db.commit()
     return user
 
 

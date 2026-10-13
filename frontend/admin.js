@@ -30,6 +30,7 @@ function renderAdminPage() {
       <button class="tab-btn active" onclick="switchAdminTab('users')">Utilisateurs</button>
       <button class="tab-btn" onclick="switchAdminTab('coffres')">Coffres</button>
       <button class="tab-btn" onclick="switchAdminTab('logs')">Logs d'audit</button>
+      <button class="tab-btn" onclick="switchAdminTab('mcp')">Connecteur MCP</button>
     </div>
 
     <!-- Users -->
@@ -72,19 +73,122 @@ function renderAdminPage() {
       </div>
     </div>
 
+    <!-- Connecteur MCP -->
+    <div id="admin-tab-mcp" style="display:none">
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-title" style="margin-bottom:10px">🔑 Jetons de lecture</div>
+        <div style="background:rgba(16,217,138,.08);border:1px solid rgba(16,217,138,.25);
+                    border-radius:10px;padding:12px 16px;margin-bottom:16px;
+                    font-size:13px;color:var(--text-secondary);line-height:1.55">
+          <b style="color:var(--accent-green)">Lecture seule garantie.</b>
+          Un jeton permet d'interroger ton patrimoine depuis Claude, sans ouvrir
+          l'application. Il ne peut rien modifier : toute requête autre qu'une lecture
+          est refusée côté serveur. Le coffre à mots de passe et les combinaisons de
+          coffres ne sont accessibles par aucun outil du connecteur.
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <input type="text" class="form-input" id="mcpTokenLabel" style="flex:1;min-width:200px"
+                 placeholder="Nom du jeton (ex. Claude sur mon Mac)"/>
+          <button class="btn btn-primary btn-sm" onclick="createApiToken()">Créer un jeton</button>
+        </div>
+        <div id="mcpNewToken" style="display:none;margin-top:14px"></div>
+      </div>
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px">Jetons actifs</div>
+        <div id="mcpTokenList"></div>
+      </div>
+    </div>
+
     <!-- Modals -->
     <div id="adminModals">${buildAdminModals()}</div>`;
 }
 
+const ADMIN_TABS = ['users', 'coffres', 'logs', 'mcp'];
+
 function switchAdminTab(tab) {
-  ['users', 'coffres', 'logs'].forEach(t => {
+  ADMIN_TABS.forEach(t => {
     const el = document.getElementById(`admin-tab-${t}`);
     if (el) el.style.display = t === tab ? '' : 'none';
   });
   document.querySelectorAll('#page-admin .tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', ['users', 'coffres', 'logs'][i] === tab);
+    b.classList.toggle('active', ADMIN_TABS[i] === tab);
   });
   if (tab === 'logs') loadAuditLogs();
+  if (tab === 'mcp') loadApiTokens();
+}
+
+// ── Connecteur MCP : jetons de lecture ────────────────────
+
+let _apiTokens = [];
+
+async function loadApiTokens() {
+  try {
+    _apiTokens = await apiGet('/api/tokens');
+    renderApiTokens();
+  } catch (err) { showToast(err.message, 'error'); }
+}
+
+function renderApiTokens() {
+  const el = document.getElementById('mcpTokenList');
+  if (!el) return;
+  if (!_apiTokens.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">🔑</div>
+      <div class="empty-text">Aucun jeton actif</div></div>`;
+    return;
+  }
+  el.innerHTML = _apiTokens.map(t => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+                padding:14px 16px;background:var(--bg-tertiary);border:1px solid var(--border);
+                border-radius:10px;margin-bottom:10px">
+      <div style="min-width:0">
+        <div style="font-weight:600;display:flex;align-items:center;gap:8px">
+          ${escHtml(t.label)}
+          <span class="badge" style="background:rgba(16,217,138,.15);color:var(--accent-green)">lecture seule</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:3px">
+          Créé le ${fmtDate(t.created_at)} ·
+          ${t.last_used_at ? `dernier usage ${fmtDateTime(t.last_used_at)}` : 'jamais utilisé'}
+        </div>
+      </div>
+      <button class="btn btn-danger btn-sm" onclick="revokeApiToken(${t.id})">Révoquer</button>
+    </div>`).join('');
+}
+
+function createApiToken() {
+  const input = document.getElementById('mcpTokenLabel');
+  const label = (input?.value || '').trim();
+  if (!label) { showToast('Donne un nom à ce jeton', 'info'); return; }
+  apiPost('/api/tokens', { label })
+    .then(t => {
+      input.value = '';
+      // Le jeton brut n'est renvoyé qu'à la création : il est irrécupérable ensuite.
+      const box = document.getElementById('mcpNewToken');
+      box.style.display = '';
+      box.innerHTML = `
+        <div style="font-size:13px;color:var(--accent-gold);font-weight:600;margin-bottom:8px">
+          Copie ce jeton maintenant — il ne sera plus jamais affiché
+        </div>
+        <code style="display:block;word-break:break-all;background:var(--bg-primary);
+                     border:1px solid var(--border);border-radius:8px;padding:12px;
+                     font-size:12px;color:var(--text-primary)">${escHtml(t.token)}</code>`;
+      showToast('Jeton créé', 'success');
+      loadApiTokens();
+    })
+    .catch(err => showToast(err.message, 'error'));
+}
+
+function revokeApiToken(id) {
+  const t = _apiTokens.find(x => x.id === id);
+  confirm('Révoquer le jeton',
+    `Révoquer « ${t ? t.label : 'ce jeton'} » ? Le connecteur MCP qui l'utilise `
+    + `perdra l'accès immédiatement.`,
+    async () => {
+      try {
+        await apiDelete(`/api/tokens/${id}`);
+        showToast('Jeton révoqué', 'success');
+        await loadApiTokens();
+      } catch (err) { showToast(err.message, 'error'); }
+    });
 }
 
 function renderUserRows() {
