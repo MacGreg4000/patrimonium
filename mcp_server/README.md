@@ -18,10 +18,13 @@ Il ne peut **que lire**, et c'est garanti par construction, pas par convention :
 1. Crée un jeton depuis **Admin → Connecteur MCP**. Il n'est affiché
    qu'une seule fois : seule son empreinte SHA-256 est conservée en base.
 
-2. Installe les dépendances :
+2. Installe les dépendances. Python **3.10 minimum** est requis par le paquet
+   `mcp` (le `python3` fourni avec macOS est en 3.9 : utilise une version plus récente,
+   par exemple celle de Homebrew) :
 
    ```bash
-   python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+   /opt/homebrew/opt/python@3.12/bin/python3.12 -m venv .venv
+   .venv/bin/pip install -r requirements.txt
    ```
 
 3. Déclare le serveur auprès de Claude Code :

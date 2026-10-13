@@ -1,2 +1,4 @@
-mcp==1.2.0
+# mcp 2.x renomme FastMCP et change d'API : on reste sur la dernière 1.x.
+# mcp 1.2.0 (version initialement fixée) est incompatible avec pydantic >= 2.11.
+mcp>=1.9,<2
 httpx==0.28.1
