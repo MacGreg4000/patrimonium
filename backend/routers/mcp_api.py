@@ -129,12 +129,15 @@ def mcp_sold_assets(db: Session = Depends(get_db), user: User = Depends(require_
 def mcp_transactions(position_id: Optional[int] = None, ticker: Optional[str] = None,
                      sens: Optional[str] = None, poche: Optional[str] = None,
                      date_debut: Optional[date] = None, date_fin: Optional[date] = None,
+                     inclure_liquidites: bool = False,
                      page: int = 1, limit: int = 100,
                      db: Session = Depends(get_db), user: User = Depends(require_read_token)):
     """Historique complet des achats et ventes, titres et crypto, positions
     clôturées comprises. Plus récentes d'abord.
 
     sens ∈ {achat, vente} ; poche ∈ {titres, crypto} ; dates au format AAAA-MM-JJ.
+    Les positions de liquidités (Saxo, exchanges) sont exclues par défaut : leurs
+    « achats » sont des écritures techniques de suivi de solde, pas des opérations.
     """
     from models import Position, Purchase, Sale
     if sens not in (None, "achat", "vente"):
@@ -169,6 +172,9 @@ def mcp_transactions(position_id: Optional[int] = None, ticker: Optional[str] = 
             rows.append(_row("vente", s.id, s.sale_date, pos, s.quantity,
                              s.unit_price, s.fees, s.realized_pnl, s.note))
 
+    if not inclure_liquidites:
+        rows = [r for r in rows
+                if r["type_actif"] != "cash" and r["ticker"] not in CASH_TICKERS]
     if position_id is not None:
         rows = [r for r in rows if r["position_id"] == position_id]
     if ticker:

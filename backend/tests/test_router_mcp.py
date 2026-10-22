@@ -210,6 +210,28 @@ def test_transactions_cover_stocks_crypto_and_closed_positions(auth_admin, db):
     assert periode["items"][0]["montant_net"] == 10 * 100.0 + 2.0
 
 
+def test_transactions_exclude_cash_bookkeeping_by_default(auth_admin, db):
+    """Les « achats » des positions de liquidités suivent un solde : ce ne sont
+    pas des opérations, ils ne doivent pas polluer l'historique par défaut."""
+    _seed_operations(db)
+    cash = _position(db, "Liquidités SaxoBank", "SAXO:EUR", "cash")
+    db.add(Purchase(position_id=cash.id, purchase_date=date(2026, 4, 1),
+                    quantity=1, unit_price=96.45, fees=0.0, note="[SAXO:CASH]"))
+    db.commit()
+    client, _ = auth_admin
+    raw = _create_token(client)
+    client.cookies.clear()
+    h = _bearer(raw)
+
+    default = client.get("/api/mcp/transactions", headers=h).json()
+    assert default["total"] == 5
+    assert "SAXO:EUR" not in {i["ticker"] for i in default["items"]}
+
+    all_rows = client.get("/api/mcp/transactions", headers=h,
+                          params={"inclure_liquidites": "true"}).json()
+    assert all_rows["total"] == 6
+
+
 def test_transactions_reject_unknown_filter_values(auth_admin):
     client, _ = auth_admin
     raw = _create_token(client)

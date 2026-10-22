@@ -124,6 +124,7 @@ def transactions(
     poche: str | None = None,
     date_debut: str | None = None,
     date_fin: str | None = None,
+    inclure_liquidites: bool = False,
     page: int = 1,
     limit: int = 100,
 ) -> dict:
@@ -139,12 +140,15 @@ def transactions(
         sens: "achat" ou "vente".
         poche: "titres" ou "crypto".
         date_debut, date_fin: bornes incluses, au format AAAA-MM-JJ.
+        inclure_liquidites: inclut les écritures des positions de liquidités
+            (Saxo, exchanges), qui suivent un solde et ne sont pas de vraies
+            opérations. Exclues par défaut.
         page: page à renvoyer ; le champ « total » indique le nombre de lignes.
         limit: lignes par page (500 au maximum).
     """
     return _get("/transactions", position_id=position_id, ticker=ticker, sens=sens,
                 poche=poche, date_debut=date_debut, date_fin=date_fin,
-                page=page, limit=limit)
+                inclure_liquidites=inclure_liquidites, page=page, limit=limit)
 
 
 @mcp.tool()
