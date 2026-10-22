@@ -41,13 +41,22 @@ Il ne peut **que lire**, et c'est garanti par construction, pas par convention :
 | Outil | Réponse |
 |---|---|
 | `patrimoine_total` | Total et répartition par poche |
-| `portefeuille` | Positions titres, PRU, P&L |
+| `portefeuille` | Positions titres, PRU, P&L, achats et ventes |
 | `crypto` | Positions crypto et liquidités des exchanges |
+| `transactions` | Tous les achats et ventes (titres + crypto, clôturées comprises), filtrables et paginés |
+| `positions_cloturees` | Positions archivées et leur plus-value réalisée |
 | `coffres` | Soldes des coffres (jamais les combinaisons) |
-| `mouvements` | Entrées, sorties et transferts d'espèces |
-| `actifs_physiques` | Immobilier, véhicules, bijoux… |
+| `mouvements` | Entrées, sorties et transferts d'espèces, paginés |
+| `inventaires` | Comptages des coffres avec le détail des coupures |
+| `actifs_physiques` | Immobilier, véhicules, bijoux… avec événements et documents |
+| `actifs_vendus` | Actifs physiques vendus |
 | `reserves` | Réserves de liquidation |
 | `historique` | Évolution de la valeur du portefeuille |
+| `journal` | Journal d'audit (hors événements du coffre à mots de passe et des combinaisons) |
+
+Restent volontairement hors de portée : le coffre à mots de passe, les
+combinaisons de coffres, les clés API des exchanges, les jetons et secrets 2FA,
+et le contenu des documents chiffrés (seuls leurs noms et métadonnées sont visibles).
 
 ## Révocation
 

@@ -59,8 +59,11 @@ def portefeuille() -> dict:
     """Positions du portefeuille titres : actions, ETF, obligations, liquidités.
 
     Pour chaque position : quantité, prix de revient unitaire, cours actuel,
-    montant investi, valeur, plus/moins-value en euros et en pourcentage.
-    Ne contient pas la crypto, qui a son propre outil.
+    montant investi, valeur, plus/moins-value en euros et en pourcentage, et
+    la liste de ses achats et ventes.
+    Ne contient pas la crypto (outil `crypto`) ni les positions clôturées
+    (outil `positions_cloturees`). Pour un historique transversal des
+    opérations, utiliser `transactions`.
     """
     return _get("/portefeuille")
 
@@ -71,7 +74,8 @@ def crypto() -> dict:
 
     Une ligne par couple actif/compte (le BTC de Kraken et celui de Bitvavo
     sont distincts, avec des PRU séparés). Inclut les euros non investis qui
-    dorment sur chaque exchange.
+    dorment sur chaque exchange. Le détail des trades est dans `transactions`
+    (poche="crypto").
     """
     return _get("/crypto")
 
@@ -87,23 +91,96 @@ def coffres() -> dict:
 
 
 @mcp.tool()
-def mouvements(coffre_id: int | None = None, limit: int = 50) -> dict:
-    """Derniers mouvements d'espèces : entrées, sorties et transferts.
+def mouvements(coffre_id: int | None = None, page: int = 1, limit: int = 50) -> dict:
+    """Mouvements d'espèces : entrées, sorties et transferts, avec le détail
+    des billets. Plus récents d'abord, paginés.
 
     Args:
         coffre_id: limite à un coffre précis ; tous les coffres si omis.
-        limit: nombre de mouvements à renvoyer (200 au maximum).
+        page: page à renvoyer (1 = la plus récente). Le champ « total » de la
+            réponse permet de savoir s'il reste des pages.
+        limit: mouvements par page (100 au maximum).
     """
-    return _get("/mouvements", coffre_id=coffre_id, limit=limit)
+    return _get("/mouvements", coffre_id=coffre_id, page=page, limit=limit)
+
+
+@mcp.tool()
+def inventaires(coffre_id: int | None = None, page: int = 1, limit: int = 50) -> dict:
+    """Inventaires des coffres : comptages physiques avec le détail des coupures.
+
+    Args:
+        coffre_id: limite à un coffre précis ; tous les coffres si omis.
+        page: page à renvoyer (1 = la plus récente).
+        limit: inventaires par page (100 au maximum).
+    """
+    return _get("/inventaires", coffre_id=coffre_id, page=page, limit=limit)
+
+
+@mcp.tool()
+def transactions(
+    position_id: int | None = None,
+    ticker: str | None = None,
+    sens: str | None = None,
+    poche: str | None = None,
+    date_debut: str | None = None,
+    date_fin: str | None = None,
+    page: int = 1,
+    limit: int = 100,
+) -> dict:
+    """Historique détaillé des achats et ventes : titres ET crypto, positions
+    clôturées comprises. Plus récentes d'abord.
+
+    Chaque ligne : date, sens, position, quantité, prix unitaire, frais,
+    montant brut et net, plus-value réalisée (ventes).
+
+    Args:
+        position_id: limite à une position.
+        ticker: limite à un ticker (ex. IWDA.AS, BTC-EUR).
+        sens: "achat" ou "vente".
+        poche: "titres" ou "crypto".
+        date_debut, date_fin: bornes incluses, au format AAAA-MM-JJ.
+        page: page à renvoyer ; le champ « total » indique le nombre de lignes.
+        limit: lignes par page (500 au maximum).
+    """
+    return _get("/transactions", position_id=position_id, ticker=ticker, sens=sens,
+                poche=poche, date_debut=date_debut, date_fin=date_fin,
+                page=page, limit=limit)
+
+
+@mcp.tool()
+def positions_cloturees() -> dict:
+    """Positions archivées (titres et crypto) et leur bilan réalisé :
+    investi, produit des ventes, plus-value réalisée, dates.
+    """
+    return _get("/positions-cloturees")
 
 
 @mcp.tool()
 def actifs_physiques() -> list:
     """Actifs physiques non vendus : immobilier, véhicules, bijoux, métaux…
 
-    Pour chacun : catégorie, valeur estimée, emplacement et coffre de rattachement.
+    Pour chacun : catégorie, valeur estimée, emplacement, coffre de rattachement,
+    historique d'événements (achat, évaluations) et liste des documents joints.
     """
     return _get("/actifs")
+
+
+@mcp.tool()
+def actifs_vendus() -> list:
+    """Actifs physiques vendus : prix et date de vente, destination des fonds."""
+    return _get("/actifs-vendus")
+
+
+@mcp.tool()
+def journal(action: str | None = None, page: int = 1, limit: int = 100) -> dict:
+    """Journal d'audit de l'application : connexions, créations, modifications…
+
+    Args:
+        action: filtre sur un type d'action (ex. LOGIN, PURCHASE_CREATED).
+        page: page à renvoyer (1 = la plus récente).
+        limit: entrées par page (500 au maximum).
+    """
+    return _get("/journal", action=action, page=page, limit=limit)
 
 
 @mcp.tool()

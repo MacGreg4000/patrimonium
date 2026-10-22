@@ -60,7 +60,15 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
             total_portfolio_value += m["current_value"]
             if m.get("asset_type") != "cash":   # le cash n'est pas du capital "investi"
                 total_portfolio_invested += m["total_invested"]
-        day_change_eur += m["day_change_eur"]
+            # Variation du jour du portefeuille titres uniquement (hors crypto)
+            day_change_eur += m["day_change_eur"]
+
+    # Allocation calculée dans sa propre poche : titres sur le total titres,
+    # crypto sur le total crypto (calc_position_metrics a reçu un total fictif de 1).
+    for m in pos_data:
+        in_crypto = m["asset_type"] == "crypto" or m["ticker"] in CASH_TICKERS
+        base = total_crypto_value if in_crypto else total_portfolio_value
+        m["allocation_pct"] = (m["current_value"] / base * 100) if base > 0 else 0.0
 
     # P&L total = unrealized + realized (inclut les ventes partielles sur positions actives)
     total_portfolio_pnl = sum(
@@ -150,11 +158,12 @@ def get_dashboard(db: Session = Depends(get_db), user: User = Depends(get_curren
         if user_asset_ids else 0
     )
 
-    # ── 8. Portfolio top movers (positions réelles uniquement, hors cash et vides) ──
+    # ── 8. Portfolio top movers (titres réels uniquement : hors cash, crypto et vides) ──
     tradeable = [
         m for m in pos_data
         if (m.get("total_bought") or 0) > 0
-        and m.get("asset_type") != "cash"
+        and m.get("asset_type") not in ("cash", "crypto")
+        and m.get("ticker") not in CASH_TICKERS
         and m.get("pnl_pct") is not None
     ]
     movers = sorted(tradeable, key=lambda x: x.get("pnl_pct") or 0, reverse=True)
