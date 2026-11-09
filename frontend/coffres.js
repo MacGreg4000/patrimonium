@@ -455,8 +455,10 @@ async function loadHistory() {
       ...(invData.items || []).map(i => ({ ...i, kind: 'inventory' })),
     ].sort((a, b) => new Date(b.created_at || b.date) - new Date(a.created_at || a.date)).slice(0, 50);
 
+    // Afficher le vrai total, pas seulement le nombre de lignes chargées (50 au plus).
+    const total = (mvData.total || 0) + (invData.total || 0);
     const countEl = document.getElementById('historyCount');
-    if (countEl) countEl.textContent = items.length;
+    if (countEl) countEl.textContent = total > items.length ? `${items.length} sur ${total}` : items.length;
 
     const body = document.getElementById('historyBody');
     if (!body) return;
@@ -481,12 +483,15 @@ async function loadHistory() {
         const detailsHtml = _renderBilletDetails(item.details || []);
         const hasDetails = (item.details || []).length > 0;
         const expandBtn = hasDetails
-          ? `<button class="btn btn-ghost btn-sm" onclick="toggleHistRow('${rowId}')" title="Voir les billets">≡</button>`
+          ? `<button class="btn btn-ghost btn-sm btn-toggle-hist" data-row="${rowId}" title="Voir les billets">≡</button>`
           : '';
+        // La bascule passe par le gestionnaire délégué (_onHistoryClick), pas par un onclick
+        // inline : sinon le bouton ≡ et la ligne basculaient tous deux, et s'annulaient.
+        const rowAttrs = hasDetails ? `data-row="${rowId}" style="cursor:pointer"` : '';
 
         if (item.kind === 'inventory') {
           return `
-          <tr class="no-cursor" onclick="${hasDetails ? `toggleHistRow('${rowId}')` : ''}" style="${hasDetails ? 'cursor:pointer' : ''}">
+          <tr class="no-cursor" ${rowAttrs}>
             <td class="left">${date}</td>
             <td class="left">${escHtml(coffreName)}</td>
             <td class="left"><span class="badge badge-inventory">Inventaire</span></td>
@@ -497,7 +502,7 @@ async function loadHistory() {
           ${hasDetails ? `<tr id="${rowId}" class="expand-row" style="display:none"><td colspan="${isAdmin() ? 6 : 5}"><div class="expand-content">${detailsHtml}</div></td></tr>` : ''}`;
         } else {
           return `
-          <tr class="no-cursor" onclick="${hasDetails ? `toggleHistRow('${rowId}')` : ''}" style="${hasDetails ? 'cursor:pointer' : ''}">
+          <tr class="no-cursor" ${rowAttrs}>
             <td class="left">${date}</td>
             <td class="left">${escHtml(coffreName)}</td>
             <td class="left">${item.transfer_ref
@@ -515,30 +520,36 @@ async function loadHistory() {
         }
       }).join('')}</tbody></table>`;
 
-    // Event delegation — évite tout inline JS avec données utilisateur
-    body.addEventListener('click', function _histDelegate(e) {
-      const editBtn = e.target.closest('.btn-edit-mvt');
-      const delMvt  = e.target.closest('.btn-del-mvt');
-      const delInv  = e.target.closest('.btn-del-inv');
-      if (editBtn) {
-        e.stopPropagation();
-        openEditMovementModal(
-          parseInt(editBtn.dataset.id),
-          parseFloat(editBtn.dataset.amount),
-          editBtn.dataset.desc
-        );
-      } else if (delMvt) {
-        e.stopPropagation();
-        deleteMovement(parseInt(delMvt.dataset.id));
-      } else if (delInv) {
-        e.stopPropagation();
-        deleteInventory(parseInt(delInv.dataset.id));
-      }
-    }, { once: true });
+    // Délégation d'événements — évite tout inline JS avec données utilisateur.
+    // Posée UNE fois par élément : `loadHistory` est rappelée à chaque changement de filtre
+    // sur le même élément, et un écouteur ajouté à chaque appel s'empilerait.
+    if (!body.dataset.delegated) {
+      body.dataset.delegated = '1';
+      body.addEventListener('click', _onHistoryClick);
+    }
 
   } catch (err) {
     showToast('Erreur historique: ' + err.message, 'error');
   }
+}
+
+function _onHistoryClick(e) {
+  // Un clic sur un bouton ne doit jamais déplier la ligne qui le contient.
+  const btn = e.target.closest('button');
+  if (btn) {
+    if (btn.classList.contains('btn-toggle-hist')) {
+      toggleHistRow(btn.dataset.row);
+    } else if (btn.classList.contains('btn-edit-mvt')) {
+      openEditMovementModal(parseInt(btn.dataset.id), parseFloat(btn.dataset.amount), btn.dataset.desc);
+    } else if (btn.classList.contains('btn-del-mvt')) {
+      deleteMovement(parseInt(btn.dataset.id));
+    } else if (btn.classList.contains('btn-del-inv')) {
+      deleteInventory(parseInt(btn.dataset.id));
+    }
+    return;
+  }
+  const row = e.target.closest('tr[data-row]');
+  if (row) toggleHistRow(row.dataset.row);
 }
 
 function _renderBilletDetails(details) {
