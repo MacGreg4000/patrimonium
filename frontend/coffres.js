@@ -499,7 +499,7 @@ async function loadHistory() {
             <td class="left" style="color:var(--text-secondary)">${escHtml(item.notes || '—')}</td>
             ${isAdmin() ? `<td style="display:flex;gap:4px">${expandBtn}<button class="btn btn-ghost danger btn-sm btn-del-inv" data-id="${item.id}">🗑</button></td>` : ''}
           </tr>
-          ${hasDetails ? `<tr id="${rowId}" class="expand-row" style="display:none"><td colspan="${isAdmin() ? 6 : 5}"><div class="expand-content">${detailsHtml}</div></td></tr>` : ''}`;
+          ${hasDetails ? `<tr id="${rowId}" class="expand-row" style="display:none"><td colspan="${isAdmin() ? 6 : 5}"><div class="expand-content open">${detailsHtml}</div></td></tr>` : ''}`;
         } else {
           return `
           <tr class="no-cursor" ${rowAttrs}>
@@ -516,7 +516,7 @@ async function loadHistory() {
               <button class="btn btn-ghost danger btn-sm btn-del-mvt" data-id="${item.id}">🗑</button>
             </td>` : ''}
           </tr>
-          ${hasDetails ? `<tr id="${rowId}" class="expand-row" style="display:none"><td colspan="${isAdmin() ? 6 : 5}"><div class="expand-content">${detailsHtml}</div></td></tr>` : ''}`;
+          ${hasDetails ? `<tr id="${rowId}" class="expand-row" style="display:none"><td colspan="${isAdmin() ? 6 : 5}"><div class="expand-content open">${detailsHtml}</div></td></tr>` : ''}`;
         }
       }).join('')}</tbody></table>`;
 
