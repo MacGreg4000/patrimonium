@@ -70,10 +70,15 @@ def _parse_event(event: str) -> Optional[tuple[float, float]]:
 
 
 def _parse_sale_event(event: str) -> Optional[tuple[float, float]]:
-    """Extrait (quantité, prix_unitaire) depuis 'Vente 84 @ 8.52 EUR'."""
+    """Extrait (quantité, prix_unitaire) depuis 'Vente -84 @ 8.52 EUR'.
+
+    SaxoBank écrit la quantité vendue avec un signe moins. Le motif doit
+    l'accepter : sans cela, toutes les ventes du relevé étaient silencieusement
+    ignorées. La quantité renvoyée est toujours positive.
+    """
     if not event:
         return None
-    m = re.match(r"Vente\s+([\d,\.]+)\s*@\s*([\d,\.]+)", event, re.IGNORECASE)
+    m = re.match(r"Vente\s+-?([\d,\.]+)\s*@\s*([\d,\.]+)", event, re.IGNORECASE)
     if not m:
         return None
     qty   = float(m.group(1).replace(",", "."))
@@ -169,6 +174,12 @@ def _parse_saxo_xlsx(content: bytes) -> tuple[list[dict], float]:
             "is_sale":     sale_parsed is not None and parsed is None,
         })
 
+    # Ordre chronologique, achats avant ventes à date égale. Le relevé Saxo est
+    # trié du plus récent au plus ancien : traiter une vente avant les achats
+    # qu'elle solde fausserait le PRU, le P&L réalisé, et pourrait archiver à
+    # tort une position qu'il reste à détenir.
+    transactions.sort(key=lambda t: (t["date"], t["is_sale"]))
+
     return transactions, cash_balance
 
 
@@ -244,6 +255,26 @@ async def import_saxo(
             ).first():
                 skipped_sales += 1
                 continue
+
+            # Déduplication par (date, quantité, prix) : une vente saisie à la
+            # main n'a pas de tag SAXO. Les ventes n'étant lisibles par l'import
+            # que depuis la correction du motif, certaines existent déjà ainsi.
+            if db.query(Sale).filter(
+                Sale.position_id == pos.id,
+                Sale.sale_date == tx["date"],
+                Sale.quantity == qty_sold,
+                Sale.unit_price == sale_price,
+            ).first():
+                skipped_sales += 1
+                continue
+
+            # La session n'auto-flush pas : sans ceci, les achats ajoutés plus tôt
+            # dans ce même import resteraient invisibles aux requêtes ci-dessous
+            # (PRU à zéro, P&L réalisé faux). Le flush est volontairement placé
+            # APRÈS les contrôles de doublon ci-dessus et jamais dans la branche
+            # d'achat : un flush plus large ferait traiter comme doublons deux
+            # exécutions distinctes (même date, quantité et prix, ID différents).
+            db.flush()
 
             # Calcul du P&L réalisé sur base du PRU moyen
             all_purchases = db.query(Purchase).filter(Purchase.position_id == pos.id).all()
