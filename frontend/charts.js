@@ -213,7 +213,7 @@ function renderMonthlyBar(canvasId, entries, exits) {
 
 function renderPatrimoineDonut(canvasId, data) {
   const { portfolio, cash, assets, reserves } = data;
-  const labels = ['Portefeuille', 'Liquidités', 'Actifs physiques', 'Réserves'];
+  const labels = ['Titres', 'Coffres', 'Actifs physiques', 'Réserves libérables'];
   const values = [
     portfolio.total_value_eur,
     cash.total_eur,
