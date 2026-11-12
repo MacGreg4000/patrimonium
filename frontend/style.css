@@ -1015,3 +1015,61 @@ html.light .db-tile{border-color:transparent}
   .db-tile-value{font-size:18px}
   .db-seg{width:100%}.db-seg-btn{flex:1;padding:0 6px}
 }
+
+/* ══ Portefeuille (piste B) ═══════════════════════════════════ */
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.pf-kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-bottom:16px}
+.pf-kpi{background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-card);padding:18px 20px}
+html.light .pf-kpi{border-color:transparent}
+.pf-kpi-value{font-size:26px;font-weight:700;margin-top:6px;letter-spacing:-.01em}
+.pf-kpi-sub{font-size:13px;color:var(--text-muted);margin-top:2px;font-weight:600}
+.pf-bar{display:flex;gap:2px;height:14px;border-radius:7px;overflow:hidden;margin-bottom:14px}
+.pf-bar span{min-width:4px}
+.pf-legend-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--border);font-size:13px}
+.pf-legend-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pf-legend-pct{font-weight:700}
+.pf-table-card{padding:0;overflow:hidden;margin-bottom:16px}
+.pf-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:16px 20px;border-bottom:1px solid var(--border)}
+.pf-search{flex:1 1 220px;max-width:340px;margin-left:auto}
+.pf-filters{display:flex;gap:6px;flex-wrap:wrap}
+.pf-filter{min-height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--border-light);background:var(--bg-secondary);
+  color:var(--text-secondary);font:600 13px var(--font-body);cursor:pointer}
+.pf-filter.active{border-color:transparent;background:var(--bg-active);color:var(--accent-blue)}
+.pf-table td,.pf-table th{padding:13px 12px}
+.pf-table td:first-child,.pf-table th:first-child{padding-left:20px}
+.pf-table td:last-child,.pf-table th:last-child{padding-right:16px}
+.pf-badge{width:38px;height:38px;border-radius:10px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:700;background:var(--bg-active);color:var(--accent-blue)}
+.pf-caret{color:var(--text-muted);font-size:10px;margin-left:4px}
+.pf-sub{font-size:12px;color:var(--text-muted);margin-top:3px;font-weight:500}
+.pf-sub.pos{color:var(--accent-green)}.pf-sub.neg{color:var(--accent-red)}
+.pf-actions{width:52px}
+.pf-menu-btn{width:40px;height:40px;border-radius:10px;border:1px solid var(--border-light);background:var(--bg-secondary);
+  color:var(--text-secondary);font-size:18px;line-height:1;cursor:pointer}
+.pf-menu-btn:hover{color:var(--text-primary);border-color:var(--accent-blue)}
+.pf-menu{position:fixed;z-index:1000;min-width:200px;padding:6px;background:var(--bg-secondary);border:1px solid var(--border-light);
+  border-radius:var(--radius-md);box-shadow:var(--shadow-lg);display:flex;flex-direction:column}
+.pf-menu button{min-height:42px;padding:0 12px;border:none;border-radius:8px;background:none;color:var(--text-primary);
+  font:500 14px var(--font-body);text-align:left;cursor:pointer}
+.pf-menu button:hover,.pf-menu button:focus-visible{background:var(--bg-tertiary);outline:none}
+.pf-menu button.is-danger{color:var(--accent-red)}
+@media(max-width:900px){.pf-kpis{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){
+  .pf-kpis{gap:10px}
+  .pf-kpi-value{font-size:22px}
+  .pf-toolbar{padding:14px}
+  .pf-search{max-width:none;margin-left:0;flex-basis:100%}
+  /* Tableau → cartes */
+  .pf-table thead{display:none}
+  .pf-table,.pf-table tbody{display:block}
+  .pf-table tr.position-row,.pf-table tbody tr[id^="pos-row-"]{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;
+    padding:14px;border-bottom:1px solid var(--border);position:relative}
+  .pf-table tr td{display:block;padding:0 !important;border:none;text-align:left;font-size:13px}
+  .pf-table td[data-label]:not([data-label=""])::before{content:attr(data-label);display:block;font-size:11px;color:var(--text-muted);margin-bottom:2px}
+  .pf-table td:first-child{grid-column:1/-1;padding-right:48px !important}
+  .pf-table td.pf-actions{position:absolute;top:12px;right:12px;width:auto}
+  .pf-table tr.expand-row{display:block}
+  .pf-table tr.expand-row>td{display:block}
+}
+.pf-chart{height:260px}
+.pf-chart[hidden]{display:none}
