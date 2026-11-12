@@ -395,3 +395,39 @@ function _updateThemeBtn() {
   if (input) input.checked = isLight;            // switch activé = mode clair
   if (wrap)  wrap.title = isLight ? 'Passer en mode sombre' : 'Passer en mode clair';
 }
+
+// ── Menu « ⋯ » générique pour les actions d'une ligne ─────
+// items : [[libellé, callback, danger?], …] — les callbacks sont les fonctions
+// existantes de chaque page (aucune nouvelle action).
+function openRowMenu(btn, items) {
+  closeRowMenu();
+  const menu = document.createElement('div');
+  menu.className = 'pf-menu';
+  menu.id = 'rowMenu';
+  menu.setAttribute('role', 'menu');
+  items.filter(Boolean).forEach(([label, fn, danger]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'menuitem');
+    if (danger) b.className = 'is-danger';
+    b.textContent = label;
+    b.addEventListener('click', ev => { ev.stopPropagation(); closeRowMenu(); fn(); });
+    menu.appendChild(b);
+  });
+  document.body.appendChild(menu);
+  const r = btn.getBoundingClientRect();
+  const w = menu.offsetWidth, h = menu.offsetHeight;
+  menu.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
+  menu.style.top = (r.bottom + h + 8 > innerHeight ? r.top - h - 4 : r.bottom + 4) + 'px';
+  btn.setAttribute('aria-expanded', 'true');
+  menu.querySelector('button')?.focus();
+}
+
+function closeRowMenu() {
+  document.getElementById('rowMenu')?.remove();
+  document.querySelectorAll('.row-menu-btn[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+}
+
+document.addEventListener('click', e => { if (!e.target.closest('#rowMenu') && !e.target.closest('.row-menu-btn')) closeRowMenu(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRowMenu(); });
+window.addEventListener('scroll', e => { if (!e.target.closest?.('#rowMenu')) closeRowMenu(); }, true);

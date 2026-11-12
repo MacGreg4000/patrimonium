@@ -1067,10 +1067,11 @@ html.light .pf-kpi{border-color:transparent}
     padding:14px;border-bottom:1px solid var(--border);position:relative}
   .pf-table tr td{display:block;padding:0 !important;border:none;text-align:left;font-size:13px}
   .pf-table td[data-label]:not([data-label=""])::before{content:attr(data-label);display:block;font-size:11px;color:var(--text-muted);margin-bottom:2px}
-  .pf-table td:first-child{grid-column:1/-1;padding-right:48px !important}
+  .pf-table tr:not(.expand-row)>td:first-child{grid-column:1/-1;padding-right:48px !important}
   .pf-table td.pf-actions{position:absolute;top:12px;right:12px;width:auto}
   .pf-table tr.expand-row{display:block}
-  .pf-table tr.expand-row>td{display:block}
+  .pf-table tr.expand-row>td{display:block;width:100%;box-sizing:border-box}
+  .pf-table tr.expand-row{width:100%}
 }
 .pf-chart{height:260px}
 .pf-chart[hidden]{display:none}
@@ -1116,3 +1117,22 @@ html:not(.light) .cf-mode.is-active{background:var(--bg-active)}
   padding:14px 16px;background:var(--bg-tertiary);border-radius:12px}
 @media(max-width:1100px){.cr-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.pf-table td.cr-na{display:none}}
+
+/* ══ Actifs physiques (piste B) ═══════════════════════════════ */
+.as-cats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.as-cat{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;cursor:pointer;font-family:inherit;color:inherit;
+  background:var(--bg-secondary);border:2px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-card);padding:14px 16px}
+html.light .as-cat{border-color:transparent}
+.as-cat:hover{border-color:var(--border-light)}
+.as-cat.active{border-color:var(--accent-blue);background:var(--bg-active)}
+.as-cat-label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-secondary)}
+.as-cat-icon{display:inline-flex;color:var(--pocket-assets)}
+.as-cat-value{font-size:20px;font-weight:700}
+.as-cat-sub{font-size:12px;color:var(--text-muted)}
+.as-icon{font-size:16px}
+.as-icon svg{width:18px;height:18px}
+.as-immo{color:var(--pocket-assets)}
+.as-vehicule{color:var(--pocket-titres)}
+.as-bijou,.as-metal{color:var(--pocket-reserves);background:var(--accent-gold-dim)}
+.as-sub{max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:600px){.as-cats{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.as-cat-value{font-size:17px}}

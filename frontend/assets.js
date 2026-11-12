@@ -6,6 +6,7 @@
 let _assetsData = [];
 let _soldAssetsData = [];
 let _coffresList = [];
+let _assetCat = '';   // filtre de catégorie (tuiles)
 
 const SALE_DEST_LABELS = {
   portfolio: '📈 Investi en portefeuille boursier',
@@ -39,54 +40,48 @@ function renderAssetsPage() {
     byCategory[cat] = (byCategory[cat] || 0) + (a.estimated_value || 0);
   });
 
+  const cats = [['', 'Tous', totalValue, _assetsData.length],
+    ...Object.entries(byCategory).sort((x, y) => y[1] - x[1]).map(([cat, val]) =>
+      [cat, ASSET_CAT_LABELS[cat] ?? cat, val, _assetsData.filter(a => (a.category || 'autre') === cat).length])];
+
   page.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-      <div class="page-title">💎 Actifs physiques</div>
-      ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="openAddAssetModal()">+ Actif</button>` : ''}
-    </div>
-
-    <!-- Summary cards -->
-    <div class="hero-grid" style="margin-bottom:20px">
-      <div class="hero-card">
-        <div class="card-label">💎 Valeur totale</div>
-        <div class="hero-card-value purple">${fmtEur(totalValue)}</div>
-        <div class="hero-card-sub">${_assetsData.length} actif${_assetsData.length !== 1 ? 's' : ''}</div>
+    <div class="db-head">
+      <div>
+        <h1 class="db-title">Actifs physiques</h1>
+        <div class="db-subtitle">${_assetsData.length} bien${_assetsData.length !== 1 ? 's' : ''} · ${fmtEur(totalValue)}</div>
       </div>
-      ${Object.entries(byCategory).map(([cat, val]) => `
-      <div class="hero-card">
-        <div class="card-label">${ASSET_CAT_ICONS[cat] ?? '📦'} ${ASSET_CAT_LABELS[cat] ?? cat}</div>
-        <div class="hero-card-value">${fmtEur(val)}</div>
-        <div class="hero-card-sub">${_assetsData.filter(a => (a.category || 'autre') === cat).length} actif${_assetsData.filter(a => (a.category || 'autre') === cat).length !== 1 ? 's' : ''}</div>
-      </div>`).join('')}
+      ${isAdmin() ? `<div class="db-actions"><button class="btn btn-primary" onclick="openAddAssetModal()">+ Ajouter un bien</button></div>` : ''}
     </div>
 
-    <!-- Filter & list -->
-    <div class="card" style="padding:0;overflow:hidden">
-      <div class="section-header">
-        <div class="section-title">Actifs <span class="section-count">${_assetsData.length}</span></div>
-        <div style="display:flex;gap:8px">
-          <input type="text" class="form-input" style="width:200px" placeholder="Rechercher…" oninput="filterAssets(this.value)" id="assetSearch"/>
-          <select class="form-select" style="width:auto" onchange="filterAssetCat(this.value)">
-            <option value="">Toutes catégories</option>
-            ${Object.entries(ASSET_CAT_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}
-          </select>
-        </div>
+    <div class="as-cats" role="group" aria-label="Filtrer par catégorie">
+      ${cats.map(([cat, label, val, n]) => `
+        <button type="button" class="as-cat${cat === _assetCat ? ' active' : ''}" data-cat="${cat}" onclick="filterAssetCat('${cat}')">
+          <span class="as-cat-label">${cat ? `<span class="as-cat-icon">${ASSET_CAT_ICONS[cat] ?? ''}</span>` : ''}${escHtml(label)}</span>
+          <span class="as-cat-value">${fmtEur(val)}</span>
+          <span class="as-cat-sub">${n} bien${n !== 1 ? 's' : ''}</span>
+        </button>`).join('')}
+    </div>
+
+    <section class="card pf-table-card">
+      <div class="pf-toolbar">
+        <div class="db-card-title" style="margin:0">Biens <span class="section-count">${_assetsData.length}</span></div>
+        <input type="search" class="form-input pf-search" placeholder="Rechercher un bien" aria-label="Rechercher un bien"
+          oninput="filterAssets(this.value)" id="assetSearch"/>
       </div>
       <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table pf-table">
           <thead><tr>
-            <th class="left" style="padding-left:24px">Actif</th>
-            <th class="left">Catégorie</th>
-            <th class="left">Localisation</th>
+            <th class="left">Bien</th>
+            <th class="left">Emplacement</th>
             <th>Valeur estimée</th>
             <th>Documents</th>
             <th>Dernière évaluation</th>
-            ${isAdmin() ? '<th>Actions</th>' : ''}
+            ${isAdmin() ? '<th><span class="sr-only">Actions</span></th>' : ''}
           </tr></thead>
-          <tbody id="assetsBody">${renderAssetRows(_assetsData)}</tbody>
+          <tbody id="assetsBody">${renderAssetRows(_assetsData, '', _assetCat)}</tbody>
         </table>
       </div>
-    </div>
+    </section>
 
     <!-- Historique des ventes -->
     ${renderSoldAssetsSection()}
@@ -102,42 +97,39 @@ function renderAssetRows(assets, filter = '', catFilter = '') {
   if (filter) filtered = filtered.filter(a => a.name.toLowerCase().includes(filter.toLowerCase()) || (a.description || '').toLowerCase().includes(filter.toLowerCase()));
   if (catFilter) filtered = filtered.filter(a => (a.category || 'autre') === catFilter);
 
-  if (!filtered.length) return `<tr><td colspan="${isAdmin() ? 7 : 6}"><div class="empty-state"><div class="empty-icon">💎</div><div class="empty-text">Aucun actif trouvé</div></div></td></tr>`;
+  if (!filtered.length) return `<tr><td colspan="${isAdmin() ? 6 : 5}"><div class="db-muted" style="padding:20px;text-align:center">Aucun bien trouvé</div></td></tr>`;
 
   const coffreMap = Object.fromEntries(_coffresList.map(c => [c.id, c.name]));
 
   return filtered.map(a => {
     const lastVal = a.events?.filter(e => e.type === 'VALUATION').sort((x, y) => y.date.localeCompare(x.date))[0];
     const locStr = a.category === 'immo' && a.location
-      ? `🏠 ${escHtml(a.location)}`
-      : a.coffre_id ? `🏦 ${escHtml(coffreMap[a.coffre_id] || 'Coffre')}` : '—';
+      ? escHtml(a.location)
+      : a.coffre_id ? 'Coffre · ' + escHtml(coffreMap[a.coffre_id] || '—') : '—';
+    const sub = a.category === 'vehicule' && (a.vehicle_make || a.vehicle_model || a.vehicle_plate)
+      ? [a.vehicle_make, a.vehicle_model, a.vehicle_year, a.vehicle_km ? fmtNum(a.vehicle_km, 0) + ' km' : '', a.vehicle_plate].filter(Boolean).join(' · ')
+      : (ASSET_CAT_LABELS[a.category || 'autre'] ?? a.category) + (a.description ? ' · ' + a.description : '');
+    const nDocs = (a.documents || []).length;
     return `
-      <tr onclick="toggleAssetExpand(${a.id})" id="asset-row-${a.id}">
-        <td class="left" style="padding-left:24px">
+      <tr class="position-row" onclick="toggleAssetExpand(${a.id})" id="asset-row-${a.id}">
+        <td class="left" data-label="">
           <div class="asset-name-cell">
-            <div class="pos-icon ${a.category || 'autre'}">${ASSET_CAT_ICONS[a.category || 'autre'] ?? '📦'}</div>
-            <div>
-              <div class="asset-name">${escHtml(a.name)}</div>
-              ${a.category === 'vehicule' && (a.vehicle_make || a.vehicle_model || a.vehicle_plate)
-                ? `<div class="asset-sub" style="max-width:240px;overflow:hidden;text-overflow:ellipsis">${[a.vehicle_make, a.vehicle_model, a.vehicle_year, a.vehicle_plate ? '• ' + a.vehicle_plate : ''].filter(Boolean).join(' ')}</div>`
-                : (a.description ? `<div class="asset-sub" style="max-width:200px;overflow:hidden;text-overflow:ellipsis">${escHtml(a.description)}</div>` : '')}
+            <span class="pf-badge as-icon as-${a.category || 'autre'}">${ASSET_CAT_ICONS[a.category || 'autre'] ?? ''}</span>
+            <div style="min-width:0">
+              <div class="asset-name">${escHtml(a.name)} <span class="pf-caret" aria-hidden="true">▾</span></div>
+              <div class="asset-sub as-sub">${escHtml(sub)}</div>
             </div>
           </div>
         </td>
-        <td class="left"><span class="badge badge-${a.category || 'autre'}">${ASSET_CAT_LABELS[a.category || 'autre'] ?? a.category}</span></td>
-        <td class="left">${locStr}</td>
-        <td>${a.estimated_value != null ? `<strong>${fmtEur(a.estimated_value)}</strong>` : '—'}</td>
-        <td style="color:var(--text-secondary)">${(a.documents || []).length}</td>
-        <td style="color:var(--text-secondary)">${lastVal ? fmtDate(lastVal.date) : '—'}</td>
-        ${isAdmin() ? `<td><div style="display:flex;justify-content:flex-end;gap:4px" onclick="event.stopPropagation()">
-          <button class="btn btn-ghost primary" onclick="openAddEventModal(${a.id})" title="Ajouter événement">+ Év.</button>
-          <button class="btn btn-ghost primary" onclick="openUploadDocModal(${a.id})" title="Joindre document">📎</button>
-          <button class="btn btn-ghost" onclick="openEditAssetModal(${a.id})" title="Modifier">✏️</button>
-          <button class="btn btn-ghost btn-sell-asset" data-id="${a.id}" data-name="${escHtml(a.name)}" data-value="${a.estimated_value ?? 0}" title="Vendre / Archiver" style="color:var(--accent-gold)">🏷️</button>
-          <button class="btn btn-ghost danger btn-del-asset" data-id="${a.id}" data-name="${escHtml(a.name)}">🗑</button>
-        </div></td>` : ''}
+        <td class="left" data-label="Emplacement">${locStr}</td>
+        <td data-label="Valeur estimée">${a.estimated_value != null ? `<strong>${fmtEur(a.estimated_value)}</strong>` : '—'}</td>
+        <td data-label="Documents">${nDocs ? `${nDocs} doc${nDocs > 1 ? 's' : ''}` : '<span class="pf-sub">aucun</span>'}</td>
+        <td data-label="Dernière évaluation">${lastVal ? fmtDate(lastVal.date) : '—'}</td>
+        ${isAdmin() ? `<td class="pf-actions" onclick="event.stopPropagation()">
+          <button type="button" class="pf-menu-btn row-menu-btn" aria-haspopup="menu" aria-label="Actions sur ${escHtml(a.name)}"
+            onclick="openAssetMenu(this, ${a.id})">⋯</button></td>` : ''}
       </tr>
-      <tr class="expand-row"><td colspan="${isAdmin() ? 7 : 6}">
+      <tr class="expand-row"><td colspan="${isAdmin() ? 6 : 5}">
         <div class="expand-content" id="asset-expand-${a.id}">${buildAssetDetails(a)}</div>
       </td></tr>`;
   }).join('');
@@ -292,12 +284,27 @@ function toggleAssetExpand(assetId) {
 }
 
 function filterAssets(q) {
-  document.getElementById('assetsBody').innerHTML = renderAssetRows(_assetsData, q);
+  document.getElementById('assetsBody').innerHTML = renderAssetRows(_assetsData, q, _assetCat);
 }
 
 function filterAssetCat(cat) {
+  _assetCat = cat;
+  document.querySelectorAll('.as-cat').forEach(b => b.classList.toggle('active', b.dataset.cat === cat));
   const q = document.getElementById('assetSearch')?.value || '';
   document.getElementById('assetsBody').innerHTML = renderAssetRows(_assetsData, q, cat);
+}
+
+// Menu « ⋯ » : mêmes actions qu'auparavant (événement, document, modifier, vendre, supprimer)
+function openAssetMenu(btn, assetId) {
+  const a = _assetsData.find(x => x.id === assetId);
+  if (!a) return;
+  openRowMenu(btn, [
+    ['Ajouter un événement', () => openAddEventModal(a.id)],
+    ['Joindre un document', () => openUploadDocModal(a.id)],
+    ['Modifier', () => openEditAssetModal(a.id)],
+    ['Vendre / archiver', () => openSellAssetModal(a.id, a.name, a.estimated_value ?? 0)],
+    ['Supprimer', () => deleteAssetConfirm(a.id, a.name), true],
+  ]);
 }
 
 // ── Asset CRUD modals ──────────────────────────────────────
