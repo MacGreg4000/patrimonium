@@ -84,9 +84,12 @@ function renderCoffresPage() {
   if (!page) return;
 
   const header = `
-    <div class="cf-header">
-      <div class="page-title">${ICONS.landmark} Coffres & Liquidités</div>
-      ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="navigate('admin')">${ICONS.settings} Gérer les coffres</button>` : ''}
+    <div class="cf-header db-head">
+      <div>
+        <h1 class="db-title">Coffres</h1>
+        <div class="db-subtitle">${_coffresData.length} coffre${_coffresData.length > 1 ? 's' : ''} · billets, transferts et inventaires</div>
+      </div>
+      ${isAdmin() ? `<button class="btn btn-secondary" onclick="navigate('admin')">Gérer les coffres</button>` : ''}
     </div>`;
 
   if (!_coffresData.length) {
@@ -111,7 +114,7 @@ function renderCoffresPage() {
 
       <div class="card cf-block">
         <div class="cf-block-head">
-          <div class="card-title" style="margin:0">Évolution du solde — <span id="balanceChartCoffreName" style="color:var(--accent-gold)"></span></div>
+          <div class="card-title" style="margin:0">Évolution du solde — <span id="balanceChartCoffreName"></span></div>
           <label class="cf-collapse">
             <span class="cf-collapse-label">Graphique</span>
             ${collapseSwitch('coffreBalance', 'coffreBalanceBody', false)}
@@ -172,7 +175,7 @@ function _coffreModalsHtml() {
     <div class="modal-overlay" id="combinationModal">
       <div class="modal" style="max-width:380px">
         <div class="modal-header">
-          <span class="modal-title">🔑 Code d'accès du coffre</span>
+          <span class="modal-title">Code d'accès du coffre</span>
           <button class="modal-close" onclick="closeModal('combinationModal')" aria-label="Fermer">✕</button>
         </div>
         <form onsubmit="submitSetCombination(event)" class="form-grid" style="grid-template-columns:1fr">
@@ -280,13 +283,13 @@ function renderCoffreOverview() {
     ${_compositionHtml(bd, coffre.balance)}
 
     <div class="cf-section-label cf-code-head">
-      <span>🔑 Code d'accès</span>
-      ${isAdmin() ? `<button class="btn btn-ghost btn-sm" onclick="openSetCombinationModal(${coffre.id})">✏️ Modifier</button>` : ''}
+      <span>Code d'accès</span>
+      ${isAdmin() ? `<button class="btn btn-ghost btn-sm" onclick="openSetCombinationModal(${coffre.id})">Modifier</button>` : ''}
     </div>
     <div class="cf-code" id="combinationDisplay-${coffre.id}">
       <div class="cf-code-value" id="combinationValue-${coffre.id}">●●●●●●</div>
       <button class="btn btn-secondary btn-sm" onclick="revealCombination(${coffre.id})"
-              id="revealBtn-${coffre.id}" title="Révéler le code">👁 Afficher</button>
+              id="revealBtn-${coffre.id}" title="Révéler le code">Afficher</button>
       ${isAdmin() ? `<button class="btn btn-ghost danger btn-sm" onclick="deleteCombination(${coffre.id})"
               id="delComboBtn-${coffre.id}" style="display:none" title="Supprimer le code" aria-label="Supprimer le code">🗑</button>` : ''}
     </div>`;
@@ -850,7 +853,7 @@ async function revealCombination(coffreId) {
     valEl.style.letterSpacing = '.3em';
     btnEl.dataset.revealed = '0';
     btnEl.title = 'Révéler le code';
-    btnEl.textContent = '👁 Afficher';
+    btnEl.textContent = 'Afficher';
     if (_revealTimer) clearTimeout(_revealTimer);
     return;
   }
