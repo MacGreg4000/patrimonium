@@ -21,40 +21,41 @@ function renderPasswordsPage() {
   const totalSize = _pwFiles.reduce((s, f) => s + f.size_bytes, 0);
 
   page.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <div class="db-head">
       <div>
-        <div class="page-title">🔐 Coffre à mots de passe</div>
-        <div class="page-subtitle">Fichiers chiffrés AES-256-GCM — ${_pwFiles.length} fichier${_pwFiles.length !== 1 ? 's' : ''} · ${fmtSize(totalSize)}</div>
+        <h1 class="db-title">Coffre à mots de passe</h1>
+        <div class="db-subtitle">${_pwFiles.length} fichier${_pwFiles.length !== 1 ? 's' : ''} · ${fmtSize(totalSize)} · chiffrés AES-256-GCM</div>
       </div>
-      ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="openUploadPwModal()">📎 Charger un fichier</button>` : ''}
+      ${isAdmin() ? `<div class="db-actions"><button class="btn btn-primary" onclick="openUploadPwModal()">+ Charger un fichier</button></div>` : ''}
     </div>
 
-    <div class="card" style="padding:0;overflow:hidden">
+    <div class="cr-note is-info" style="margin-bottom:16px">
+      <b>Chiffré sur le serveur.</b> Les fichiers sont déchiffrés uniquement au moment de l’aperçu ou du téléchargement.
+      Pense à supprimer les copies téléchargées après usage.
+    </div>
+
+    <section class="card pf-table-card">
       <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table pf-table">
           <thead><tr>
-            <th class="left" style="padding-left:24px">Fichier</th>
-            <th class="left">Type</th>
+            <th class="left">Fichier</th>
             <th>Taille</th>
-            <th class="col-hide-mobile">SHA-256</th>
-            <th>Date</th>
-            <th>Actions</th>
+            <th>Ajouté le</th>
+            <th><span class="sr-only">Actions</span></th>
           </tr></thead>
           <tbody id="pwFilesBody">${renderPwFileRows()}</tbody>
         </table>
       </div>
-    </div>
+    </section>
 
-    <!-- CSV viewer area -->
-    <div id="csvViewerArea" style="margin-top:20px;display:none">
-      <div class="card" style="padding:0;overflow:hidden">
-        <div class="section-header">
-          <div class="section-title" id="csvViewerTitle">Aperçu CSV</div>
-          <button class="btn btn-secondary btn-sm" onclick="closeCsvViewer()">Fermer</button>
-        </div>
-        <div class="csv-table-wrap" id="csvViewerContent"></div>
+    <section id="csvViewerArea" class="card pf-table-card" style="display:none">
+      <div class="pf-toolbar">
+        <div class="db-card-title" style="margin:0" id="csvViewerTitle">Aperçu CSV</div>
+        <input type="search" class="form-input pf-search" id="csvSearch" placeholder="Filtrer les lignes" aria-label="Filtrer les lignes" oninput="filterCsvRows(this.value)">
+        <button class="btn btn-secondary" onclick="closeCsvViewer()">Fermer l’aperçu</button>
       </div>
-    </div>
+      <div class="csv-table-wrap" id="csvViewerContent"></div>
+    </section>
 
     <!-- Upload modal -->
     <div class="modal-overlay" id="pwUploadModal">
@@ -68,7 +69,7 @@ function renderPasswordsPage() {
           </div>
           <div class="form-actions">
             <button type="button" class="btn btn-secondary" onclick="closeModal('pwUploadModal')">Annuler</button>
-            <button type="submit" class="btn btn-primary">🔒 Chiffrer et enregistrer</button>
+            <button type="submit" class="btn btn-primary">Chiffrer et enregistrer</button>
           </div>
         </form>
       </div>
@@ -76,35 +77,29 @@ function renderPasswordsPage() {
 }
 
 function renderPwFileRows() {
-  if (!_pwFiles.length) return `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🔐</div><div class="empty-text">Aucun fichier stocké</div><div class="empty-sub">Chargez des fichiers de mots de passe chiffrés</div></div></td></tr>`;
+  if (!_pwFiles.length) return `<tr><td colspan="4"><div class="empty-state"><div class="empty-text">Aucun fichier stocké</div><div class="empty-sub">Chargez des fichiers de mots de passe chiffrés</div></div></td></tr>`;
 
   return _pwFiles.map(f => {
     const ext = f.filename.split('.').pop().toLowerCase();
-    const icon = { csv: '📊', json: '📋', zip: '📦', txt: '📝', text: '📝' }[ext] || '📄';
-    const sha = f.sha256 ? f.sha256.substring(0, 12) + '…' : '—';
     const canPreview = ext === 'csv';
-
     return `
-      <tr class="no-cursor">
-        <td class="left" style="padding-left:24px">
-          <div style="display:flex;align-items:center;gap:8px">
-            <span style="font-size:20px">${icon}</span>
-            <div>
-              <div style="font-weight:500">${escHtml(f.filename)}</div>
-              <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-display)">${f.sha256 ? f.sha256.substring(0, 16) + '…' : '—'}</div>
+      <tr class="no-cursor position-row">
+        <td class="left" data-label="">
+          <div class="asset-name-cell">
+            <span class="pf-badge">${escHtml(ext.toUpperCase().slice(0, 4))}</span>
+            <div style="min-width:0">
+              <div class="asset-name">${escHtml(f.filename)}</div>
+              <div class="asset-sub" title="Empreinte SHA-256">${f.sha256 ? 'SHA-256 ' + f.sha256.substring(0, 12) + '…' : '—'}</div>
             </div>
           </div>
         </td>
-        <td class="left"><span class="badge">${ext.toUpperCase()}</span></td>
-        <td>${fmtSize(f.size_bytes)}</td>
-        <td class="col-hide-mobile" style="font-family:var(--font-display);font-size:11px;color:var(--text-muted)">${sha}</td>
-        <td>${fmtDate(f.created_at)}</td>
-        <td>
-          <div style="display:flex;justify-content:flex-end;gap:4px">
-            ${canPreview ? `<button class="btn btn-ghost primary btn-sm btn-preview-csv" data-id="${f.id}" data-filename="${escHtml(f.filename)}">👁 Aperçu</button>` : ''}
-            <button class="btn btn-ghost btn-sm btn-dl-pwfile" data-id="${f.id}" data-filename="${escHtml(f.filename)}">⬇ Télécharger</button>
-            ${isAdmin() ? `<button class="btn btn-ghost danger btn-sm btn-del-pwfile" data-id="${f.id}" data-filename="${escHtml(f.filename)}">🗑</button>` : ''}
-          </div>
+        <td data-label="Taille">${fmtSize(f.size_bytes)}</td>
+        <td data-label="Ajouté le">${fmtDate(f.created_at)}</td>
+        <td class="pf-actions rs-actions">
+          ${canPreview ? `<button class="btn btn-secondary btn-sm btn-preview-csv" data-id="${f.id}" data-filename="${escHtml(f.filename)}">Aperçu</button>` : ''}
+          <button class="btn btn-secondary btn-sm btn-dl-pwfile" data-id="${f.id}" data-filename="${escHtml(f.filename)}">Télécharger</button>
+          ${isAdmin() ? `<button type="button" class="pf-menu-btn row-menu-btn" aria-haspopup="menu" aria-label="Autres actions"
+            onclick="openRowMenu(this, [['Supprimer', () => deletePwFileConfirm(${f.id}, _pwFiles.find(x => x.id === ${f.id})?.filename || ''), true]])">⋯</button>` : ''}
         </td>
       </tr>`;
   }).join('');
@@ -154,6 +149,8 @@ async function previewCsv(fileId, filename) {
         ).join('')}</tbody>
       </table>
       ${body.length > 200 ? `<div style="padding:8px;color:var(--text-secondary);font-size:12px">… ${body.length - 200} lignes supplémentaires non affichées</div>` : ''}`;
+    const search = document.getElementById('csvSearch');
+    if (search) search.value = '';
     document.getElementById('csvViewerArea').style.display = 'block';
     document.getElementById('csvViewerArea').scrollIntoView({ behavior: 'smooth' });
   } catch (err) { showToast('Erreur aperçu: ' + err.message, 'error'); }
@@ -161,6 +158,15 @@ async function previewCsv(fileId, filename) {
 
 function closeCsvViewer() {
   document.getElementById('csvViewerArea').style.display = 'none';
+  document.getElementById('csvViewerContent').innerHTML = '';   // ne garde pas le contenu déchiffré dans la page
+}
+
+// Filtre côté navigateur des lignes affichées dans l'aperçu
+function filterCsvRows(q) {
+  const needle = q.trim().toLowerCase();
+  document.querySelectorAll('#csvViewerContent tbody tr').forEach(tr => {
+    tr.hidden = needle && !tr.textContent.toLowerCase().includes(needle);
+  });
 }
 
 async function downloadPwFile(fileId, filename) {
