@@ -17,7 +17,7 @@
   <link rel="icon" type="image/png" sizes="512x512" href="/static/icon-512.png"/>
   <link rel="apple-touch-icon" href="/static/icon-192.png"/>
 
-  <link rel="stylesheet" href="/static/style.css?v=13"/>
+  <link rel="stylesheet" href="/static/style.css?v=14"/>
   <script>if(localStorage.getItem('theme')!=='dark')document.documentElement.classList.add('light');</script>
 </head>
 <body>
@@ -35,12 +35,13 @@
         </svg>
       </div>
       <div class="auth-logo-name">Patrimonium</div>
-      <div class="auth-logo-sub">Gestion de patrimoine</div>
+      <div class="auth-logo-sub">Votre patrimoine, en un coup d’œil</div>
     </div>
 
     <!-- Step 1: email + password -->
     <div id="authStepLogin" class="auth-step active">
-      <div class="auth-title">Connexion</div>
+      <div class="auth-title">Bon retour</div>
+      <div class="auth-hint">Connectez-vous pour continuer</div>
       <form id="loginForm" onsubmit="submitLogin(event)">
         <div class="form-group" style="margin-bottom:14px">
           <label class="form-label">Email</label>
@@ -56,12 +57,12 @@
 
     <!-- Step 2: 2FA code -->
     <div id="authStep2FA" class="auth-step">
-      <div class="auth-title">Vérification 2FA</div>
-      <p style="color:var(--text-secondary);font-size:13px;margin-bottom:20px;text-align:center">Saisissez le code de votre application d'authentification.</p>
+      <div class="auth-title">Code de vérification</div>
+      <div class="auth-hint">Saisissez le code à 6 chiffres de votre application d'authentification.</div>
       <form id="twoFAForm" onsubmit="submit2FA(event)">
         <div class="form-group" style="margin-bottom:20px">
           <label class="form-label">Code à 6 chiffres</label>
-          <input type="text" class="form-input" id="totpCode" placeholder="000000" maxlength="8" inputmode="numeric" autocomplete="one-time-code" style="text-align:center;font-family:var(--font-display);font-size:22px;letter-spacing:.3em"/>
+          <input type="text" id="totpCode" placeholder="000000" maxlength="8" inputmode="numeric" autocomplete="one-time-code" class="form-input auth-otp"/>
         </div>
         <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center">Vérifier</button>
         <button type="button" class="btn btn-secondary" style="width:100%;justify-content:center;margin-top:8px" onclick="showAuthStep('login')">← Retour</button>
@@ -220,7 +221,7 @@
 <div class="modal-overlay" id="exportModal">
   <div class="modal" style="max-width:440px">
     <div class="modal-header">
-      <span class="modal-title">💾 Export clé USB</span>
+      <span class="modal-title">Export clé USB</span>
       <button class="modal-close" onclick="closeModal('exportModal')">✕</button>
     </div>
     <p style="color:var(--text-secondary);font-size:13px;margin-bottom:20px">
@@ -239,7 +240,7 @@
       </div>
       <div class="form-actions">
         <button type="button" class="btn btn-secondary" onclick="closeModal('exportModal')">Annuler</button>
-        <button type="submit" class="btn btn-primary" id="exportBtn">⬇ Générer et télécharger</button>
+        <button type="submit" class="btn btn-primary" id="exportBtn">Générer et télécharger</button>
       </div>
     </form>
   </div>

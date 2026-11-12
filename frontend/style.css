@@ -1164,3 +1164,31 @@ html.light .as-cat{border-color:transparent}
 .ad-note-ok b{color:var(--accent-green)}
 @media(max-width:600px){.ad-tabs{display:flex}.ad-tabs .db-seg-btn{flex:0 0 auto}
   .ad-logs tr.position-row{grid-template-columns:1fr 1fr}}
+
+/* ══ Connexion, fenêtres et éléments communs (piste B) ════════ */
+.auth-screen{background:var(--bg-primary)}
+.auth-card{border:1px solid var(--border);border-radius:20px;padding:40px 36px;box-shadow:var(--shadow-lg)}
+html.light .auth-card{border-color:transparent}
+.auth-logo{margin-bottom:28px}
+.auth-logo-icon{width:52px;height:52px;border-radius:14px;color:var(--accent-ink)}
+.auth-logo-icon svg polyline{stroke:currentColor}
+.auth-logo-name{font-family:var(--font-body);font-size:20px;font-weight:700;letter-spacing:-.01em;text-transform:none}
+.auth-title{font-size:24px;font-weight:700;letter-spacing:-.02em;margin-bottom:4px}
+.auth-hint{font-size:14px;color:var(--text-muted);text-align:center;margin-bottom:24px}
+.auth-card .form-input{min-height:50px;font-size:16px}
+.auth-card .btn{min-height:50px;font-size:16px}
+.auth-otp{text-align:center;font-size:26px !important;font-weight:700;letter-spacing:.4em;padding-left:.4em}
+@media(max-width:600px){.auth-screen{align-items:flex-start;padding:48px 16px}.auth-card{padding:32px 20px}}
+
+.form-label{font-size:13px;font-weight:600;text-transform:none;letter-spacing:0}
+.modal-overlay{background:rgba(13,19,33,.55);backdrop-filter:blur(4px)}
+.modal{border:1px solid var(--border-light);border-radius:20px}
+html.light .modal{border-color:transparent}
+.modal-title{font-size:18px;font-weight:700}
+.modal-close{width:40px;height:40px;border-radius:10px;border:none}
+.tabs{border:none;border-radius:12px}
+.tab-btn{min-height:40px;font-weight:600;border-radius:9px}
+.tab-btn.active{box-shadow:var(--shadow-card)}
+.empty-icon{opacity:.45}
+.toast{border-radius:12px}
+.section-count{background:var(--bg-tertiary);color:var(--text-secondary);border:none}
