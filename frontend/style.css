@@ -1154,3 +1154,13 @@ html.light .as-cat{border-color:transparent}
   .pf-table td.rs-actions .btn{flex:1;justify-content:center;margin:0}}
 /* Onglet « Plus » marqué actif quand la page courante est dans son menu */
 @media(max-width:600px){.nav:has(.nav-more .nav-item.active)>.nav-plus{color:var(--accent-blue)}}
+
+/* ══ Administration (piste B) ═════════════════════════════════ */
+.ad-tabs{display:inline-flex;margin-bottom:16px;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.ad-tabs::-webkit-scrollbar{display:none}
+.ad-tabs .db-seg-btn{white-space:nowrap}
+.ad-avatar{border-radius:50%;font-size:12px}
+.ad-note-ok{background:var(--accent-green-dim)}
+.ad-note-ok b{color:var(--accent-green)}
+@media(max-width:600px){.ad-tabs{display:flex}.ad-tabs .db-seg-btn{flex:0 0 auto}
+  .ad-logs tr.position-row{grid-template-columns:1fr 1fr}}

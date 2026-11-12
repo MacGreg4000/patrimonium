@@ -24,63 +24,69 @@ function renderAdminPage() {
   if (!page) return;
 
   page.innerHTML = `
-    <div class="page-title">⚙️ Administration</div>
+    <div class="db-head">
+      <div>
+        <h1 class="db-title">Administration</h1>
+        <div class="db-subtitle">${_adminUsers.length} utilisateur${_adminUsers.length > 1 ? 's' : ''} · ${_adminCoffres.length} coffre${_adminCoffres.length > 1 ? 's' : ''}</div>
+      </div>
+    </div>
 
-    <div class="tabs" id="adminTabs">
-      <button class="tab-btn active" onclick="switchAdminTab('users')">Utilisateurs</button>
-      <button class="tab-btn" onclick="switchAdminTab('coffres')">Coffres</button>
-      <button class="tab-btn" onclick="switchAdminTab('logs')">Logs d'audit</button>
-      <button class="tab-btn" onclick="switchAdminTab('mcp')">Connecteur MCP</button>
+    <div class="db-seg ad-tabs" id="adminTabs" role="tablist" aria-label="Sections">
+      <button class="tab-btn db-seg-btn active" role="tab" onclick="switchAdminTab('users')">Utilisateurs</button>
+      <button class="tab-btn db-seg-btn" role="tab" onclick="switchAdminTab('coffres')">Coffres</button>
+      <button class="tab-btn db-seg-btn" role="tab" onclick="switchAdminTab('logs')">Journal d’audit</button>
+      <button class="tab-btn db-seg-btn" role="tab" onclick="switchAdminTab('mcp')">Connecteur MCP</button>
     </div>
 
     <!-- Users -->
     <div id="admin-tab-users">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-        <button class="btn btn-primary btn-sm" onclick="openAddUserModal()">+ Utilisateur</button>
-      </div>
-      <div class="card" style="padding:0;overflow:hidden">
-        <table class="data-table">
+      <section class="card pf-table-card">
+        <div class="pf-toolbar">
+          <div class="db-card-title" style="margin:0">Utilisateurs</div>
+          <button class="btn btn-primary" style="margin-left:auto" onclick="openAddUserModal()">+ Utilisateur</button>
+        </div>
+        <div class="table-wrap"><table class="data-table pf-table">
           <thead><tr>
-            <th class="left" style="padding-left:24px">Nom</th>
-            <th class="left">Email</th>
-            <th>Rôle</th><th>Statut</th><th>2FA</th><th>Créé le</th><th>Actions</th>
+            <th class="left">Utilisateur</th><th>Rôle</th><th>Statut</th><th>2FA</th><th>Créé le</th><th><span class="sr-only">Actions</span></th>
           </tr></thead>
           <tbody>${renderUserRows()}</tbody>
-        </table>
-      </div>
+        </table></div>
+      </section>
     </div>
 
     <!-- Coffres -->
     <div id="admin-tab-coffres" style="display:none">
-      <div style="display:flex;justify-content:flex-end;margin-bottom:12px">
-        <button class="btn btn-primary btn-sm" onclick="openAddCoffreModal()">+ Coffre</button>
-      </div>
-      <div class="card" style="padding:0;overflow:hidden">
-        <table class="data-table">
+      <section class="card pf-table-card">
+        <div class="pf-toolbar">
+          <div class="db-card-title" style="margin:0">Coffres</div>
+          <button class="btn btn-primary" style="margin-left:auto" onclick="openAddCoffreModal()">+ Coffre</button>
+        </div>
+        <div class="table-wrap"><table class="data-table pf-table">
           <thead><tr>
-            <th class="left" style="padding-left:24px">Nom</th>
-            <th class="left">Description</th><th>Statut</th><th>Créé le</th><th>Actions</th>
+            <th class="left">Coffre</th><th>Statut</th><th>Créé le</th><th><span class="sr-only">Actions</span></th>
           </tr></thead>
           <tbody>${renderCoffreRows()}</tbody>
-        </table>
-      </div>
+        </table></div>
+      </section>
     </div>
 
     <!-- Logs -->
     <div id="admin-tab-logs" style="display:none">
-      <div class="card" style="padding:0;overflow:hidden" id="logsContainer">
-        <div class="empty-state"><div class="empty-icon">📋</div><div class="empty-text">Cliquez sur l'onglet pour charger</div></div>
-      </div>
+      <section class="card pf-table-card">
+        <div class="pf-toolbar">
+          <div class="db-card-title" style="margin:0">100 dernières actions</div>
+          <input type="search" class="form-input pf-search" placeholder="Filtrer (utilisateur, action, IP…)" aria-label="Filtrer le journal" oninput="filterAuditLogs(this.value)">
+        </div>
+        <div id="logsContainer"><div class="db-muted" style="padding:20px;text-align:center">Chargement…</div></div>
+      </section>
     </div>
 
     <!-- Connecteur MCP -->
     <div id="admin-tab-mcp" style="display:none">
       <div class="card" style="margin-bottom:16px">
-        <div class="card-title" style="margin-bottom:10px">🔑 Jetons de lecture</div>
-        <div style="background:rgba(16,217,138,.08);border:1px solid rgba(16,217,138,.25);
-                    border-radius:10px;padding:12px 16px;margin-bottom:16px;
-                    font-size:13px;color:var(--text-secondary);line-height:1.55">
-          <b style="color:var(--accent-green)">Lecture seule garantie.</b>
+        <div class="db-card-title">Jetons de lecture</div>
+        <div class="cr-note ad-note-ok">
+          <b>Lecture seule garantie.</b>
           Un jeton permet d'interroger ton patrimoine depuis Claude, sans ouvrir
           l'application. Il ne peut rien modifier : toute requête autre qu'une lecture
           est refusée côté serveur. Le coffre à mots de passe et les combinaisons de
@@ -94,7 +100,7 @@ function renderAdminPage() {
         <div id="mcpNewToken" style="display:none;margin-top:14px"></div>
       </div>
       <div class="card">
-        <div class="card-title" style="margin-bottom:14px">Jetons actifs</div>
+        <div class="db-card-title">Jetons actifs</div>
         <div id="mcpTokenList"></div>
       </div>
     </div>
@@ -137,13 +143,11 @@ function renderApiTokens() {
     return;
   }
   el.innerHTML = _apiTokens.map(t => `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
-                padding:14px 16px;background:var(--bg-tertiary);border:1px solid var(--border);
-                border-radius:10px;margin-bottom:10px">
+    <div class="cr-account" style="margin-bottom:10px">
       <div style="min-width:0">
         <div style="font-weight:600;display:flex;align-items:center;gap:8px">
           ${escHtml(t.label)}
-          <span class="badge" style="background:rgba(16,217,138,.15);color:var(--accent-green)">lecture seule</span>
+          <span class="db-chip is-gain">lecture seule</span>
         </div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:3px">
           Créé le ${fmtDate(t.created_at)} ·
@@ -168,7 +172,7 @@ function createApiToken() {
         <div style="font-size:13px;color:var(--accent-gold);font-weight:600;margin-bottom:8px">
           Copie ce jeton maintenant — il ne sera plus jamais affiché
         </div>
-        <code style="display:block;word-break:break-all;background:var(--bg-primary);
+        <code style="display:block;word-break:break-all;background:var(--bg-tertiary);
                      border:1px solid var(--border);border-radius:8px;padding:12px;
                      font-size:12px;color:var(--text-primary)">${escHtml(t.token)}</code>`;
       showToast('Jeton créé', 'success');
@@ -192,44 +196,59 @@ function revokeApiToken(id) {
 }
 
 function renderUserRows() {
-  if (!_adminUsers.length) return `<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">👥</div><div class="empty-text">Aucun utilisateur</div></div></td></tr>`;
+  if (!_adminUsers.length) return `<tr><td colspan="6"><div class="db-muted" style="padding:20px;text-align:center">Aucun utilisateur</div></td></tr>`;
   const me = currentUser();
   return _adminUsers.map(u => `
-    <tr class="no-cursor">
-      <td class="left" style="padding-left:24px;font-weight:500">${escHtml(u.name)}</td>
-      <td class="left" style="font-family:var(--font-display);font-size:12px">${escHtml(u.email)}</td>
-      <td><span class="badge badge-${u.role.toLowerCase()}">${u.role}</span></td>
-      <td><span class="badge badge-${u.is_active ? 'success' : 'inactive'}">${u.is_active ? 'Actif' : 'Inactif'}</span></td>
-      <td><span style="color:${u.two_factor_enabled ? 'var(--accent-green)' : 'var(--text-muted)'}">${u.two_factor_enabled ? '🔐 Oui' : '—'}</span></td>
-      <td style="color:var(--text-secondary)">${fmtDate(u.created_at)}</td>
-      <td>
-        <div style="display:flex;justify-content:flex-end;gap:4px">
-          ${u.id !== me?.id ? `
-          <button class="btn btn-ghost" onclick="toggleUserActive(${u.id},${u.is_active})" title="${u.is_active ? 'Désactiver' : 'Activer'}">${u.is_active ? '⏸' : '▶'}</button>
-          <button class="btn btn-ghost" onclick="openResetPasswordModal(${u.id},'${escHtml(u.name).replace(/'/g,"\\'")}')">🔑</button>
-          <button class="btn btn-ghost danger" onclick="deleteUserConfirm(${u.id},'${escHtml(u.name).replace(/'/g,"\\'")}')">🗑</button>` : `<span style="font-size:11px;color:var(--text-muted)">Vous</span>`}
+    <tr class="no-cursor position-row">
+      <td class="left" data-label="">
+        <div class="asset-name-cell">
+          <span class="pf-badge ad-avatar">${escHtml(u.name.split(/\s+/).map(w => w[0]).join('').slice(0, 2).toUpperCase())}</span>
+          <div style="min-width:0"><div class="asset-name">${escHtml(u.name)}${u.id === me?.id ? ' <span class="pf-sub">(vous)</span>' : ''}</div>
+          <div class="asset-sub">${escHtml(u.email)}</div></div>
         </div>
       </td>
+      <td data-label="Rôle"><span class="db-chip is-muted">${u.role === 'ADMIN' ? 'Administrateur' : 'Utilisateur'}</span></td>
+      <td data-label="Statut"><span class="db-chip ${u.is_active ? 'is-gain' : 'is-muted'}">${u.is_active ? 'Actif' : 'Inactif'}</span></td>
+      <td data-label="2FA"><span class="db-chip ${u.two_factor_enabled ? 'is-gain' : 'is-warn'}">${u.two_factor_enabled ? 'Activée' : 'Non activée'}</span></td>
+      <td data-label="Créé le">${fmtDate(u.created_at)}</td>
+      <td class="pf-actions">${u.id !== me?.id ? `<button type="button" class="pf-menu-btn row-menu-btn" aria-haspopup="menu"
+        aria-label="Actions sur ${escHtml(u.name)}" onclick="openUserMenu(this, ${u.id})">⋯</button>` : ''}</td>
     </tr>`).join('');
 }
 
+function openUserMenu(btn, userId) {
+  const u = _adminUsers.find(x => x.id === userId);
+  if (!u) return;
+  openRowMenu(btn, [
+    [u.is_active ? 'Désactiver' : 'Activer', () => toggleUserActive(u.id, u.is_active)],
+    ['Réinitialiser le mot de passe', () => openResetPasswordModal(u.id, u.name)],
+    ['Supprimer', () => deleteUserConfirm(u.id, u.name), true],
+  ]);
+}
+
 function renderCoffreRows() {
-  if (!_adminCoffres.length) return `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">🏦</div><div class="empty-text">Aucun coffre</div></div></td></tr>`;
+  if (!_adminCoffres.length) return `<tr><td colspan="4"><div class="db-muted" style="padding:20px;text-align:center">Aucun coffre</div></td></tr>`;
   return _adminCoffres.map(c => `
-    <tr class="no-cursor">
-      <td class="left" style="padding-left:24px;font-weight:500">${escHtml(c.name)}</td>
-      <td class="left" style="color:var(--text-secondary)">${escHtml(c.description || '—')}</td>
-      <td><span class="badge badge-${c.is_active ? 'success' : 'inactive'}">${c.is_active ? 'Actif' : 'Inactif'}</span></td>
-      <td style="color:var(--text-secondary)">${fmtDate(c.created_at)}</td>
-      <td>
-        <div style="display:flex;justify-content:flex-end;gap:4px">
-          <button class="btn btn-ghost" onclick="toggleAdminFavorite(${c.id})" title="${c.is_favorite ? 'Retirer des favoris' : 'Définir comme favori'}"
-            style="opacity:${c.is_favorite ? '1' : '0.35'}">⭐</button>
-          <button class="btn btn-ghost" onclick="openEditCoffreModal(${c.id})">✏️</button>
-          <button class="btn btn-ghost danger" onclick="deleteCoffreConfirm(${c.id},'${escHtml(c.name).replace(/'/g,"\\'")}')">🗑</button>
-        </div>
+    <tr class="no-cursor position-row">
+      <td class="left" data-label="">
+        <div class="asset-name">${escHtml(c.name)}${c.is_favorite ? ' <span class="db-chip is-muted">favori</span>' : ''}</div>
+        <div class="asset-sub">${escHtml(c.description || 'Sans description')}</div>
       </td>
+      <td data-label="Statut"><span class="db-chip ${c.is_active ? 'is-gain' : 'is-muted'}">${c.is_active ? 'Actif' : 'Inactif'}</span></td>
+      <td data-label="Créé le">${fmtDate(c.created_at)}</td>
+      <td class="pf-actions"><button type="button" class="pf-menu-btn row-menu-btn" aria-haspopup="menu"
+        aria-label="Actions sur ${escHtml(c.name)}" onclick="openAdminCoffreMenu(this, ${c.id})">⋯</button></td>
     </tr>`).join('');
+}
+
+function openAdminCoffreMenu(btn, coffreId) {
+  const c = _adminCoffres.find(x => x.id === coffreId);
+  if (!c) return;
+  openRowMenu(btn, [
+    [c.is_favorite ? 'Retirer des favoris' : 'Définir comme favori', () => toggleAdminFavorite(c.id)],
+    ['Modifier', () => openEditCoffreModal(c.id)],
+    ['Supprimer', () => deleteCoffreConfirm(c.id, c.name), true],
+  ]);
 }
 
 async function loadAuditLogs() {
@@ -237,17 +256,25 @@ async function loadAuditLogs() {
     const logs = await apiGet('/api/admin/logs?limit=100');
     const userMap = Object.fromEntries(_adminUsers.map(u => [u.id, u.name]));
     document.getElementById('logsContainer').innerHTML = `
-      <table class="data-table" style="font-size:12px">
-        <thead><tr><th class="left" style="padding-left:24px">Date</th><th class="left">Utilisateur</th><th class="left">Action</th><th class="left">Description</th><th class="left">IP</th></tr></thead>
-        <tbody>${logs.map(l => `<tr class="no-cursor">
-          <td class="left" style="padding-left:24px;color:var(--text-secondary)">${fmtDateTime(l.created_at)}</td>
-          <td class="left">${escHtml(userMap[l.user_id] || `#${l.user_id}`)}</td>
-          <td class="left"><span style="font-family:var(--font-display);font-size:11px;color:var(--accent-blue)">${escHtml(l.action)}</span></td>
-          <td class="left" style="color:var(--text-secondary)">${escHtml(l.description || '—')}</td>
-          <td class="left" style="font-family:var(--font-display);color:var(--text-muted)">${escHtml(l.ip_address || '—')}</td>
+      <div class="table-wrap"><table class="data-table pf-table ad-logs">
+        <thead><tr><th class="left">Date</th><th class="left">Utilisateur</th><th class="left">Action</th><th class="left">Description</th><th class="left">IP</th></tr></thead>
+        <tbody>${logs.map(l => `<tr class="no-cursor position-row">
+          <td class="left" data-label="Date">${fmtDateTime(l.created_at)}</td>
+          <td class="left" data-label="Utilisateur">${escHtml(userMap[l.user_id] || `#${l.user_id}`)}</td>
+          <td class="left" data-label="Action"><span class="db-chip is-muted">${escHtml(l.action)}</span></td>
+          <td class="left" data-label="Description" style="color:var(--text-secondary)">${escHtml(l.description || '—')}</td>
+          <td class="left" data-label="IP" style="color:var(--text-muted)">${escHtml(l.ip_address || '—')}</td>
         </tr>`).join('')}</tbody>
-      </table>`;
+      </table></div>`;
   } catch (err) { showToast(err.message, 'error'); }
+}
+
+// Filtre côté navigateur du journal affiché
+function filterAuditLogs(q) {
+  const needle = q.trim().toLowerCase();
+  document.querySelectorAll('#logsContainer tbody tr').forEach(tr => {
+    tr.hidden = needle && !tr.textContent.toLowerCase().includes(needle);
+  });
 }
 
 // ── User actions ──────────────────────────────────────────
