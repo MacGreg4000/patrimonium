@@ -251,6 +251,7 @@ _HTML_TEMPLATE = r'''<!DOCTYPE html>
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="color-scheme" content="light"/>
 <title>Relevé de patrimoine</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -263,15 +264,7 @@ _HTML_TEMPLATE = r'''<!DOCTYPE html>
   --sh:0 1px 2px rgba(16,24,40,.05),0 4px 16px rgba(16,24,40,.05);
   --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
 }
-@media (prefers-color-scheme:dark){:root{
-  --bg:#0D1321;--sf:#141B2D;--sf2:#1A2236;--ln:#253049;--ln2:#1F2940;
-  --tx:#E8ECF4;--tx2:#A9B3C7;--tx3:#8A95AB;
-  --ac:#8FB0F0;--acInk:#0D1321;--acSoft:#1E2A44;
-  --gain:#4CC79A;--gainBg:rgba(76,199,154,.14);--loss:#F28B7C;--lossBg:rgba(242,139,124,.14);--warn:#F0B060;--warnBg:rgba(240,176,96,.14);
-  --p-titres:#7BA7F2;--p-crypto:#F09A6A;--p-coffres:#4CC79A;--p-biens:#A99BF0;--p-reserves:#E0B25C;--p-cash:#5FC2D6;
-  --sh:0 0 0 1px #1F2940;
-}}
-html{-webkit-text-size-adjust:100%}
+html{-webkit-text-size-adjust:100%;color-scheme:light}
 body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:15px;line-height:1.55;font-feature-settings:'tnum' 1;min-height:100vh}
 button{font-family:inherit}
 a{color:var(--ac)}
