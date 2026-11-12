@@ -1099,3 +1099,20 @@ html:not(.light) .cf-mode.is-active{background:var(--bg-active)}
 .cf-billet{background:var(--bg-secondary);border-color:var(--border-light)}
 .cf-billet-denom{color:var(--text-primary);font-weight:700}
 @media(max-width:600px){.cf-modes{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* ══ Crypto (piste B) ═════════════════════════════════════════ */
+.cr-kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+.cr-badge{background:var(--accent-gold-dim);color:var(--pocket-crypto)}
+.cr-cash{background:var(--accent-green-dim);color:var(--accent-green);font-size:15px}
+.cr-dust{padding:12px 20px;font-size:13px;color:var(--text-muted);background:var(--bg-tertiary);border-top:1px solid var(--border)}
+.cr-dust .db-link{margin:0;padding:4px}
+.cr-note{background:var(--accent-gold-dim);border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:13px;
+  color:var(--text-secondary);line-height:1.55}
+.cr-note b{color:var(--accent-gold)}
+.cr-note.is-info{background:var(--accent-blue-dim);margin:0;font-size:12.5px;line-height:1.6}
+.cr-note.is-info b{color:var(--text-primary)}
+.cr-accounts{display:flex;flex-direction:column;gap:10px}
+.cr-account{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding:14px 16px;background:var(--bg-tertiary);border-radius:12px}
+@media(max-width:1100px){.cr-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){.pf-table td.cr-na{display:none}}

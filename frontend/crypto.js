@@ -5,6 +5,9 @@
 'use strict';
 
 let _cryptoData = { stats: {}, positions: [], accounts: [] };
+let _cryptoShowDust = false;   // positions < 1 € (poussières) masquées par défaut
+
+function toggleCryptoDust() { _cryptoShowDust = !_cryptoShowDust; renderCryptoPage(); }
 
 const EXCHANGE_HELP = {
   kraken: {
@@ -43,95 +46,89 @@ function renderCryptoPage() {
   if (!page) return;
   const { stats, positions, accounts } = _cryptoData;
   const pnl = stats.total_pnl_eur || 0;
-  const pnlCls = pnl >= 0 ? 'green' : 'red';
+
+  const dust = positions.filter(p => (p.current_value || 0) < 1);
+  const shown = _cryptoShowDust ? positions : positions.filter(p => (p.current_value || 0) >= 1);
+  const accN = stats.account_count || 0;
 
   page.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:12px;flex-wrap:wrap">
-      <div class="page-title">${ICONS.bitcoin} Crypto</div>
+    <div class="db-head">
+      <div>
+        <h1 class="db-title">Crypto</h1>
+        <div class="db-subtitle">${accN} compte${accN > 1 ? 's' : ''} d’exchange · clés en lecture seule</div>
+      </div>
       ${isAdmin() ? `
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-secondary btn-sm" onclick="openExchangeModal()">${ICONS.key} Ajouter un compte</button>
-          <button class="btn btn-primary btn-sm" onclick="syncAllExchanges(this)">${ICONS.refresh} Synchroniser</button>
+        <div class="db-actions">
+          <button class="btn btn-secondary" onclick="openExchangeModal()">Ajouter un compte</button>
+          <button class="btn btn-primary" onclick="syncAllExchanges(this)">${ICONS.refresh} Synchroniser</button>
         </div>` : ''}
     </div>
 
-    <!-- KPIs -->
-    <div class="hero-grid" style="margin-bottom:20px">
-      <div class="hero-card">
-        <div class="card-label">${ICONS.bitcoin} Valeur crypto</div>
-        <div class="hero-card-value blue">${fmtEur(stats.total_value_eur || 0)}</div>
-        <div class="hero-card-sub">${stats.position_count || 0} position${(stats.position_count || 0) > 1 ? 's' : ''}</div>
+    <div class="pf-kpis cr-kpis">
+      <div class="pf-kpi">
+        <div class="db-label">Total sur les exchanges</div>
+        <div class="pf-kpi-value">${fmtEur(stats.total_account_eur || 0)}</div>
+        <div class="pf-kpi-sub">positions + liquidités</div>
       </div>
-      <div class="hero-card">
-        <div class="card-label">${ICONS.coins} Capital investi</div>
-        <div class="hero-card-value gold">${fmtEur(stats.total_invested_eur || 0)}</div>
-        <div class="hero-card-sub">coût des parts détenues</div>
+      <div class="pf-kpi">
+        <div class="db-label">Valeur des positions</div>
+        <div class="pf-kpi-value">${fmtEur(stats.total_value_eur || 0)}</div>
+        <div class="pf-kpi-sub">investi ${fmtEur(stats.total_invested_eur || 0)}</div>
       </div>
-      <div class="hero-card">
-        <div class="card-label">${ICONS.chartUp} Plus/moins-value</div>
-        <div class="hero-card-value ${pnlCls}">${pnl >= 0 ? '+' : ''}${fmtEur(pnl)}</div>
-        <div class="hero-card-sub">${stats.total_pnl_pct != null ? fmtPct(stats.total_pnl_pct) : '—'}</div>
+      <div class="pf-kpi">
+        <div class="db-label">Liquidités disponibles</div>
+        <div class="pf-kpi-value">${fmtEur(stats.total_cash_eur || 0)}</div>
+        <div class="pf-kpi-sub">non investi sur les exchanges</div>
       </div>
-      <div class="hero-card">
-        <div class="card-label">${ICONS.coins} Liquidités disponibles</div>
-        <div class="hero-card-value green">${fmtEur(stats.total_cash_eur || 0)}</div>
-        <div class="hero-card-sub">non investi sur les exchanges</div>
-      </div>
-    </div>
-
-    <div class="hero-grid" style="margin-bottom:20px;grid-template-columns:1fr">
-      <div class="hero-card">
-        <div class="card-label">${ICONS.key} Capital total sur les exchanges</div>
-        <div class="hero-card-value gold">${fmtEur(stats.total_account_eur || 0)}</div>
-        <div class="hero-card-sub">
-          ${fmtEur(stats.total_value_eur || 0)} investi + ${fmtEur(stats.total_cash_eur || 0)} de liquidités
-          · ${stats.account_count || 0} compte${(stats.account_count || 0) > 1 ? 's' : ''} connecté${(stats.account_count || 0) > 1 ? 's' : ''}
-        </div>
+      <div class="pf-kpi">
+        <div class="db-label">Plus-value latente</div>
+        <div class="pf-kpi-value ${pnlClass(pnl)}">${pnlSign(pnl)}${fmtEur(pnl)}</div>
+        <div class="pf-kpi-sub ${pnlClass(stats.total_pnl_pct)}">${stats.total_pnl_pct != null ? pnlSign(stats.total_pnl_pct) + fmtPct(stats.total_pnl_pct) : '—'}</div>
       </div>
     </div>
 
     ${positions.length ? `
-      <div class="card" style="padding:0;overflow:hidden;margin-bottom:20px">
+      <section class="card pf-table-card">
+        <div class="pf-toolbar">
+          <div class="db-card-title" style="margin:0">Positions <span class="section-count">${positions.length - dust.length}</span></div>
+        </div>
         <div class="table-wrap">
-          <table class="data-table">
+          <table class="data-table pf-table">
             <thead><tr>
-              <th class="left" style="padding-left:24px">Actif</th>
-              <th>Cours</th>
-              <th>Qté</th>
+              <th class="left">Actif</th>
+              <th>Quantité</th>
               <th>PRU</th>
-              <th>Investi</th>
+              <th>Cours</th>
               <th>Valeur</th>
-              <th>P&amp;L €</th>
-              <th>P&amp;L %</th>
-              <th>Alloc.</th>
-              ${isAdmin() ? '<th>Actions</th>' : ''}
+              <th>Plus-value</th>
+              <th>Poids</th>
+              ${isAdmin() ? '<th><span class="sr-only">Actions</span></th>' : ''}
             </tr></thead>
-            <tbody>${positions.map(renderCryptoRow).join('')}${renderCashRows(_cryptoData.cash)}</tbody>
+            <tbody>${shown.map(renderCryptoRow).join('')}${renderCashRows(_cryptoData.cash)}</tbody>
           </table>
         </div>
-      </div>` : `
-      <div class="card" style="text-align:center;padding:48px 24px;margin-bottom:20px">
+        ${dust.length ? `<div class="cr-dust">${_cryptoShowDust
+          ? `${dust.length} position${dust.length > 1 ? 's' : ''} résiduelle${dust.length > 1 ? 's' : ''} affichée${dust.length > 1 ? 's' : ''}`
+          : `${dust.length} position${dust.length > 1 ? 's' : ''} résiduelle${dust.length > 1 ? 's' : ''} (moins de 1 €) masquée${dust.length > 1 ? 's' : ''}`}
+          · <button type="button" class="db-link" onclick="toggleCryptoDust()">${_cryptoShowDust ? 'Masquer' : 'Afficher'}</button></div>` : ''}
+      </section>` : `
+      <div class="card" style="text-align:center;padding:48px 24px;margin-bottom:16px">
         <div style="font-size:15px;color:var(--text-secondary);margin-bottom:6px">Aucune position crypto</div>
-        <div style="font-size:13px;color:var(--text-muted)">
-          Ajoute un compte Kraken ou Bitvavo, puis lance une synchronisation.
-        </div>
+        <div style="font-size:13px;color:var(--text-muted)">Ajoute un compte Kraken ou Bitvavo, puis lance une synchronisation.</div>
       </div>`}
 
-    <!-- Comptes d'exchange -->
-    <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-        <div class="card-title">${ICONS.key} Comptes d'exchange</div>
-      </div>
-      <div style="background:rgba(249,168,37,.08);border:1px solid rgba(249,168,37,.25);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:var(--text-secondary);line-height:1.55">
-        <b style="color:var(--accent-gold)">Clés en lecture seule uniquement.</b>
+    <section class="card">
+      <div class="db-card-title">Comptes d’exchange</div>
+      <div class="cr-note">
+        <b>Clés en lecture seule uniquement.</b>
         Patrimonium ne passe aucun ordre et n'effectue aucun retrait — il lit seulement
         tes soldes et ton historique de trades. Crée tes clés API sans permission de
         trading ni de retrait : même compromises, elles ne permettraient pas de toucher à tes fonds.
       </div>
       ${accounts.length
-        ? `<div style="display:flex;flex-direction:column;gap:10px">${accounts.map(renderExchangeCard).join('')}</div>`
-        : `<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:20px">Aucun compte configuré.</div>`}
-    </div>
+        ? `<div class="cr-accounts">${accounts.map(renderExchangeCard).join('')}</div>`
+        : `<div class="db-muted" style="text-align:center;padding:20px">Aucun compte configuré.</div>`}
+    </section>
 
     <!-- Modal ajout de compte -->
     <div class="modal-overlay" id="exchangeModal">
@@ -177,28 +174,27 @@ function renderCryptoPage() {
 
 function renderCryptoRow(p) {
   const pnl = p.pnl_eur || 0;
-  const cls = pnl >= 0 ? 'pos' : 'neg';
+  const sym = (p.ticker || '').split(/[-./]/)[0].slice(0, 5);
   return `
-    <tr>
-      <td class="left" style="padding-left:24px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <div class="pos-icon" style="background:rgba(247,147,26,.14);color:#F7931A">${ICONS.bitcoinSm}</div>
-          <div>
-            <div style="font-weight:600">${escHtml(p.display_name)}</div>
-            <div style="font-size:11px;color:var(--text-muted);font-family:var(--font-mono)">${escHtml(p.ticker)}</div>
+    <tr class="position-row" style="cursor:default">
+      <td class="left" data-label="">
+        <div class="asset-name-cell">
+          <span class="pf-badge cr-badge">${escHtml(sym)}</span>
+          <div style="min-width:0">
+            <div class="asset-name">${escHtml(p.display_name)}</div>
+            <div class="asset-sub">${escHtml(p.ticker)}</div>
           </div>
         </div>
       </td>
-      <td>${fmtEur(p.current_price || 0)}</td>
-      <td>${fmtNum(p.total_quantity, 6)}</td>
-      <td>${p.average_cost != null ? fmtEur(p.average_cost) : '—'}</td>
-      <td>${fmtEur(p.total_invested || 0)}</td>
-      <td style="font-weight:700">${fmtEur(p.current_value || 0)}</td>
-      <td class="${cls}">${pnl >= 0 ? '+' : ''}${fmtEur(pnl)}</td>
-      <td class="${cls}">${p.pnl_pct != null ? fmtPct(p.pnl_pct) : '—'}</td>
-      <td>${(p.allocation_pct || 0).toFixed(1)}%</td>
-      ${isAdmin() ? `<td><button class="btn btn-ghost danger" title="Archiver cette position"
-        onclick="archiveCryptoPosition(${p.id})">🗑</button></td>` : ''}
+      <td data-label="Quantité">${fmtNum(p.total_quantity, 6)}</td>
+      <td data-label="PRU">${p.average_cost != null ? fmtEur(p.average_cost) : '—'}</td>
+      <td data-label="Cours">${fmtEur(p.current_price || 0)}</td>
+      <td data-label="Valeur"><strong>${fmtEur(p.current_value || 0)}</strong><div class="pf-sub">investi ${fmtEur(p.total_invested || 0)}</div></td>
+      <td data-label="Plus-value">${p.pnl_pct != null ? `<span class="db-chip ${pnl >= 0 ? 'is-gain' : 'is-loss'}">${pnlSign(p.pnl_pct)}${fmtPct(p.pnl_pct)}</span>` : '—'}
+        <div class="pf-sub ${pnlClass(pnl)}">${pnlSign(pnl)}${fmtEur(pnl)}</div></td>
+      <td data-label="Poids">${fmtPct(p.allocation_pct || 0, 1)}</td>
+      ${isAdmin() ? `<td class="pf-actions"><button type="button" class="pf-menu-btn" title="Archiver cette position"
+        aria-label="Archiver ${escHtml(p.display_name)}" onclick="archiveCryptoPosition(${p.id})">${ICONS.trash || '🗑'}</button></td>` : ''}
     </tr>`;
 }
 
@@ -206,19 +202,16 @@ function renderCryptoRow(p) {
 // (PRU, P&L, allocation) n'ont pas de sens ici.
 function renderCashRows(cash) {
   return (cash || []).map(c => `
-    <tr>
-      <td class="left" style="padding-left:24px">
-        <div style="display:flex;align-items:center;gap:10px">
-          <div class="pos-icon" style="background:rgba(16,217,138,.14);color:var(--accent-green)">${ICONS.coins}</div>
-          <div>
-            <div style="font-weight:600">${escHtml(c.display_name)}</div>
-            <div style="font-size:11px;color:var(--text-muted)">EUR disponible sur le compte</div>
-          </div>
+    <tr class="position-row" style="cursor:default">
+      <td class="left" data-label="">
+        <div class="asset-name-cell">
+          <span class="pf-badge cr-cash">€</span>
+          <div><div class="asset-name">${escHtml(c.display_name)}</div><div class="asset-sub">EUR disponible sur le compte</div></div>
         </div>
       </td>
-      <td>—</td><td>—</td><td>—</td><td>—</td>
-      <td style="font-weight:700;color:var(--accent-green)">${fmtEur(c.balance_eur || 0)}</td>
-      <td>—</td><td>—</td><td>—</td>
+      <td class="cr-na">—</td><td class="cr-na">—</td><td class="cr-na">—</td>
+      <td data-label="Valeur"><strong>${fmtEur(c.balance_eur || 0)}</strong></td>
+      <td class="cr-na">—</td><td class="cr-na">—</td>
       ${isAdmin() ? '<td></td>' : ''}
     </tr>`).join('');
 }
@@ -244,12 +237,11 @@ function renderExchangeCard(a) {
     ? `Dernière sync : ${fmtDateTime(a.last_sync_at)}`
     : 'Jamais synchronisé';
   return `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
-                padding:14px 16px;background:var(--bg-tertiary);border:1px solid var(--border);border-radius:10px">
+    <div class="cr-account">
       <div style="min-width:0">
         <div style="font-weight:600;display:flex;align-items:center;gap:8px">
           ${escHtml(a.label)}
-          <span class="badge" style="background:rgba(79,142,247,.15);color:var(--accent-blue)">${escHtml(a.exchange_label)}</span>
+          <span class="badge badge-admin">${escHtml(a.exchange_label)}</span>
         </div>
         <div style="font-size:12px;color:var(--text-muted);margin-top:3px">${escHtml(sync)}</div>
         ${a.last_sync_status ? `<div style="font-size:11px;color:var(--text-muted);margin-top:2px">${escHtml(a.last_sync_status)}</div>` : ''}
@@ -268,8 +260,7 @@ function updateExchangeHelp() {
   if (!sel || !box) return;
   const h = EXCHANGE_HELP[sel.value];
   box.innerHTML = `
-    <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);
-                border-radius:10px;padding:12px 16px;font-size:12.5px;color:var(--text-secondary);line-height:1.6">
+    <div class="cr-note is-info">
       <div style="margin-bottom:6px">
         <b>Créer une clé ${h.name} en lecture seule</b> —
         <a href="${h.url}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue)">ouvrir ${h.name} ↗</a>
