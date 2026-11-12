@@ -1136,3 +1136,21 @@ html.light .as-cat{border-color:transparent}
 .as-bijou,.as-metal{color:var(--pocket-reserves);background:var(--accent-gold-dim)}
 .as-sub{max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 @media(max-width:600px){.as-cats{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.as-cat-value{font-size:17px}}
+
+/* ══ Réserves (piste B) ═══════════════════════════════════════ */
+.rs-sched{display:flex;align-items:flex-end;gap:14px;min-height:190px}
+.rs-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:6px;min-width:0}
+.rs-val{font-size:12px;font-weight:700;white-space:nowrap}
+.rs-bar{width:100%;max-width:110px;border-radius:8px 8px 0 0;background:var(--accent-blue-dim);border:1px solid var(--border-light);border-bottom:none}
+.rs-bar.is-due{background:var(--pocket-reserves);border-color:transparent}
+.rs-year{font-size:13px;color:var(--text-secondary)}
+.rs-year-cell{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.db-chip.is-warn{background:var(--accent-gold-dim);color:var(--accent-gold)}
+.db-chip.is-muted{background:var(--bg-tertiary);color:var(--text-secondary)}
+.rs-actions{width:auto;white-space:nowrap}
+.rs-actions .btn{margin-right:6px}
+@media(max-width:600px){.rs-sched{gap:6px}.rs-val{font-size:10px}
+  .pf-table td.rs-actions{position:static;grid-column:1/-1;display:flex;gap:8px}
+  .pf-table td.rs-actions .btn{flex:1;justify-content:center;margin:0}}
+/* Onglet « Plus » marqué actif quand la page courante est dans son menu */
+@media(max-width:600px){.nav:has(.nav-more .nav-item.active)>.nav-plus{color:var(--accent-blue)}}

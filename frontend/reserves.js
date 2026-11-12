@@ -40,51 +40,64 @@ function renderReservesPage() {
   });
   const years = Object.keys(byYear).sort((a, b) => b - a);
 
+  // Calendrier : montant encore libérable par année de libération (affichage uniquement)
+  const sched = {};
+  Object.values(byYear).forEach(y => {
+    if (y.releasable > 0.01 && y.release_year) sched[y.release_year] = (sched[y.release_year] || 0) + y.releasable;
+  });
+  const schedYears = Object.keys(sched).sort((a, b) => a - b);
+  const schedMax = Math.max(1, ...Object.values(sched));
+  const thisYear = new Date().getFullYear();
+  const releasedPct = stats.total_amount > 0 ? (stats.total_released || 0) / stats.total_amount * 100 : 0;
+
   page.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
-      <div class="page-title">${ICONS.wallet} Réserves de liquidation</div>
-      ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="openAddReserveModal()">+ Ajouter une année</button>` : ''}
+    <div class="db-head">
+      <div>
+        <h1 class="db-title">Réserves de liquidation</h1>
+        <div class="db-subtitle">${years.length} année${years.length > 1 ? 's' : ''} constituée${years.length > 1 ? 's' : ''} · ${fmtPct(releasedPct, 0)} déjà libéré</div>
+      </div>
+      ${isAdmin() ? `<div class="db-actions"><button class="btn btn-primary" onclick="openAddReserveModal()">+ Ajouter une année</button></div>` : ''}
     </div>
 
-    <!-- 4 hero KPIs -->
-    <div class="hero-grid" style="margin-bottom:20px">
-      <div class="hero-card">
-        <div class="card-label">${ICONS.coins} Total constitué</div>
-        <div class="hero-card-value blue">${fmtEur(stats.total_amount || 0)}</div>
-      </div>
-      <div class="hero-card">
-        <div class="card-label">${ICONS.wallet} Encore libérable</div>
-        <div class="hero-card-value gold">${fmtEur(stats.total_releasable || 0)}</div>
-      </div>
-      <div class="hero-card">
-        <div class="card-label">${ICONS.chartUp} Libéré (brut)</div>
-        <div class="hero-card-value green">${fmtEur(stats.total_released || 0)}</div>
-      </div>
-      <div class="hero-card">
-        <div class="card-label">${ICONS.coins} Net reçu total</div>
-        <div class="hero-card-value green">${fmtEur(stats.total_net_recu || 0)}</div>
-        <div style="font-size:11px;color:var(--text-muted);margin-top:2px">après précompte ${fmtEur(stats.total_precompte || 0)}</div>
-      </div>
+    <div class="pf-kpis cr-kpis">
+      <div class="pf-kpi"><div class="db-label">Total constitué</div><div class="pf-kpi-value">${fmtEur(stats.total_amount || 0)}</div></div>
+      <div class="pf-kpi"><div class="db-label">Encore libérable</div><div class="pf-kpi-value">${fmtEur(stats.total_releasable || 0)}</div></div>
+      <div class="pf-kpi"><div class="db-label">Libéré (brut)</div><div class="pf-kpi-value">${fmtEur(stats.total_released || 0)}</div></div>
+      <div class="pf-kpi"><div class="db-label">Net reçu</div><div class="pf-kpi-value pos">${fmtEur(stats.total_net_recu || 0)}</div>
+        <div class="pf-kpi-sub">après précompte ${fmtEur(stats.total_precompte || 0)}</div></div>
     </div>
 
-    <!-- Table by year -->
-    <div class="card" style="padding:0;overflow:hidden">
+    ${schedYears.length ? `
+    <section class="card" style="margin-bottom:16px">
+      <div class="db-card-title">Calendrier de libération</div>
+      <div class="db-subtitle" style="margin:-8px 0 14px">Montant encore libérable, par année de libération prévue</div>
+      <div class="rs-sched">
+        ${schedYears.map(y => `
+          <div class="rs-col">
+            <span class="rs-val">${fmtEurShort(sched[y])}</span>
+            <div class="rs-bar${+y <= thisYear ? ' is-due' : ''}" style="height:${Math.max(4, Math.round(sched[y] / schedMax * 140))}px"></div>
+            <span class="rs-year">${y}</span>
+          </div>`).join('')}
+      </div>
+    </section>` : ''}
+
+    <section class="card pf-table-card">
       <div class="table-wrap">
-        <table class="data-table" id="reservesTable">
+        <table class="data-table pf-table" id="reservesTable">
           <thead><tr>
-            <th class="left" style="padding-left:24px">Année</th>
-            <th>Montant constitué</th>
+            <th class="left">Année</th>
+            <th>Constitué</th>
             <th>Libéré (brut)</th>
-            <th>Précompte payé</th>
+            <th>Précompte</th>
             <th>Net reçu</th>
-            <th class="${isAdmin() ? '' : 'right'}">Encore libérable</th>
+            <th>Encore libérable</th>
             <th class="left">Note</th>
-            ${isAdmin() ? '<th>Actions</th>' : ''}
+            ${isAdmin() ? '<th><span class="sr-only">Actions</span></th>' : ''}
           </tr></thead>
           <tbody id="reservesBody">${renderReserveRows(years, byYear, items)}</tbody>
         </table>
       </div>
-    </div>
+    </section>
 
     <!-- Add/Edit modal -->
     <div class="modal-overlay" id="reserveModal">
@@ -123,10 +136,10 @@ function renderReservesPage() {
     <div class="modal-overlay" id="liberateModal">
       <div class="modal" style="max-width:400px">
         <div class="modal-header">
-          <span class="modal-title">💶 Libérer une réserve</span>
+          <span class="modal-title">Libérer une réserve</span>
           <button class="modal-close" onclick="closeModal('liberateModal')">✕</button>
         </div>
-        <div id="liberateInfo" style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:13px;color:var(--text-secondary)"></div>
+        <div id="liberateInfo" class="cr-note is-info" style="margin-bottom:18px"></div>
         <form onsubmit="submitLiberate(event)" class="form-grid">
           <div class="form-group">
             <label class="form-label">Montant brut libéré (€)</label>
@@ -137,7 +150,7 @@ function renderReservesPage() {
             <input type="number" class="form-input" id="liberatePrecompte" step="0.01" min="0" value="0" oninput="updateLiberateNet()"/>
           </div>
           <div class="form-group full">
-            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(74,222,128,.08);border:1px solid rgba(74,222,128,.25);border-radius:8px;font-size:14px">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--accent-green-dim);border-radius:10px;font-size:14px">
               <span style="color:var(--text-secondary)">Net reçu :</span>
               <span id="liberateNetDisplay" style="font-weight:700;color:var(--accent-green)">0,00 €</span>
             </div>
@@ -166,27 +179,36 @@ function renderReserveRows(years, byYear, allItems) {
     const dbItem = allItems.find(r => r.year === parseInt(year));
     const dbId = dbItem ? dbItem.id : null;
 
+    const thisYear = new Date().getFullYear();
+    const status = row.releasable <= 0.01 ? ['Libéré', 'is-gain']
+      : (row.release_year && row.release_year <= thisYear) ? ['Libérable', 'is-warn']
+      : ['En attente', 'is-muted'];
     return `
-      <tr class="no-cursor" id="reserve-row-${dbId}">
-        <td class="left" style="padding-left:24px;font-weight:600">${year}</td>
-        <td>
+      <tr class="no-cursor position-row" id="reserve-row-${dbId}">
+        <td class="left" data-label="">
+          <div class="rs-year-cell"><strong>${year}</strong>
+            <span class="db-chip ${status[1]}">${status[0]}</span></div>
+          ${row.release_year ? `<div class="pf-sub">libération ${row.release_year}</div>` : ''}
+        </td>
+        <td data-label="Constitué">
           ${isAdmin()
             ? `<span class="editable-cell" onclick="startEditCell(this, ${dbId}, 'amount', ${row.amount})">${fmtEur(row.amount)}</span>`
             : fmtEur(row.amount)}
         </td>
-        <td>${fmtEur(row.released)}</td>
-        <td style="color:var(--text-muted)">${fmtEur(row.precompte_paye)}</td>
-        <td class="${row.net_recu > 0 ? 'pos' : 'neutral'}">${fmtEur(row.net_recu)}</td>
-        <td class="${row.releasable > 0 ? 'gold' : 'neutral'}">${fmtEur(row.releasable)}</td>
-        <td class="left">
+        <td data-label="Libéré (brut)">${fmtEur(row.released)}</td>
+        <td data-label="Précompte" style="color:var(--text-muted)">${fmtEur(row.precompte_paye)}</td>
+        <td data-label="Net reçu" class="${row.net_recu > 0 ? 'pos' : 'neutral'}">${fmtEur(row.net_recu)}</td>
+        <td data-label="Encore libérable"><strong>${fmtEur(row.releasable)}</strong></td>
+        <td class="left" data-label="Note">
           ${isAdmin()
             ? `<span class="editable-cell" onclick="startEditCellText(this, ${dbId}, 'notes', ${JSON.stringify(row.notes || '')})">${escHtml(row.notes || '—')}</span>`
             : escHtml(row.notes || '—')}
         </td>
         ${isAdmin() ? `
-        <td style="white-space:nowrap">
-          ${row.releasable > 0.01 ? `<button class="btn btn-primary btn-sm" style="margin-right:4px" onclick="openLiberateModal(${dbId}, ${year}, ${row.releasable})">💶 Libérer</button>` : ''}
-          <button class="btn btn-ghost danger btn-sm" onclick="deleteReserveConfirm(${dbId})">🗑</button>
+        <td class="pf-actions rs-actions">
+          ${row.releasable > 0.01 ? `<button class="btn btn-secondary btn-sm" onclick="openLiberateModal(${dbId}, ${year}, ${row.releasable})">Libérer</button>` : ''}
+          <button type="button" class="pf-menu-btn row-menu-btn" aria-haspopup="menu" aria-label="Autres actions ${year}"
+            onclick="openRowMenu(this, [['Supprimer', () => deleteReserveConfirm(${dbId}), true]])">⋯</button>
         </td>` : ''}
       </tr>`;
   }).join('');
