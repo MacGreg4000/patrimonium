@@ -415,7 +415,8 @@ def test_export_html_contains_crypto_tab(auth_admin, fake_exchange):
         r = client.post("/api/export", json={"passphrase": "TestPassphrase123!"})
     assert r.status_code == 200, r.text
     html = r.text
-    assert "tab-crypto" in html and "renderCrypto" in html
+    # Le relevé contient une section Cryptomonnaies (structure refondue)
+    assert "addSection('crypto', 'Cryptomonnaies'" in html and "renderPositions" in html
 
 
 def test_export_excel_has_crypto_sheet(auth_admin, fake_exchange):

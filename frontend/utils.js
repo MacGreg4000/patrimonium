@@ -286,9 +286,11 @@ const ASSET_TYPE_ICONS  = { action: ICONS.chartUp, etf: ICONS.layers, commodity:
 const ASSET_CAT_LABELS  = { bijou: 'Bijou', immo: 'Immobilier', vehicule: 'Véhicule', art: 'Art', metal: 'Métaux précieux', autre: 'Autre' };
 const ASSET_CAT_ICONS   = { bijou: ICONS.gemSm, immo: ICONS.home, vehicule: ICONS.car, art: ICONS.frame, metal: ICONS.coins, autre: ICONS.box };
 
+// Palette piste B : titres, coffres, actifs, réserves, crypto, puis teintes d'appoint.
+// Tons moyens lisibles sur fond clair comme sur fond bleu nuit.
 const CHART_COLORS = [
-  '#3B82F6','#00D68F','#F59E0B','#FF4757',
-  '#a855f7','#06b6d4','#f97316','#84cc16','#ec4899','#14b8a6',
+  '#2F6FDE','#0F8A66','#6D5BD0','#C08A2B',
+  '#D9622B','#0E7490','#9F5BB0','#5B7F1F','#BE185D','#64748B',
 ];
 
 // ── Tooltip système (data-tip) ────────────────────────────
@@ -371,7 +373,8 @@ function onCollapseToggle(key, bodyId, expanded) {
 
 // ── Thème clair / sombre ──────────────────────────────────
 function initTheme() {
-  if (localStorage.getItem('theme') === 'light')
+  // Clair par défaut (piste B) ; le sombre reste un choix mémorisé.
+  if (localStorage.getItem('theme') !== 'dark')
     document.documentElement.classList.add('light');
   _updateThemeBtn();
 }
@@ -380,6 +383,9 @@ function toggleTheme() {
   const isLight = document.documentElement.classList.toggle('light');
   localStorage.setItem('theme', isLight ? 'light' : 'dark');
   _updateThemeBtn();
+  // Les graphiques lisent leurs couleurs dans le thème : on redessine la page.
+  if (typeof applyChartDefaults === 'function') applyChartDefaults();
+  if (typeof navigate === 'function' && typeof _currentPage !== 'undefined') navigate(_currentPage);
 }
 
 function _updateThemeBtn() {
@@ -389,3 +395,39 @@ function _updateThemeBtn() {
   if (input) input.checked = isLight;            // switch activé = mode clair
   if (wrap)  wrap.title = isLight ? 'Passer en mode sombre' : 'Passer en mode clair';
 }
+
+// ── Menu « ⋯ » générique pour les actions d'une ligne ─────
+// items : [[libellé, callback, danger?], …] — les callbacks sont les fonctions
+// existantes de chaque page (aucune nouvelle action).
+function openRowMenu(btn, items) {
+  closeRowMenu();
+  const menu = document.createElement('div');
+  menu.className = 'pf-menu';
+  menu.id = 'rowMenu';
+  menu.setAttribute('role', 'menu');
+  items.filter(Boolean).forEach(([label, fn, danger]) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role', 'menuitem');
+    if (danger) b.className = 'is-danger';
+    b.textContent = label;
+    b.addEventListener('click', ev => { ev.stopPropagation(); closeRowMenu(); fn(); });
+    menu.appendChild(b);
+  });
+  document.body.appendChild(menu);
+  const r = btn.getBoundingClientRect();
+  const w = menu.offsetWidth, h = menu.offsetHeight;
+  menu.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
+  menu.style.top = (r.bottom + h + 8 > innerHeight ? r.top - h - 4 : r.bottom + 4) + 'px';
+  btn.setAttribute('aria-expanded', 'true');
+  menu.querySelector('button')?.focus();
+}
+
+function closeRowMenu() {
+  document.getElementById('rowMenu')?.remove();
+  document.querySelectorAll('.row-menu-btn[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+}
+
+document.addEventListener('click', e => { if (!e.target.closest('#rowMenu') && !e.target.closest('.row-menu-btn')) closeRowMenu(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRowMenu(); });
+window.addEventListener('scroll', e => { if (!e.target.closest?.('#rowMenu')) closeRowMenu(); }, true);

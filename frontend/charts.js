@@ -3,9 +3,29 @@
    ═══════════════════════════════════════════════ */
 'use strict';
 
-Chart.defaults.color = '#6B7280';
-Chart.defaults.font.family = "'DM Mono', monospace";
+Chart.defaults.font.family = "'Plus Jakarta Sans', -apple-system, system-ui, sans-serif";
 Chart.defaults.font.size = 11;
+
+// Couleurs lues dans les variables CSS du thème courant (clair / sombre).
+function cssVar(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+function withAlpha(color, a) {
+  const m = /^#([0-9a-f]{6})$/i.exec(color);
+  if (!m) return color;
+  const n = parseInt(m[1], 16);
+  return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+}
+function themeColors() {
+  return {
+    text: cssVar('--text-muted'), grid: cssVar('--border'), surface: cssVar('--bg-secondary'),
+    accent: cssVar('--accent-blue'), gain: cssVar('--accent-green'), loss: cssVar('--accent-red'),
+    gold: cssVar('--pocket-reserves'), title: cssVar('--text-primary'), body: cssVar('--text-secondary'),
+    line: cssVar('--border-light'),
+  };
+}
+function applyChartDefaults() { Chart.defaults.color = themeColors().text; }
+applyChartDefaults();
 
 const _charts = {};
 
@@ -22,7 +42,7 @@ function renderDonut(canvasId, labels, data, legendId) {
   const colors = labels.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]);
   _charts[canvasId] = new Chart(canvas, {
     type: 'doughnut',
-    data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: '#111318', borderWidth: 3, hoverOffset: 6 }] },
+    data: { labels, datasets: [{ data, backgroundColor: colors, borderColor: themeColors().surface, borderWidth: 3, hoverOffset: 6 }] },
     options: {
       responsive: true, maintainAspectRatio: false, cutout: '72%',
       plugins: {
@@ -63,15 +83,16 @@ function renderPortfolioLine(canvasId, history) {
 
   const ctx = canvas.getContext('2d');
   const grad = ctx.createLinearGradient(0, 0, 0, 260);
-  grad.addColorStop(0, 'rgba(59,130,246,.25)');
-  grad.addColorStop(1, 'rgba(59,130,246,0)');
+  const C = themeColors();
+  grad.addColorStop(0, withAlpha(C.accent, .18));
+  grad.addColorStop(1, withAlpha(C.accent, 0));
 
   _charts[canvasId] = new Chart(canvas, {
     type: 'line',
     data: { labels, datasets: [
-      { label: 'Valeur', data: values, borderColor: '#3B82F6', backgroundColor: grad, borderWidth: 2,
+      { label: 'Valeur', data: values, borderColor: C.accent, backgroundColor: grad, borderWidth: 2,
         pointRadius: 0, pointHoverRadius: 5, fill: true, tension: 0.4 },
-      { label: 'Investi', data: invested, borderColor: '#1E2330', backgroundColor: 'transparent',
+      { label: 'Investi', data: invested, borderColor: C.text, backgroundColor: 'transparent',
         borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0, fill: false, tension: 0.4 },
     ]},
     options: {
@@ -82,8 +103,8 @@ function renderPortfolioLine(canvasId, history) {
         tooltip: { ...tooltipStyle(), callbacks: { label: ctx => `  ${ctx.dataset.label}: ${fmtEur(ctx.parsed.y)}` }},
       },
       scales: {
-        x: { grid: { color: '#1E2330' }, ticks: { maxTicksLimit: 8, color: '#3D4452' }},
-        y: { position: 'right', grid: { color: '#1E2330' }, ticks: { color: '#3D4452', callback: fmtEurShort }},
+        x: { grid: { color: C.grid }, ticks: { maxTicksLimit: 8, color: C.text }},
+        y: { position: 'right', grid: { color: C.grid }, ticks: { color: C.text, callback: fmtEurShort }},
       },
     },
   });
@@ -106,13 +127,14 @@ function renderInvestGainChart(canvasId, history) {
 
   const ctx = canvas.getContext('2d');
   const gradInvest = ctx.createLinearGradient(0, 0, 0, 260);
-  gradInvest.addColorStop(0, 'rgba(79,142,247,.30)');
-  gradInvest.addColorStop(1, 'rgba(79,142,247,0)');
+  const C = themeColors();
+  gradInvest.addColorStop(0, withAlpha(C.accent, .18));
+  gradInvest.addColorStop(1, withAlpha(C.accent, 0));
 
   // Couleur du trait de valeur, segment par segment : vert si ≥ investi, sinon rouge
   const segColor = c => {
     const i = c.p1DataIndex;
-    return value[i] >= invested[i] ? '#10D98A' : '#F5465D';
+    return value[i] >= invested[i] ? C.gain : C.loss;
   };
 
   _charts[canvasId] = new Chart(canvas, {
@@ -120,11 +142,11 @@ function renderInvestGainChart(canvasId, history) {
     data: { labels, datasets: [
       // Zone d'investissement (dessinée en premier = en dessous)
       { label: 'Montants investis', data: invested,
-        borderColor: '#4F8EF7', backgroundColor: gradInvest, borderWidth: 2,
+        borderColor: C.accent, backgroundColor: gradInvest, borderWidth: 2,
         pointRadius: 0, pointHoverRadius: 4, fill: true, tension: 0.35 },
       // Valeur du portefeuille (au-dessus), colorée vert/rouge par segment
       { label: 'Valeur du portefeuille', data: value,
-        borderColor: '#10D98A', backgroundColor: 'transparent', borderWidth: 2.5,
+        borderColor: C.gain, backgroundColor: 'transparent', borderWidth: 2.5,
         pointRadius: 0, pointHoverRadius: 5, fill: false, tension: 0.35,
         segment: { borderColor: segColor } },
     ]},
@@ -132,7 +154,7 @@ function renderInvestGainChart(canvasId, history) {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { display: true, labels: { color: '#7D97BA', font: { size: 11 }, boxWidth: 16, padding: 14, usePointStyle: true }},
+        legend: { display: true, labels: { color: C.body, font: { size: 11 }, boxWidth: 16, padding: 14, usePointStyle: true }},
         tooltip: { ...tooltipStyle(), callbacks: {
           label: ctx => `  ${ctx.dataset.label}: ${fmtEur(ctx.parsed.y)}`,
           afterBody: items => {
@@ -144,9 +166,9 @@ function renderInvestGainChart(canvasId, history) {
         }},
       },
       scales: {
-        x: { grid: { color: '#1E2330' }, ticks: { maxTicksLimit: 8, color: '#3D4452', font: { size: 10 } }},
-        y: { position: 'right', grid: { color: '#1E2330' },
-             ticks: { color: '#3D4452', callback: fmtEurShort, font: { size: 10 } }},
+        x: { grid: { color: C.grid }, ticks: { maxTicksLimit: 8, color: C.text, font: { size: 10 } }},
+        y: { position: 'right', grid: { color: C.grid },
+             ticks: { color: C.text, callback: fmtEurShort, font: { size: 10 } }},
       },
     },
   });
@@ -166,21 +188,22 @@ function renderMonthlyBar(canvasId, entries, exits) {
     return `${m}/${y.slice(2)}`;
   });
 
+  const C = themeColors();
   _charts[canvasId] = new Chart(canvas, {
     type: 'bar',
     data: { labels, datasets: [
-      { label: 'Entrées', data: keys.map(k => entries[k] || 0), backgroundColor: 'rgba(0,214,143,.5)', borderColor: '#00D68F', borderWidth: 1 },
-      { label: 'Sorties', data: keys.map(k => -(exits[k] || 0)), backgroundColor: 'rgba(255,71,87,.5)', borderColor: '#FF4757', borderWidth: 1 },
+      { label: 'Entrées', data: keys.map(k => entries[k] || 0), backgroundColor: withAlpha(C.gain, .55), borderColor: C.gain, borderWidth: 1 },
+      { label: 'Sorties', data: keys.map(k => -(exits[k] || 0)), backgroundColor: withAlpha(C.loss, .55), borderColor: C.loss, borderWidth: 1 },
     ]},
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
-        legend: { display: true, labels: { color: '#6B7280', boxWidth: 10, padding: 12 }},
+        legend: { display: true, labels: { color: C.body, boxWidth: 10, padding: 12 }},
         tooltip: { ...tooltipStyle(), callbacks: { label: ctx => `  ${ctx.dataset.label}: ${fmtEur(Math.abs(ctx.parsed.y))}` }},
       },
       scales: {
-        x: { grid: { color: '#1E2330' }, ticks: { color: '#3D4452' }, stacked: false },
-        y: { grid: { color: '#1E2330' }, ticks: { color: '#3D4452', callback: fmtEurShort }},
+        x: { grid: { color: C.grid }, ticks: { color: C.text }, stacked: false },
+        y: { grid: { color: C.grid }, ticks: { color: C.text, callback: fmtEurShort }},
       },
     },
   });
@@ -190,7 +213,7 @@ function renderMonthlyBar(canvasId, entries, exits) {
 
 function renderPatrimoineDonut(canvasId, data) {
   const { portfolio, cash, assets, reserves } = data;
-  const labels = ['Portefeuille', 'Liquidités', 'Actifs physiques', 'Réserves'];
+  const labels = ['Titres', 'Coffres', 'Actifs physiques', 'Réserves libérables'];
   const values = [
     portfolio.total_value_eur,
     cash.total_eur,
@@ -218,8 +241,9 @@ function renderCoffreBalanceLine(canvasId, points) {
 
   const ctx = canvas.getContext('2d');
   const grad = ctx.createLinearGradient(0, 0, 0, 220);
-  grad.addColorStop(0, 'rgba(245,158,11,.28)');
-  grad.addColorStop(1, 'rgba(245,158,11,0)');
+  const C = themeColors();
+  grad.addColorStop(0, withAlpha(C.gold, .22));
+  grad.addColorStop(1, withAlpha(C.gold, 0));
 
   _charts[canvasId] = new Chart(canvas, {
     type: 'line',
@@ -228,12 +252,12 @@ function renderCoffreBalanceLine(canvasId, points) {
       datasets: [{
         label: 'Solde',
         data: values,
-        borderColor: '#F59E0B',
+        borderColor: C.gold,
         backgroundColor: grad,
         borderWidth: 2,
         pointRadius: points.length <= 30 ? 4 : 0,
         pointHoverRadius: 6,
-        pointBackgroundColor: '#F59E0B',
+        pointBackgroundColor: C.gold,
         fill: true,
         stepped: true,
       }],
@@ -253,11 +277,11 @@ function renderCoffreBalanceLine(canvasId, points) {
         },
       },
       scales: {
-        x: { grid: { color: '#1E2330' }, ticks: { color: '#3D4452', maxTicksLimit: 10 }},
+        x: { grid: { color: C.grid }, ticks: { color: C.text, maxTicksLimit: 10 }},
         y: {
           position: 'right',
-          grid: { color: '#1E2330' },
-          ticks: { color: '#3D4452', callback: fmtEurShort },
+          grid: { color: C.grid },
+          ticks: { color: C.text, callback: fmtEurShort },
           min: 0,
         },
       },
@@ -268,8 +292,9 @@ function renderCoffreBalanceLine(canvasId, points) {
 // ── Shared tooltip style ──────────────────────────────────
 
 function tooltipStyle() {
+  const C = themeColors();
   return {
-    backgroundColor: '#1A1D25', borderColor: '#1E2330', borderWidth: 1,
-    titleColor: '#F0F2F5', bodyColor: '#6B7280', padding: 10,
+    backgroundColor: C.surface, borderColor: C.line, borderWidth: 1,
+    titleColor: C.title, bodyColor: C.body, padding: 10, cornerRadius: 10,
   };
 }

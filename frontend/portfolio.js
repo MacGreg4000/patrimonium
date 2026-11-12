@@ -15,6 +15,11 @@ async function loadPortfolio() {
   }
 }
 
+let _pfFilter = 'all';
+let _pfQuery = '';
+
+const PF_FILTERS = [['all', 'Toutes'], ['etf', 'ETF'], ['action', 'Actions'], ['loss', 'En perte']];
+
 function renderPortfolioPage(data) {
   const page = document.getElementById('page-portfolio');
   if (!page) return;
@@ -23,120 +28,100 @@ function renderPortfolioPage(data) {
   const positions = data.positions || [];
   const held    = positions.filter(p => p.total_quantity > 0);
   const watched = positions.filter(p => p.total_quantity === 0);
+  const nonCash = held.filter(p => p.asset_type !== 'cash');
 
   page.innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+    <div class="db-head">
       <div>
-        <div class="page-title">📈 Portefeuille boursier</div>
+        <h1 class="db-title">Portefeuille titres</h1>
+        <div class="db-subtitle">${nonCash.length} position${nonCash.length > 1 ? 's' : ''}${watched.length ? ` · ${watched.length} suivi${watched.length > 1 ? 's' : ''}` : ''} ·
+          ${data.is_market_open ? '<span class="pos">marché ouvert</span>' : 'marché fermé'}</div>
       </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-secondary btn-sm" onclick="openSaxoImportModal()">📥 SaxoBank</button>
-        <button class="btn btn-secondary btn-sm" onclick="openRevolutImportModal()">📥 Revolut</button>
-        ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="openAddPositionModal()">+ Position</button>` : ''}
-      </div>
-    </div>
-
-    <!-- Hero cards -->
-    <div class="hero-grid" style="margin-bottom:20px">
-      <div class="hero-card">
-        <div class="card-label">💼 Valeur totale <span data-tip="Valeur de marché actuelle de toutes les positions (ETF, actions, liquidités SaxoBank)" style="opacity:.6;font-size:11px">ⓘ</span></div>
-        <div class="hero-card-value gold">${fmtEur(data.total_value_eur)}</div>
-        <div class="hero-card-sub" data-tip="Capital engagé résiduel : coût des parts encore détenues, hors liquidités">Investi: ${fmtEur(data.total_invested_eur)}</div>
-      </div>
-      <div class="hero-card">
-        <div class="card-label">📊 P&L Total <span data-tip="Gain/perte total depuis l'achat sur toutes les positions actives (unrealized + realized sur ventes partielles), hors liquidités" style="opacity:.6;font-size:11px">ⓘ</span></div>
-        <div class="hero-card-value ${pnlClass(data.total_pnl_eur)}">${pnlSign(data.total_pnl_eur)}${fmtEur(data.total_pnl_eur)}</div>
-        <div class="hero-card-sub ${pnlClass(data.total_pnl_pct)}">${pnlSign(data.total_pnl_pct)}${fmtPct(data.total_pnl_pct)}</div>
-      </div>
-      <div class="hero-card">
-        <div class="card-label">📅 Variation jour <span data-tip="Variation de valeur depuis la clôture d'hier, sur les positions cotées en bourse" style="opacity:.6;font-size:11px">ⓘ</span></div>
-        <div class="hero-card-value ${pnlClass(data.day_change_eur)}">${pnlSign(data.day_change_eur)}${fmtEur(data.day_change_eur)}</div>
-        <div class="hero-card-sub ${pnlClass(data.day_change_pct)}">${pnlSign(data.day_change_pct)}${fmtPct(data.day_change_pct)}</div>
-      </div>
-      <div class="hero-card">
-        <div class="card-label">📦 Positions</div>
-        <div class="hero-card-value blue">${held.length}</div>
-        <div class="hero-card-sub">${watched.length > 0 ? `${watched.length} suivi${watched.length > 1 ? 's' : ''} · ` : ''}${data.is_market_open ? '<span style="color:var(--accent-green)">● Marché ouvert</span>' : '<span style="color:var(--text-muted)">● Marché fermé</span>'}</div>
+      <div class="db-actions">
+        <button class="btn btn-secondary" onclick="openSaxoImportModal()">Importer Saxo</button>
+        <button class="btn btn-secondary" onclick="openRevolutImportModal()">Importer Revolut</button>
+        ${isAdmin() ? `<button class="btn btn-primary" onclick="openAddPositionModal()">+ Position</button>` : ''}
       </div>
     </div>
 
-    <!-- Charts -->
-    <div class="grid-chart" style="margin-bottom:20px">
-      <div class="card">
-        <div class="card-title">Allocation</div>
-        <div style="height:220px;display:flex;align-items:center;justify-content:center"><canvas id="portDonut"></canvas></div>
-        <div class="donut-legend" id="portDonutLegend"></div>
+    <div class="pf-kpis">
+      <div class="pf-kpi">
+        <div class="db-label">Valeur actuelle <span class="db-tip" data-tip="Valeur de marché actuelle de toutes les positions (ETF, actions, liquidités SaxoBank)">ⓘ</span></div>
+        <div class="pf-kpi-value" id="pfValue">${fmtEur(data.total_value_eur)}</div>
+        <div class="pf-kpi-sub" data-tip="Capital engagé résiduel : coût des parts encore détenues, hors liquidités">Investi : <span id="pfInvested">${fmtEur(data.total_invested_eur)}</span></div>
       </div>
-      <div class="card">
-        <div class="card-title">Évolution 30 jours</div>
-        <div style="height:220px"><canvas id="portLine"></canvas></div>
+      <div class="pf-kpi">
+        <div class="db-label">Plus-value totale <span class="db-tip" data-tip="Gain/perte total depuis l'achat sur toutes les positions actives (unrealized + realized sur ventes partielles), hors liquidités">ⓘ</span></div>
+        <div class="pf-kpi-value ${pnlClass(data.total_pnl_eur)}" id="pfPnl">${pnlSign(data.total_pnl_eur)}${fmtEur(data.total_pnl_eur)}</div>
+        <div class="pf-kpi-sub ${pnlClass(data.total_pnl_pct)}" id="pfPnlPct">${pnlSign(data.total_pnl_pct)}${fmtPct(data.total_pnl_pct)}</div>
+      </div>
+      <div class="pf-kpi">
+        <div class="db-label">Variation du jour <span class="db-tip" data-tip="Variation de valeur depuis la clôture d'hier, sur les positions cotées en bourse">ⓘ</span></div>
+        <div class="pf-kpi-value ${pnlClass(data.day_change_eur)}" id="pfDay">${pnlSign(data.day_change_eur)}${fmtEur(data.day_change_eur)}</div>
+        <div class="pf-kpi-sub ${pnlClass(data.day_change_pct)}" id="pfDayPct">${pnlSign(data.day_change_pct)}${fmtPct(data.day_change_pct)}</div>
       </div>
     </div>
 
-    <!-- Investissement & gains réels -->
-    <div class="card" style="margin-bottom:20px">
-      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
-        <span>💰 Investissement & gains réels
-          <span style="font-size:11px;color:var(--text-secondary);font-weight:400;margin-left:6px">— capital investi et valeur du portefeuille dans le temps</span>
-        </span>
-        <div id="igPeriodSel" class="seg-ctrl">
-          <button class="seg-btn" onclick="setInvestGainPeriod('day',this)">Jour</button>
-          <button class="seg-btn" onclick="setInvestGainPeriod('week',this)">Sem.</button>
-          <button class="seg-btn active" onclick="setInvestGainPeriod('month',this)">Mois</button>
-          <button class="seg-btn" onclick="setInvestGainPeriod('ytd',this)">YTD</button>
-          <button class="seg-btn" onclick="setInvestGainPeriod('year',this)">1 an</button>
-          <button class="seg-btn" onclick="setInvestGainPeriod('max',this)">Max</button>
+    <div class="db-row">
+      <section class="card">
+        <div class="db-card-title">Investi et valeur dans le temps
+          <div id="igPeriodSel" class="db-seg" role="group" aria-label="Période">
+            ${[['week','Sem.'],['month','Mois'],['ytd','YTD'],['year','1 an'],['max','Max']].map(([p, l]) =>
+              `<button type="button" class="db-seg-btn${p === _investGainPeriod ? ' active' : ''}" onclick="setInvestGainPeriod('${p}',this)">${l}</button>`).join('')}
+          </div>
+        </div>
+        <div class="pf-chart"><canvas id="investGainLine"></canvas></div>
+        <div class="db-empty" id="investGainEmpty" hidden>Pas encore d’historique pour cette période.</div>
+      </section>
+      <section class="card">
+        <div class="db-card-title">Répartition</div>
+        ${renderPfAllocation(held)}
+      </section>
+    </div>
+
+    <section class="card pf-table-card">
+      <div class="pf-toolbar">
+        <div class="db-card-title" style="margin:0">Positions détenues <span class="section-count">${held.length}</span></div>
+        <input type="search" class="form-input pf-search" placeholder="Rechercher une position" aria-label="Rechercher une position"
+          value="${escHtml(_pfQuery)}" oninput="setPfQuery(this.value)">
+        <div class="pf-filters" role="group" aria-label="Filtrer">
+          ${PF_FILTERS.map(([f, l]) => `<button type="button" class="pf-filter${f === _pfFilter ? ' active' : ''}" data-filter="${f}" onclick="setPfFilter('${f}')">${l}</button>`).join('')}
         </div>
       </div>
-      <div style="height:260px"><canvas id="investGainLine"></canvas></div>
-    </div>
-
-    <!-- Held positions table -->
-    <div class="card" style="padding:0;overflow:hidden;margin-bottom:20px">
-      <div class="section-header">
-        <div class="section-title">Positions détenues <span class="section-count">${held.length}</span></div>
-      </div>
       <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table pf-table">
           <thead><tr>
-            <th class="left" style="padding-left:24px">Actif</th>
-            <th data-tip="Dernier cours coté">Cours</th>
-            <th data-tip="Variation du cours depuis la clôture d'hier">Var. j.</th>
-            <th data-tip="Nombre de parts détenues (achats − ventes)">Qté</th>
+            <th class="left">Position</th>
+            <th data-tip="Nombre de parts détenues (achats − ventes)">Quantité</th>
             <th data-tip="Prix de Revient Unitaire : coût moyen pondéré par part, frais inclus">PRU</th>
-            <th data-tip="Capital engagé résiduel : coût des parts encore détenues (PRU × quantité)">Investi</th>
-            <th data-tip="Valeur de marché actuelle (cours × quantité)">Valeur</th>
-            <th data-tip="Gain/perte en € depuis l'achat (unrealized + realized sur ventes partielles)">P&L €</th>
-            <th data-tip="Gain/perte % depuis l'achat, calculé sur le capital total investi dans cette position">P&L %</th>
-            <th data-tip="Part de cet actif dans la valeur totale du portefeuille (hors liquidités)">Alloc.</th>
-            <th>⚡</th><th>Actions</th>
+            <th data-tip="Dernier cours coté et variation depuis la clôture d'hier">Cours</th>
+            <th data-tip="Valeur de marché actuelle (cours × quantité) et capital engagé résiduel">Valeur</th>
+            <th data-tip="Gain/perte depuis l'achat (unrealized + realized sur ventes partielles)">Plus-value</th>
+            <th data-tip="Part de cet actif dans la valeur totale du portefeuille (hors liquidités)">Poids</th>
+            <th><span class="sr-only">Actions</span></th>
           </tr></thead>
           <tbody id="positionsBody">${renderHeldRows(held)}</tbody>
         </table>
       </div>
-    </div>
+    </section>
 
-    <!-- Watched positions table -->
-    <div class="card" style="padding:0;overflow:hidden;margin-bottom:20px">
-      <div class="section-header">
-        <div class="section-title">Suivis <span class="section-count">${watched.length}</span></div>
-        ${isAdmin() ? `<button class="btn btn-ghost btn-sm" style="margin-right:12px" onclick="openAddPositionModal()">+ Ajouter</button>` : ''}
+    <section class="card pf-table-card">
+      <div class="pf-toolbar">
+        <div class="db-card-title" style="margin:0">Suivis <span class="section-count">${watched.length}</span></div>
+        ${isAdmin() ? `<button class="btn btn-secondary" onclick="openAddPositionModal()">+ Ajouter un suivi</button>` : ''}
       </div>
       <div class="table-wrap">
-        <table class="data-table">
-          <thead><tr>
-            <th class="left" style="padding-left:24px">Actif</th>
-            <th>Cours</th><th>Var. j.</th><th>⚡</th><th>Actions</th>
-          </tr></thead>
+        <table class="data-table pf-table">
+          <thead><tr><th class="left">Titre</th><th>Cours</th><th>Var. jour</th><th><span class="sr-only">Actions</span></th></tr></thead>
           <tbody id="watchedBody">${renderWatchedRows(watched)}</tbody>
         </table>
       </div>
-    </div>
+    </section>
 
     <!-- ── Simulateur de rendement ── -->
-    <div class="card" style="margin-bottom:20px">
+    <section class="card" style="margin-top:16px">
       <div class="card-title" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px">
-        <span>📈 Simulateur de rendement
+        <span>Simulateur de rendement
           <span style="font-size:11px;color:var(--text-secondary);font-weight:400;margin-left:6px">— projection basée sur le CAGR historique (yfinance)</span>
         </span>
         <label class="ui-switch" title="Plier / déplier le simulateur">
@@ -208,120 +193,158 @@ function renderPortfolioPage(data) {
           <div id="simTable"></div>
         </div>
       </div>
-    </div>`;
+    </section>`;
 
-  // Initialisation après rendu DOM
   requestAnimationFrame(() => {
-    const visiblePos = held.filter(p => p.current_value > 0);
-    renderDonut('portDonut', visiblePos.map(p => p.display_name), visiblePos.map(p => p.current_value), 'portDonutLegend');
     loadPortfolioHistory();
     _restoreSimToggle();   // applique l'état plié/déplié mémorisé (+ init si déplié)
   });
+}
 
-  // Re-expand
-  _expandedPositions.forEach(id => {
-    const el = document.getElementById(`expand-${id}`);
-    if (el) el.classList.add('open');
-  });
+function renderPfAllocation(held) {
+  const items = held.filter(p => p.current_value > 0).sort((a, b) => b.current_value - a.current_value);
+  if (!items.length) return '<div class="db-muted">Aucune position</div>';
+  const total = items.reduce((s, p) => s + p.current_value, 0);
+  const col = i => CHART_COLORS[i % CHART_COLORS.length];
+  return `
+    <div class="pf-bar" role="img" aria-label="Répartition par position">
+      ${items.map((p, i) => `<span style="flex:${p.current_value} 0 0;background:${col(i)}" title="${escHtml(p.display_name)}"></span>`).join('')}
+    </div>
+    <div class="pf-legend">
+      ${items.map((p, i) => `
+        <div class="pf-legend-row">
+          <span class="db-dot" style="background:${col(i)}"></span>
+          <span class="pf-legend-name">${escHtml(p.display_name)}</span>
+          <span class="pf-legend-pct">${fmtPct(p.current_value / total * 100, 1)}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function setPfQuery(q) {
+  _pfQuery = q;
+  _rerenderHeld();
+}
+
+function setPfFilter(f) {
+  _pfFilter = f;
+  document.querySelectorAll('.pf-filter').forEach(b => b.classList.toggle('active', b.dataset.filter === f));
+  _rerenderHeld();
+}
+
+function _rerenderHeld() {
+  const held = (_portfolioData?.positions || []).filter(p => p.total_quantity > 0);
+  const pb = document.getElementById('positionsBody');
+  if (pb) pb.innerHTML = renderHeldRows(held);
+}
+
+function _pfMatches(p) {
+  const q = _pfQuery.trim().toLowerCase();
+  if (q && !(`${p.display_name} ${p.ticker}`.toLowerCase().includes(q))) return false;
+  if (_pfFilter === 'etf')    return p.asset_type === 'etf';
+  if (_pfFilter === 'action') return p.asset_type === 'action';
+  if (_pfFilter === 'loss')   return (p.pnl_eur || 0) < 0;
+  return true;
 }
 
 function refreshPortfolioValues(data) {
-  // Mise à jour légère des KPI heroes sans re-rendre toute la page
-  // Appelée par l'auto-refresh toutes les 30s pour ne pas écraser le simulateur
+  // Mise à jour légère sans re-rendre la page (préserve le simulateur)
   _portfolioData = data;
-  const q = id => document.querySelector(`#page-portfolio ${id}`);
+  const set = (id, txt, cls) => { const el = document.getElementById(id); if (!el) return; el.textContent = txt; if (cls != null) el.className = el.className.replace(/\b(pos|neg|neutral)\b/g, '').trim() + ' ' + cls; };
+  set('pfValue', fmtEur(data.total_value_eur));
+  set('pfInvested', fmtEur(data.total_invested_eur));
+  set('pfPnl', pnlSign(data.total_pnl_eur) + fmtEur(data.total_pnl_eur), pnlClass(data.total_pnl_eur));
+  set('pfPnlPct', pnlSign(data.total_pnl_pct) + fmtPct(data.total_pnl_pct), pnlClass(data.total_pnl_pct));
+  set('pfDay', pnlSign(data.day_change_eur) + fmtEur(data.day_change_eur), pnlClass(data.day_change_eur));
+  set('pfDayPct', pnlSign(data.day_change_pct) + fmtPct(data.day_change_pct), pnlClass(data.day_change_pct));
 
-  const vEl = q('.hero-card-value.gold');
-  if (vEl) vEl.textContent = fmtEur(data.total_value_eur);
-
-  // Mettre à jour le tbody des positions détenues et suivies
   const held    = (data.positions || []).filter(p => p.total_quantity > 0);
   const watched = (data.positions || []).filter(p => p.total_quantity === 0);
   const pb = document.getElementById('positionsBody');
   const wb = document.getElementById('watchedBody');
   if (pb) pb.innerHTML = renderHeldRows(held);
   if (wb) wb.innerHTML = renderWatchedRows(watched);
-
-  // Re-expand les lignes qui étaient ouvertes
-  _expandedPositions.forEach(id => {
-    const el = document.getElementById(`expand-${id}`);
-    if (el) el.classList.add('open');
-  });
 }
 
 let _investGainPeriod = 'month';
 
 async function loadPortfolioHistory() {
   try {
-    const history = await apiGet('/api/portfolio/history?period=month');
-    renderPortfolioLine('portLine', history);          // « Évolution 30 jours »
-    renderInvestGainChart('investGainLine', history);  // période par défaut : mois
+    _renderInvestGain(await apiGet('/api/portfolio/history?period=' + encodeURIComponent(_investGainPeriod)));
   } catch (_) {}
+}
+
+function _renderInvestGain(history) {
+  const has = Array.isArray(history) && history.length > 1;
+  const box = document.getElementById('investGainLine')?.parentElement;
+  const empty = document.getElementById('investGainEmpty');
+  if (box) box.hidden = !has;
+  if (empty) empty.hidden = has;
+  if (has) renderInvestGainChart('investGainLine', history); else destroyChart('investGainLine');
 }
 
 // Sélecteur d'échelle de temps du graphique investissement/gains
 async function setInvestGainPeriod(period, btn) {
   _investGainPeriod = period;
-  document.querySelectorAll('#igPeriodSel .seg-btn')
+  document.querySelectorAll('#igPeriodSel .db-seg-btn')
     .forEach(b => b.classList.toggle('active', b === btn));
   try {
-    const history = await apiGet('/api/portfolio/history?period=' + encodeURIComponent(period));
-    renderInvestGainChart('investGainLine', history);
+    _renderInvestGain(await apiGet('/api/portfolio/history?period=' + encodeURIComponent(period)));
   } catch (_) {}
 }
 
 // ── Held positions (with purchases) ──────────────────────
 
 function renderHeldRows(positions) {
-  if (!positions.length) return `<tr><td colspan="12"><div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">Aucune position détenue</div>${isAdmin() ? `<button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="openAddPositionModal()">+ Ajouter une position</button>` : ''}</div></td></tr>`;
-  return positions.map(pos => buildPositionRow(pos)).join('');
+  if (!positions.length) return `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">📊</div><div class="empty-text">Aucune position détenue</div>${isAdmin() ? `<button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="openAddPositionModal()">+ Ajouter une position</button>` : ''}</div></td></tr>`;
+  const shown = positions.filter(_pfMatches);
+  if (!shown.length) return `<tr><td colspan="8"><div class="db-muted" style="padding:20px;text-align:center">Aucune position ne correspond.</div></td></tr>`;
+  return shown.map(pos => buildPositionRow(pos)).join('');
+}
+
+function _posIdent(pos, withCaret) {
+  const alert = (pos.alert_gain_pct || pos.alert_loss_pct)
+    ? `<span class="alert-dot" title="Alerte : +${pos.alert_gain_pct ?? '—'}% / -${pos.alert_loss_pct ?? '—'}%"></span>` : '';
+  return `
+    <div class="asset-name-cell">
+      <span class="pf-badge">${escHtml((pos.ticker || '').split('.')[0].slice(0, 5) || '€')}</span>
+      <div style="min-width:0">
+        <div class="asset-name">${escHtml(pos.display_name)} ${alert}${withCaret ? `<span class="pf-caret" aria-hidden="true">${_expandedPositions.has(pos.id) ? '▴' : '▾'}</span>` : ''}</div>
+        <div class="asset-sub">${escHtml(pos.ticker)} · ${ASSET_TYPE_LABELS[pos.asset_type] ?? pos.asset_type}${pos.currency !== 'EUR' ? ' · ' + escHtml(pos.currency) : ''}</div>
+      </div>
+    </div>`;
+}
+
+function _menuBtn(pos, watched) {
+  if (!isAdmin()) return '';
+  return `<button type="button" class="pf-menu-btn" aria-label="Actions sur ${escHtml(pos.display_name)}" aria-haspopup="menu"
+    onclick="event.stopPropagation();openPosMenu(this,${pos.id},${watched ? 'true' : 'false'})">⋯</button>`;
 }
 
 function buildPositionRow(pos) {
   const isCash = pos.asset_type === 'cash';
   const hasPrice = pos.current_price_eur != null || pos.manual_price != null;
   const priceStr = isCash ? '—' : (hasPrice ? fmtNum(pos.current_price_eur ?? pos.manual_price) + ' €' : '—');
-  const dayStr = (pos.asset_type === 'bond_manual' || isCash) ? '—' : (pos.day_change_pct != null
-    ? `<span class="${pnlClass(pos.day_change_eur)}">${pnlSign(pos.day_change_eur)}${fmtPct(pos.day_change_pct)}</span>` : '—');
-  const pnlEurStr = isCash ? '—' : `<span class="${pnlClass(pos.pnl_eur)}">${pnlSign(pos.pnl_eur)}${fmtEur(pos.pnl_eur)}</span>`;
-  const pnlPctStr = (isCash || pos.pnl_pct == null) ? '—'
-    : `<span class="${pnlClass(pos.pnl_pct)}">${pnlSign(pos.pnl_pct)}${fmtPct(pos.pnl_pct)}</span>`;
-  const alertDot = (pos.alert_gain_pct || pos.alert_loss_pct)
-    ? `<span class="alert-dot" title="+${pos.alert_gain_pct ?? '—'}% / -${pos.alert_loss_pct ?? '—'}%"></span>` : '—';
-  const adminActions = isAdmin() ? `
-    ${pos.asset_type === 'bond_manual' ? `<button class="btn btn-ghost primary" onclick="openManualPriceModal(${pos.id})">📝</button>` : ''}
-    ${!isCash ? `<button class="btn btn-ghost" onclick="openAlertModal(${pos.id})" title="Alertes">⚡</button>` : ''}
-    ${!isCash ? `<button class="btn btn-ghost primary" onclick="openAddPurchaseModal(${pos.id})">+ Achat</button>` : ''}
-    <button class="btn btn-ghost" onclick="openEditPositionModal(${pos.id})" title="Modifier">✏️</button>
-    <button class="btn btn-ghost danger" onclick="archivePosition(${pos.id},'${escHtml(pos.display_name).replace(/'/g,"\\'")}')">🗑</button>` : '';
+  const dayStr = (pos.asset_type === 'bond_manual' || isCash || pos.day_change_pct == null) ? ''
+    : `<div class="pf-sub ${pnlClass(pos.day_change_eur)}">${pnlSign(pos.day_change_eur)}${fmtPct(pos.day_change_pct)} auj.</div>`;
+  const pnlCell = (isCash || pos.pnl_pct == null) ? '—' : `
+    <span class="db-chip ${pos.pnl_eur >= 0 ? 'is-gain' : 'is-loss'}">${pnlSign(pos.pnl_pct)}${fmtPct(pos.pnl_pct)}</span>
+    <div class="pf-sub ${pnlClass(pos.pnl_eur)}">${pnlSign(pos.pnl_eur)}${fmtEur(pos.pnl_eur)}</div>`;
 
   return `
     <tr class="position-row" onclick="togglePositionExpand(${pos.id})" id="pos-row-${pos.id}">
-      <td class="left" style="padding-left:24px">
-        <div class="asset-name-cell">
-          <div class="pos-icon ${pos.asset_type}">${ASSET_TYPE_ICONS[pos.asset_type] ?? '?'}</div>
-          <div>
-            <div class="asset-name">${escHtml(pos.display_name)} <span style="color:var(--text-muted);font-size:10px">${_expandedPositions.has(pos.id) ? '▴' : '▾'}</span></div>
-            <div class="asset-sub">${escHtml(pos.ticker)} <span class="badge badge-${pos.asset_type}" style="margin-left:4px">${ASSET_TYPE_LABELS[pos.asset_type] ?? pos.asset_type}</span>${pos.currency !== 'EUR' ? ` <span style="font-size:10px;color:var(--text-muted)">${pos.currency}</span>` : ''}</div>
-          </div>
-        </div>
-      </td>
-      <td>${priceStr}</td>
-      <td>${dayStr}</td>
-      <td>${isCash ? '—' : fmtNum(pos.total_quantity, 4)}</td>
-      <td>${isCash ? '—' : (pos.average_cost != null ? fmtNum(pos.average_cost) + ' €' : '—')}</td>
-      <td>${isCash ? '—' : fmtEur(pos.total_invested)}</td>
-      <td><strong>${fmtEur(pos.current_value)}</strong></td>
-      <td>${pnlEurStr}</td>
-      <td>${pnlPctStr}</td>
-      <td style="font-family:var(--font-display);font-size:12px">${(pos.allocation_pct ?? 0).toFixed(1)}%</td>
-      <td>${alertDot}</td>
-      <td><div style="display:flex;justify-content:flex-end;gap:4px" onclick="event.stopPropagation()">${adminActions}</div></td>
+      <td class="left" data-label="">${_posIdent(pos, !isCash)}</td>
+      <td data-label="Quantité">${isCash ? '—' : fmtNum(pos.total_quantity, 4)}</td>
+      <td data-label="PRU">${isCash ? '—' : (pos.average_cost != null ? fmtNum(pos.average_cost) + ' €' : '—')}</td>
+      <td data-label="Cours">${priceStr}${dayStr}</td>
+      <td data-label="Valeur"><strong>${fmtEur(pos.current_value)}</strong>${isCash ? '' : `<div class="pf-sub">investi ${fmtEur(pos.total_invested)}</div>`}</td>
+      <td data-label="Plus-value">${pnlCell}</td>
+      <td data-label="Poids">${fmtPct(pos.allocation_pct ?? 0, 1)}</td>
+      <td class="pf-actions" onclick="event.stopPropagation()">${_menuBtn(pos, false)}</td>
     </tr>
     <tr class="expand-row">
-      <td colspan="12">
+      <td colspan="8">
         <div class="expand-content ${_expandedPositions.has(pos.id) ? 'open' : ''}" id="expand-${pos.id}">
-          ${buildDCAContent(pos)}
+          ${isCash ? '' : buildDCAContent(pos)}
         </div>
       </td>
     </tr>`;
@@ -330,7 +353,7 @@ function buildPositionRow(pos) {
 // ── Watched positions (no purchases) ─────────────────────
 
 function renderWatchedRows(positions) {
-  if (!positions.length) return `<tr><td colspan="5"><div class="empty-state"><div class="empty-icon">👁</div><div class="empty-text">Aucun titre suivi</div>${isAdmin() ? `<button class="btn btn-primary btn-sm" style="margin-top:12px" onclick="openAddPositionModal()">+ Ajouter un suivi</button>` : ''}</div></td></tr>`;
+  if (!positions.length) return `<tr><td colspan="4"><div class="db-muted" style="padding:20px;text-align:center">Aucun titre suivi</div></td></tr>`;
   return positions.map(pos => buildWatchedRow(pos)).join('');
 }
 
@@ -339,31 +362,53 @@ function buildWatchedRow(pos) {
   const priceStr = hasPrice ? fmtNum(pos.current_price_eur ?? pos.manual_price) + ' €' : '—';
   const dayStr = pos.day_change_pct != null
     ? `<span class="${pnlClass(pos.day_change_pct)}">${pnlSign(pos.day_change_pct)}${fmtPct(pos.day_change_pct)}</span>` : '—';
-  const alertDot = (pos.alert_gain_pct || pos.alert_loss_pct)
-    ? `<span class="alert-dot" title="+${pos.alert_gain_pct ?? '—'}% / -${pos.alert_loss_pct ?? '—'}%"></span>` : '—';
-  const adminActions = isAdmin() ? `
-    <button class="btn btn-ghost" onclick="openAlertModal(${pos.id})" title="Alertes">⚡</button>
-    <button class="btn btn-ghost primary" onclick="openAddPurchaseModal(${pos.id})" title="Acheter">💰 Acheter</button>
-    <button class="btn btn-ghost" onclick="openEditPositionModal(${pos.id})" title="Modifier">✏️</button>
-    <button class="btn btn-ghost danger" onclick="archivePosition(${pos.id},'${escHtml(pos.display_name).replace(/'/g,"\\'")}')">🗑</button>` : '';
-
   return `
     <tr id="pos-row-${pos.id}">
-      <td class="left" style="padding-left:24px">
-        <div class="asset-name-cell">
-          <div class="pos-icon ${pos.asset_type}">${ASSET_TYPE_ICONS[pos.asset_type] ?? '?'}</div>
-          <div>
-            <div class="asset-name">${escHtml(pos.display_name)}</div>
-            <div class="asset-sub">${escHtml(pos.ticker)} <span class="badge badge-${pos.asset_type}" style="margin-left:4px">${ASSET_TYPE_LABELS[pos.asset_type] ?? pos.asset_type}</span>${pos.currency !== 'EUR' ? ` <span style="font-size:10px;color:var(--text-muted)">${pos.currency}</span>` : ''}</div>
-          </div>
-        </div>
-      </td>
-      <td>${priceStr}</td>
-      <td>${dayStr}</td>
-      <td>${alertDot}</td>
-      <td><div style="display:flex;justify-content:flex-end;gap:4px">${adminActions}</div></td>
+      <td class="left" data-label="">${_posIdent(pos, false)}</td>
+      <td data-label="Cours">${priceStr}</td>
+      <td data-label="Var. jour">${dayStr}</td>
+      <td class="pf-actions">${_menuBtn(pos, true)}</td>
     </tr>`;
 }
+
+// ── Menu « ⋯ » des actions d'une position ────────────────
+// Regroupe les boutons qui étaient alignés dans la ligne ; mêmes fonctions appelées.
+function openPosMenu(btn, posId, watched) {
+  closePosMenu();
+  const pos = (_portfolioData?.positions || []).find(p => p.id === posId);
+  if (!pos) return;
+  const isCash = pos.asset_type === 'cash';
+  const name = escHtml(pos.display_name).replace(/'/g, "\\'");
+  const items = [
+    !isCash && [watched ? 'Acheter' : 'Ajouter un achat', `openAddPurchaseModal(${posId})`],
+    pos.asset_type === 'bond_manual' && ['Saisir le cours', `openManualPriceModal(${posId})`],
+    !isCash && ['Alertes de cours', `openAlertModal(${posId})`],
+    ['Modifier', `openEditPositionModal(${posId})`],
+    ['Archiver', `archivePosition(${posId},'${name}')`, true],
+  ].filter(Boolean);
+  const menu = document.createElement('div');
+  menu.className = 'pf-menu';
+  menu.id = 'posMenu';
+  menu.setAttribute('role', 'menu');
+  menu.innerHTML = items.map(([label, fn, danger]) =>
+    `<button type="button" role="menuitem" class="${danger ? 'is-danger' : ''}" onclick="closePosMenu();${fn}">${label}</button>`).join('');
+  document.body.appendChild(menu);
+  const r = btn.getBoundingClientRect();
+  const w = menu.offsetWidth, h = menu.offsetHeight;
+  menu.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + 'px';
+  menu.style.top = (r.bottom + h + 8 > innerHeight ? r.top - h - 4 : r.bottom + 4) + 'px';
+  btn.setAttribute('aria-expanded', 'true');
+  menu.querySelector('button')?.focus();
+}
+
+function closePosMenu() {
+  document.getElementById('posMenu')?.remove();
+  document.querySelectorAll('.pf-menu-btn[aria-expanded="true"]').forEach(b => b.setAttribute('aria-expanded', 'false'));
+}
+
+document.addEventListener('click', e => { if (!e.target.closest('#posMenu')) closePosMenu(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closePosMenu(); });
+window.addEventListener('scroll', closePosMenu, true);
 
 function buildDCAContent(pos) {
   const prm = pos.average_cost != null ? fmtNum(pos.average_cost) + ' €' : '—';

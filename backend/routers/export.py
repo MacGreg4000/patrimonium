@@ -251,149 +251,227 @@ _HTML_TEMPLATE = r'''<!DOCTYPE html>
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Patrimonium — Export patrimoine</title>
+<meta name="color-scheme" content="light"/>
+<title>Relevé de patrimoine</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#0A0B0E;--bg2:#13141A;--bg3:#1C1E27;--border:#2A2D3A;--text:#E8EAF0;--text2:#8B90A0;--accent:#3B82F6;--green:#00D68F;--red:#FF4757;--yellow:#F59E0B;--purple:#a855f7;--teal:#14b8a6;--radius:10px;--font:'Segoe UI',system-ui,sans-serif}
-body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;display:flex;flex-direction:column}
-h1,h2,h3{font-weight:600}
-/* Lock screen */
-#lockScreen{flex:1;display:flex;align-items:center;justify-content:center;padding:24px}
-.lock-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:40px;width:100%;max-width:420px;text-align:center}
-.lock-icon{font-size:48px;margin-bottom:16px}
-.lock-title{font-size:22px;font-weight:700;margin-bottom:6px}
-.lock-sub{color:var(--text2);font-size:13px;margin-bottom:28px}
-.lock-sub span{color:var(--text);font-weight:500}
-.form-input{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:11px 14px;font-size:15px;outline:none;margin-bottom:12px;font-family:inherit}
-.form-input:focus{border-color:var(--accent)}
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:11px 20px;border-radius:var(--radius);font-size:14px;font-weight:500;border:none;cursor:pointer;transition:.15s}
-.btn-primary{background:var(--accent);color:#fff;width:100%}
-.btn-primary:hover{filter:brightness(1.1)}
-.err{color:var(--red);font-size:13px;margin-top:10px;min-height:20px}
-/* App */
-#app{display:none;flex-direction:column;min-height:100vh}
-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:0 24px;position:sticky;top:0;z-index:100}
-.header-inner{display:flex;align-items:center;justify-content:space-between;height:56px;max-width:1200px;margin:0 auto}
-.logo{font-size:18px;font-weight:700;display:flex;align-items:center;gap:8px}
-.logo-icon{color:var(--accent)}
-.badge-ro{background:rgba(255,71,87,.15);color:var(--red);border:1px solid rgba(255,71,87,.3);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:600}
-.export-date{color:var(--text2);font-size:12px}
-main{flex:1;padding:24px;max-width:1200px;margin:0 auto;width:100%}
-/* Tabs */
-.tabs{display:flex;gap:4px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:4px;margin-bottom:24px;flex-wrap:wrap}
-.tab-btn{padding:8px 16px;border-radius:7px;border:none;background:transparent;color:var(--text2);font-size:13px;font-weight:500;cursor:pointer;transition:.15s;font-family:inherit}
-.tab-btn.active{background:var(--bg3);color:var(--text)}
-.tab-panel{display:none}.tab-panel.active{display:block}
-/* Cards */
-.summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;margin-bottom:28px}
-.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
-.card-label{font-size:11px;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
-.card-value{font-size:24px;font-weight:700}
-.blue{color:var(--accent)}.green{color:var(--green)}.yellow{color:var(--yellow)}.purple{color:var(--purple)}
-/* Position cards */
-.pos-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;transition:border-color .15s}
-.pos-card:hover{border-color:rgba(59,130,246,.4)}
-.pos-header{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
-.pos-left{flex:1}
-.pos-name-row{display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap}
-.pos-name{font-size:14px;font-weight:600}
-.pos-ticker{font-size:11px;color:var(--text2)}
-.pos-chevron{color:var(--text2);transition:transform .2s;font-size:11px;flex-shrink:0;margin-left:12px}
-.asset-chevron{color:var(--text2);transition:transform .2s;font-size:11px;display:inline-block}
-.asset-row.open .asset-chevron{transform:rotate(90deg)}
-.pos-metrics{display:flex;gap:20px;padding:0 16px 14px;flex-wrap:wrap}
-.metric{display:flex;flex-direction:column;min-width:70px}
-.metric-lbl{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.06em;margin-bottom:3px}
-.metric-val{font-size:13px;font-weight:500}
-.alloc-bar{height:3px;background:var(--border)}
-.alloc-fill{height:100%;background:var(--accent)}
-.card-detail{border-top:1px solid var(--border);padding:16px;display:none}
-.detail-section{margin-bottom:16px}
-.detail-section:last-child{margin-bottom:0}
-/* Table */
-.table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:13px}
-thead tr{border-bottom:1px solid var(--border)}
-th{padding:10px 12px;color:var(--text2);font-weight:500;font-size:11px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
-th.left,td.left{text-align:left}
-th:not(.left){text-align:right}
-td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap}
-td:not(.left){text-align:right}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:var(--bg3)}
-.pos{color:var(--green)}.neg{color:var(--red)}
-/* Badges */
-.badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500}
-.badge-action{background:rgba(59,130,246,.15);color:var(--accent)}
-.badge-etf{background:rgba(0,214,143,.15);color:var(--green)}
-.badge-commodity{background:rgba(245,158,11,.15);color:var(--yellow)}
-.badge-bond_manual{background:rgba(168,85,247,.15);color:var(--purple)}
-.badge-crypto{background:rgba(247,147,26,.15);color:#F7931A}
-.badge-crypto_cash{background:rgba(0,214,143,.15);color:var(--green)}
-.badge-cash{background:rgba(0,214,143,.15);color:var(--green)}
-.badge-bijou{background:rgba(168,85,247,.15);color:var(--purple)}
-.badge-immo{background:rgba(59,130,246,.15);color:var(--accent)}
-.badge-vehicule{background:rgba(20,184,166,.15);color:var(--teal)}
-.badge-art{background:rgba(245,158,11,.15);color:var(--yellow)}
-.badge-metal{background:rgba(209,162,68,.15);color:#c9a227}
-.badge-autre{background:rgba(139,144,160,.15);color:var(--text2)}
-/* Vehicle card */
-.v-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin:12px 0}
-.v-field{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
-.v-label{font-size:10px;color:var(--text2);margin-bottom:2px}
-.v-val{font-size:13px;font-weight:500}
-/* Expand */
-.expand-row{background:var(--bg2)}
-.expand-content{padding:16px;font-size:12px;color:var(--text2)}
-.section-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text2);margin-bottom:10px}
-/* Reserves */
-.yr-block{margin-bottom:20px}
-.yr-title{font-size:14px;font-weight:600;margin-bottom:10px;color:var(--text)}
-/* Footer */
-footer{padding:16px 24px;text-align:center;color:var(--text2);font-size:11px;border-top:1px solid var(--border)}
+:root{
+  --bg:#F4F5F7;--sf:#FFFFFF;--sf2:#F6F7F9;--ln:#E3E6EB;--ln2:#EEF0F3;
+  --tx:#0E1726;--tx2:#4A5568;--tx3:#667085;
+  --ac:#1D3B6F;--acInk:#FFFFFF;--acSoft:#EEF2F9;
+  --gain:#0F7B4E;--gainBg:#E7F5EE;--loss:#B42318;--lossBg:#FDECEA;--warn:#B54708;--warnBg:#FEF4E6;
+  --p-titres:#2F6FDE;--p-crypto:#D9622B;--p-coffres:#0F8A66;--p-biens:#6D5BD0;--p-reserves:#C08A2B;--p-cash:#0E7490;
+  --sh:0 1px 2px rgba(16,24,40,.05),0 4px 16px rgba(16,24,40,.05);
+  --font:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+}
+html{-webkit-text-size-adjust:100%;color-scheme:light}
+body{background:var(--bg);color:var(--tx);font-family:var(--font);font-size:15px;line-height:1.55;font-feature-settings:'tnum' 1;min-height:100vh}
+button{font-family:inherit}
+a{color:var(--ac)}
+.hidden{display:none !important}
+.muted{color:var(--tx3)}
+.pos{color:var(--gain)}.neg{color:var(--loss)}
+
+/* ── Écran d'ouverture ── */
+#lockScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px 16px}
+.lock{background:var(--sf);border-radius:20px;box-shadow:var(--sh);padding:36px 32px;width:100%;max-width:460px}
+.lock-logo{width:52px;height:52px;border-radius:14px;background:var(--ac);color:var(--acInk);display:flex;align-items:center;justify-content:center;margin-bottom:20px}
+.lock h1{font-size:26px;letter-spacing:-.02em;line-height:1.2}
+.lock .date{color:var(--tx3);margin-top:4px;font-size:14px}
+.lock p.intro{margin:18px 0 22px;color:var(--tx2)}
+label.lbl{display:block;font-size:14px;font-weight:600;margin-bottom:6px}
+.pw-wrap{display:flex;gap:8px}
+.input{flex:1;min-width:0;height:52px;border-radius:12px;border:1px solid var(--ln);background:var(--sf2);color:var(--tx);padding:0 14px;font-size:17px;font-family:inherit}
+.input:focus{outline:2px solid var(--ac);outline-offset:1px;border-color:transparent}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 16px;border-radius:12px;border:1px solid var(--ln);background:var(--sf);color:var(--tx);font-size:15px;font-weight:600;cursor:pointer;text-decoration:none}
+.btn:hover{border-color:var(--ac)}
+.btn:disabled{opacity:.6;cursor:wait}
+.btn-primary{background:var(--ac);border-color:var(--ac);color:var(--acInk)}
+.btn-wide{width:100%;min-height:52px;font-size:17px;margin-top:14px}
+.hint{font-size:13px;color:var(--tx3);margin-top:8px}
+.msg{margin-top:14px;padding:12px 14px;border-radius:12px;font-size:14px}
+.msg.err{background:var(--lossBg);color:var(--loss)}
+.msg.info{background:var(--acSoft);color:var(--tx2)}
+.faq{margin-top:24px;border-top:1px solid var(--ln2);padding-top:8px}
+details.q{border-bottom:1px solid var(--ln2)}
+details.q summary{cursor:pointer;padding:12px 0;font-weight:600;font-size:14px;list-style:none;display:flex;justify-content:space-between;gap:12px}
+details.q summary::after{content:'+';color:var(--tx3);font-weight:400;font-size:18px;line-height:1}
+details.q[open] summary::after{content:'−'}
+details.q summary::-webkit-details-marker{display:none}
+details.q div{padding:0 0 14px;color:var(--tx2);font-size:14px}
+
+/* ── Relevé ── */
+#app{min-height:100vh}
+.top{background:var(--sf);border-bottom:1px solid var(--ln);position:sticky;top:0;z-index:10}
+.top-in{max-width:1080px;margin:0 auto;padding:14px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.top-title{flex:1;min-width:200px}
+.top-title strong{display:block;font-size:17px}
+.top-title span{font-size:13px;color:var(--tx3)}
+.top-actions{display:flex;gap:8px}
+nav.chips{max-width:1080px;margin:0 auto;padding:0 20px 12px;display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+nav.chips::-webkit-scrollbar{display:none}
+.chip{flex:0 0 auto;min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--ln);background:var(--sf);color:var(--tx2);font-size:14px;font-weight:600;cursor:pointer}
+.chip.active{background:var(--ac);border-color:var(--ac);color:var(--acInk)}
+main{max-width:1080px;margin:0 auto;padding:24px 20px 64px}
+section.page{display:none}
+section.page.active{display:block}
+h2.ttl{font-size:26px;letter-spacing:-.02em;line-height:1.25}
+p.lead{color:var(--tx2);margin:6px 0 20px;max-width:720px}
+.card{background:var(--sf);border-radius:16px;box-shadow:var(--sh);padding:20px;margin-bottom:14px}
+.card h3{font-size:16px;margin-bottom:10px}
+.note{background:var(--warnBg);color:var(--tx2);border-radius:12px;padding:12px 14px;font-size:14px;margin-bottom:18px}
+.note b{color:var(--warn)}
+.note.blue{background:var(--acSoft)}
+.note.blue b{color:var(--tx)}
+
+.hero{display:flex;flex-wrap:wrap;gap:20px;align-items:center}
+.hero-total{flex:1 1 260px}
+.hero-total .lbl2{font-size:14px;color:var(--tx2)}
+.hero-total .big{font-size:38px;font-weight:700;letter-spacing:-.02em;line-height:1.15;margin-top:4px}
+.bar{display:flex;height:14px;border-radius:7px;overflow:hidden;gap:2px;margin-top:16px}
+.bar span{min-width:4px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.cat{display:flex;flex-direction:column;gap:6px;text-align:left;background:var(--sf);border:2px solid transparent;border-radius:16px;box-shadow:var(--sh);padding:18px;cursor:pointer;color:inherit;font:inherit}
+.cat:hover{border-color:var(--ac)}
+.cat .name{display:flex;align-items:center;gap:8px;font-weight:700}
+.dot{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+.cat .val{font-size:24px;font-weight:700}
+.cat .what{font-size:13px;color:var(--tx3)}
+.cat .go{font-size:14px;font-weight:600;color:var(--ac);margin-top:auto}
+
+ol.steps{list-style:none;counter-reset:s;display:grid;gap:12px}
+ol.steps li{counter-increment:s;display:flex;gap:12px;color:var(--tx2)}
+ol.steps li::before{content:counter(s);flex-shrink:0;width:28px;height:28px;border-radius:50%;background:var(--acSoft);color:var(--ac);font-weight:700;display:flex;align-items:center;justify-content:center;font-size:14px}
+ol.steps b{color:var(--tx)}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:var(--sf);border-radius:14px;box-shadow:var(--sh);padding:14px 16px}
+.kpi .k{font-size:13px;color:var(--tx2)}
+.kpi .v{font-size:22px;font-weight:700;margin-top:4px}
+.kpi .s{font-size:12px;color:var(--tx3);margin-top:2px}
+
+.item{background:var(--sf);border-radius:16px;box-shadow:var(--sh);margin-bottom:12px;overflow:hidden}
+.item-head{display:flex;align-items:flex-start;gap:14px;padding:16px 18px}
+.badge{width:42px;height:42px;border-radius:12px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:var(--acSoft);color:var(--ac)}
+.item-main{flex:1;min-width:0}
+.item-name{font-weight:700;font-size:16px}
+.item-sub{font-size:13px;color:var(--tx3);margin-top:2px}
+.item-val{text-align:right;flex-shrink:0}
+.item-val .v{font-size:18px;font-weight:700;white-space:nowrap}
+.pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;margin-top:4px;white-space:nowrap}
+.pill.pos{background:var(--gainBg)}.pill.neg{background:var(--lossBg)}
+.pill.muted{background:var(--sf2);color:var(--tx2)}
+.facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;padding:0 18px 16px}
+.fact{background:var(--sf2);border-radius:10px;padding:8px 12px}
+.fact .k{font-size:12px;color:var(--tx3)}
+.fact .v{font-size:14px;font-weight:600;word-break:break-word}
+details.more{border-top:1px solid var(--ln2)}
+details.more>summary{cursor:pointer;padding:12px 18px;font-size:14px;font-weight:600;color:var(--ac);list-style:none}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary::before{content:'▸ '}
+details.more[open]>summary::before{content:'▾ '}
+details.more .in{padding:0 18px 16px}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;color:var(--tx3);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--ln);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--ln2);white-space:nowrap}
+td.r,th.r{text-align:right}
+td.wrap{white-space:normal}
+.docs{display:grid;gap:8px}
+.doc{display:flex;align-items:center;gap:12px;background:var(--sf2);border-radius:12px;padding:10px 12px}
+.doc .ext{width:38px;height:38px;border-radius:10px;background:var(--sf);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--tx2);flex-shrink:0}
+.doc .info{flex:1;min-width:0}
+.doc .fn{font-weight:600;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.doc .meta{font-size:12px;color:var(--tx3)}
+.code{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:22px;letter-spacing:.25em;font-weight:700}
+.group-title{font-size:13px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.06em;margin:22px 0 10px}
+dl.lex{display:grid;gap:2px}
+dl.lex dt{font-weight:700;margin-top:12px}
+dl.lex dd{color:var(--tx2)}
+footer{max-width:1080px;margin:0 auto;padding:0 20px 40px;color:var(--tx3);font-size:13px}
+
+@media (max-width:600px){
+  .lock{padding:28px 20px}
+  .top-actions .lbl-long{display:none}
+  .top-in{padding:10px 16px;gap:8px;flex-wrap:nowrap}
+  .top-title{min-width:0}
+  .top-title strong{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .top-title span{font-size:12px}
+  .top-actions .btn{min-height:40px;padding:0 12px;font-size:14px}
+  nav.chips{padding:0 16px 10px}
+  main{padding:18px 16px 56px}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpi .v{font-size:18px}
+  .hero-total .big{font-size:30px}
+  h2.ttl{font-size:22px}
+  .item-head{flex-wrap:wrap}
+  .item-val{text-align:left;width:100%;padding-left:56px}
+}
+@media print{
+  body{background:#fff;color:#000;font-size:12px}
+  .top,nav.chips,.no-print,details.more>summary::before{display:none !important}
+  section.page{display:block !important;page-break-before:always}
+  section.page:first-child{page-break-before:auto}
+  details.more{border:none}
+  details.more>.in{display:block !important}
+  .card,.item,.kpi,.cat{box-shadow:none;border:1px solid #ccc}
+  main{padding:0}
+}
 </style>
 </head>
 <body>
 
+<!-- ══ Écran d'ouverture ══ -->
 <div id="lockScreen">
-  <div class="lock-card">
-    <div class="lock-icon">🔐</div>
-    <div class="lock-title">Patrimonium</div>
-    <div class="lock-sub">Export patrimoine du <span id="exportDateDisplay"></span><br/>Entrez la passphrase pour accéder aux données.</div>
-    <input type="password" class="form-input" id="passInput" placeholder="Passphrase…" autocomplete="current-password"/>
-    <button class="btn btn-primary" onclick="unlock()">Déverrouiller</button>
-    <div class="err" id="errMsg"></div>
+  <div class="lock">
+    <div class="lock-logo" aria-hidden="true">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+    </div>
+    <h1>Relevé de patrimoine</h1>
+    <div class="date">Établi le <span id="exportDateDisplay"></span></div>
+    <p class="intro">Ce fichier rassemble, à la date indiquée, l’ensemble du patrimoine : placements, comptes, coffres, biens, documents importants.
+      Il est protégé par une <b>phrase secrète</b> choisie par la personne qui l’a créé.</p>
+
+    <div id="browserWarn" class="msg err hidden">Ce navigateur ne peut pas ouvrir ce fichier. Ouvrez-le avec une version récente de Chrome, Edge, Firefox ou Safari (sur ordinateur, tablette ou téléphone).</div>
+
+    <form id="unlockForm" autocomplete="off">
+      <label class="lbl" for="passInput">Phrase secrète</label>
+      <div class="pw-wrap">
+        <input type="password" class="input" id="passInput" autocomplete="current-password" autocapitalize="off" autocorrect="off" spellcheck="false" aria-describedby="passHint"/>
+        <button type="button" class="btn" id="togglePass" aria-label="Afficher la phrase secrète" aria-pressed="false">Afficher</button>
+      </div>
+      <div class="hint" id="passHint">Respectez les majuscules, les accents et les espaces.</div>
+      <button type="submit" class="btn btn-primary btn-wide" id="unlockBtn">Ouvrir le relevé</button>
+      <div id="errMsg" class="msg hidden" role="alert"></div>
+    </form>
+
+    <div class="faq">
+      <details class="q"><summary>Où trouver la phrase secrète ?</summary>
+        <div>Elle a été choisie au moment de la création de ce fichier et doit être conservée à part (sur papier, chez un notaire, dans un coffre…).
+        Sans elle, le contenu ne peut pas être lu : c’est volontaire, pour protéger ces informations si la clé USB est perdue.</div></details>
+      <details class="q"><summary>Mes informations sont-elles envoyées sur Internet ?</summary>
+        <div>Non. Tout se passe sur cet appareil : le fichier fonctionne même sans connexion. Rien n’est envoyé nulle part.</div></details>
+      <details class="q"><summary>Le fichier ne s’ouvre pas</summary>
+        <div>Vérifiez la phrase secrète (majuscules, touche « Verr. Maj. », espaces en trop). Si le message persiste, essayez un autre navigateur récent
+        ou un ordinateur. Copiez de préférence le fichier depuis la clé USB vers l’ordinateur avant de l’ouvrir.</div></details>
+    </div>
   </div>
 </div>
 
-<div id="app">
-  <header>
-    <div class="header-inner">
-      <div class="logo"><span class="logo-icon">◈</span> Patrimonium</div>
-      <div style="display:flex;align-items:center;gap:12px">
-        <span class="export-date" id="headerDate"></span>
-        <span class="badge-ro">LECTURE SEULE</span>
+<!-- ══ Relevé ══ -->
+<div id="app" class="hidden">
+  <div class="top">
+    <div class="top-in">
+      <div class="top-title"><strong id="hdrTitle">Relevé de patrimoine</strong><span id="hdrDate"></span></div>
+      <div class="top-actions no-print">
+        <button class="btn" onclick="window.print()" title="Imprimer ou enregistrer en PDF">Imprimer<span class="lbl-long">&nbsp;/ PDF</span></button>
+        <button class="btn" onclick="location.reload()" title="Refermer le relevé">Fermer</button>
       </div>
     </div>
-  </header>
-  <main>
-    <div class="tabs" id="mainTabs">
-      <button class="tab-btn active" onclick="showTab('summary',this)">📊 Résumé</button>
-      <button class="tab-btn" onclick="showTab('portfolio',this)">📈 Portefeuille</button>
-      <button class="tab-btn" onclick="showTab('crypto',this)">₿ Crypto</button>
-      <button class="tab-btn" onclick="showTab('coffres',this)">🏦 Coffres</button>
-      <button class="tab-btn" onclick="showTab('assets',this)">💎 Actifs physiques</button>
-      <button class="tab-btn" onclick="showTab('reserves',this)">📅 Réserves</button>
-      <button class="tab-btn" onclick="showTab('vault',this)">🔐 Fichiers</button>
-    </div>
-    <div class="tab-panel active" id="tab-summary"></div>
-    <div class="tab-panel" id="tab-portfolio"></div>
-    <div class="tab-panel" id="tab-crypto"></div>
-    <div class="tab-panel" id="tab-coffres"></div>
-    <div class="tab-panel" id="tab-assets"></div>
-    <div class="tab-panel" id="tab-reserves"></div>
-    <div class="tab-panel" id="tab-vault"></div>
-  </main>
+    <nav class="chips" id="nav" aria-label="Sections du relevé"></nav>
+  </div>
+  <main id="pages"></main>
   <footer id="footerInfo"></footer>
 </div>
 
@@ -401,631 +479,414 @@ footer{padding:16px 24px;text-align:center;color:var(--text2);font-size:11px;bor
 // Déclarations globales — les valeurs sont injectées dans le 2e bloc <script>
 var BLOB, DOC_BLOBS, ITERATIONS;
 var _cryptoKey = null;
+var _docs = [];      // registre des documents téléchargeables (évite de mettre noms et clés dans les attributs)
+var _codes = [];     // registre des codes de coffre
 
 function b64ToBytes(b64) {
-  const bin = atob(b64);
-  const bytes = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  var bin = atob(b64);
+  var bytes = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
 }
 
-async function downloadFile(docKey, filename, mimeType) {
-  if (!_cryptoKey) return;
-  const btn = event.currentTarget;
-  btn.disabled = true; btn.textContent = '⏳';
-  try {
-    const raw = b64ToBytes(DOC_BLOBS[docKey]);
-    const nonce = raw.slice(0, 12);
-    const ct = raw.slice(12);
-    const plain = await crypto.subtle.decrypt({name:'AES-GCM',iv:nonce}, _cryptoKey, ct);
-    const blob = new Blob([plain], {type: mimeType || 'application/octet-stream'});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-    btn.textContent = '✓';
-    setTimeout(() => { btn.disabled = false; btn.textContent = '⬇ Télécharger'; }, 2000);
-  } catch(e) {
-    btn.disabled = false; btn.textContent = '⬇ Télécharger';
-    alert('Erreur de déchiffrement du document.');
-  }
-}
-
+// ── Ouverture (déchiffrement inchangé : PBKDF2-SHA256 → AES-256-GCM → gzip) ──
 async function unlock() {
-  const pass = document.getElementById('passInput').value;
-  const errEl = document.getElementById('errMsg');
-  if (!pass) { errEl.textContent = 'Entrez la passphrase.'; return; }
-  errEl.textContent = 'Déchiffrement…';
+  var pass = document.getElementById('passInput').value;
+  var btn = document.getElementById('unlockBtn');
+  if (!pass) { showMsg('err', 'Saisissez la phrase secrète.'); return; }
+  btn.disabled = true; btn.textContent = 'Ouverture en cours…';
+  showMsg('info', 'Vérification de la phrase secrète, cela peut prendre quelques secondes.');
   try {
-    const blob = b64ToBytes(BLOB);
-    const salt = blob.slice(0, 32);
-    const nonce = blob.slice(32, 44);
-    const ct = blob.slice(44);
-    const keyMat = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
-    const key = await crypto.subtle.deriveKey(
-      { name: 'PBKDF2', salt, iterations: ITERATIONS, hash: 'SHA-256' },
+    var blob = b64ToBytes(BLOB);
+    var salt = blob.slice(0, 32);
+    var nonce = blob.slice(32, 44);
+    var ct = blob.slice(44);
+    var keyMat = await crypto.subtle.importKey('raw', new TextEncoder().encode(pass), 'PBKDF2', false, ['deriveKey']);
+    var key = await crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: salt, iterations: ITERATIONS, hash: 'SHA-256' },
       keyMat, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
     );
-    const plain = await crypto.subtle.decrypt({name:'AES-GCM',iv:nonce}, key, ct);
-    const ds = new DecompressionStream('gzip');
-    const writer = ds.writable.getWriter();
+    var plain = await crypto.subtle.decrypt({name:'AES-GCM', iv:nonce}, key, ct);
+    var ds = new DecompressionStream('gzip');
+    var writer = ds.writable.getWriter();
     writer.write(new Uint8Array(plain));
     writer.close();
-    const decompressed = await new Response(ds.readable).arrayBuffer();
-    const data = JSON.parse(new TextDecoder().decode(decompressed));
+    var decompressed = await new Response(ds.readable).arrayBuffer();
+    var data = JSON.parse(new TextDecoder().decode(decompressed));
     _cryptoKey = key;
-    document.getElementById('lockScreen').style.display = 'none';
-    document.getElementById('app').style.display = 'flex';
+    document.getElementById('passInput').value = '';
+    document.getElementById('lockScreen').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
     renderAll(data);
-  } catch(e) {
-    errEl.textContent = 'Passphrase incorrecte ou fichier corrompu.';
+    window.scrollTo(0, 0);
+  } catch (e) {
+    showMsg('err', 'Cette phrase secrète ne permet pas d’ouvrir le relevé. Vérifiez les majuscules, les accents et les espaces, puis réessayez.');
+    btn.disabled = false; btn.textContent = 'Ouvrir le relevé';
+    document.getElementById('passInput').focus();
   }
 }
 
-function showTab(id, btn) {
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('tab-' + id).classList.add('active');
-  if (btn) btn.classList.add('active');
+function showMsg(kind, text) {
+  var el = document.getElementById('errMsg');
+  el.className = 'msg ' + kind;
+  el.textContent = text;
 }
 
-// ── Formatters ──────────────────────────────────────────────────────────
-function fmtSize(b) {
-  if (!b) return '—';
-  if (b>=1048576) return (b/1048576).toFixed(1)+' MB';
-  if (b>=1024) return (b/1024).toFixed(0)+' KB';
-  return b+' B';
+async function downloadDoc(btn, idx) {
+  var d = _docs[idx];
+  if (!_cryptoKey || !d) return;
+  var label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Préparation…';
+  try {
+    var raw = b64ToBytes(DOC_BLOBS[d.key]);
+    var plain = await crypto.subtle.decrypt({name:'AES-GCM', iv:raw.slice(0, 12)}, _cryptoKey, raw.slice(12));
+    var url = URL.createObjectURL(new Blob([plain], {type: d.mime || 'application/octet-stream'}));
+    var a = document.createElement('a');
+    a.href = url; a.download = d.name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 2000);
+    btn.textContent = 'Téléchargé ✓';
+    setTimeout(function(){ btn.disabled = false; btn.textContent = label; }, 2500);
+  } catch (e) {
+    btn.disabled = false; btn.textContent = label;
+    alert('Ce document n’a pas pu être ouvert.');
+  }
 }
+
+function toggleCode(btn, idx) {
+  var el = document.getElementById('code-' + idx);
+  var shown = el.dataset.shown === '1';
+  el.textContent = shown ? '••••••' : _codes[idx];
+  el.dataset.shown = shown ? '0' : '1';
+  btn.textContent = shown ? 'Afficher le code' : 'Masquer le code';
+}
+
+// ── Mise en forme ──
 function eur(v, d) {
+  if (v == null) return '—';
   d = (d == null) ? 2 : d;
-  if (v == null) return '—';
-  return new Intl.NumberFormat('fr-BE', {style:'currency',currency:'EUR',minimumFractionDigits:d,maximumFractionDigits:d}).format(v);
+  return new Intl.NumberFormat('fr-BE', {style:'currency', currency:'EUR', minimumFractionDigits:d, maximumFractionDigits:d}).format(v);
 }
-function num(v, d) {
-  d = (d == null) ? 0 : d;
-  if (v == null) return '—';
-  return new Intl.NumberFormat('fr-BE', {minimumFractionDigits:d,maximumFractionDigits:d}).format(v);
-}
-function pct(v) { return v == null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(2) + '%'; }
+function eur0(v) { return eur(v, 0); }
+function num(v, d) { if (v == null) return '—'; return new Intl.NumberFormat('fr-BE', {maximumFractionDigits: d == null ? 0 : d}).format(v); }
+function pct(v) { return v == null ? '—' : (v >= 0 ? '+' : '−') + Math.abs(v).toFixed(1).replace('.', ',') + ' %'; }
+function signed(v) { return v == null ? '—' : (v >= 0 ? '+' : '−') + eur(Math.abs(v)); }
 function cls(v) { return v == null ? '' : v >= 0 ? 'pos' : 'neg'; }
 function esc(s) {
-  if (!s) return '';
+  if (s == null) return '';
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-function fmtDate(iso) {
+function fmtDate(iso, long) {
   if (!iso) return '—';
-  const d = new Date(iso.includes('T') ? iso : iso + 'T00:00:00');
-  return d.toLocaleDateString('fr-BE', {day:'2-digit',month:'2-digit',year:'numeric'});
+  var d = new Date(String(iso).indexOf('T') > -1 ? iso : iso + 'T00:00:00');
+  if (isNaN(d)) return esc(iso);
+  return d.toLocaleDateString('fr-BE', long ? {day:'numeric', month:'long', year:'numeric'} : {day:'2-digit', month:'2-digit', year:'numeric'});
+}
+function fmtSize(b) { if (!b) return '—'; if (b >= 1048576) return (b/1048576).toFixed(1).replace('.', ',') + ' Mo'; if (b >= 1024) return Math.round(b/1024) + ' Ko'; return b + ' octets'; }
+function ext(name) { var p = String(name || '').split('.'); return p.length > 1 ? p.pop().toUpperCase().slice(0, 4) : 'FICH'; }
+function fact(k, v) { return v == null || v === '' ? '' : '<div class="fact"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>'; }
+
+function docButton(d) {
+  var idx = _docs.push({key: d.doc_key, name: d.filename, mime: d.mime_type}) - 1;
+  return '<div class="doc"><span class="ext">' + esc(ext(d.filename)) + '</span>'
+    + '<div class="info"><div class="fn">' + esc(d.filename) + '</div>'
+    + '<div class="meta">' + [DOC_LABELS[d.document_type] || '', fmtSize(d.size_bytes), d.created_at ? 'ajouté le ' + fmtDate(d.created_at) : ''].filter(Boolean).join(' · ')
+    + (d.notes ? '<br/>' + esc(d.notes) : '') + '</div></div>'
+    + '<button class="btn no-print" onclick="downloadDoc(this,' + idx + ')">Télécharger</button></div>';
 }
 
-const CAT_LABELS = {bijou:'Bijou',immo:'Immobilier',vehicule:'Véhicule',art:'Art',metal:'Métaux précieux',autre:'Autre'};
-const CAT_ICONS  = {bijou:'💎',immo:'🏠',vehicule:'🚗',art:'🎨',metal:'🪙',autre:'📦'};
-const TYPE_LABELS = {action:'Action',etf:'ETF',commodity:'Or',bond_manual:'Obligation',crypto:'Crypto',cash:'Liquidités',crypto_cash:'Liquidités'};
+var CAT_LABELS = {immo:'Immobilier', vehicule:'Véhicules', bijou:'Bijoux et montres', metal:'Métaux précieux', art:'Œuvres d’art', autre:'Autres biens'};
+var TYPE_LABELS = {action:'Action', etf:'Fonds indiciel (ETF)', commodity:'Matière première', bond_manual:'Obligation', crypto:'Cryptomonnaie', cash:'Liquidités', crypto_cash:'Liquidités'};
+var DOC_LABELS = {facture:'Facture', carte_grise:'Certificat d’immatriculation', assurance:'Assurance', controle_technique:'Contrôle technique', certificat:'Certificat', photo:'Photo', acte_notarie:'Acte notarié', compromis:'Compromis', autre:'Document'};
+var EVENT_LABELS = {VALUATION:'Réévaluation', PURCHASE:'Achat', MAINTENANCE:'Entretien', REPAIR:'Réparation'};
 
-// ── Donut SVG (pur JS, sans dépendance) ─────────────────────────────────
-function buildDonut(segs, size) {
-  size = size || 200;
-  const total = segs.reduce(function(s,x){ return s + (x.value||0); }, 0);
-  if (!total) return '';
-  const r = 75, cx = 100, cy = 100, sw = 26;
-  let angle = -Math.PI / 2;
-  let paths = '';
-  for (let i = 0; i < segs.length; i++) {
-    const seg = segs[i];
-    if (!(seg.value > 0)) continue;
-    let ratio = seg.value / total;
-    if (ratio >= 1) ratio = 0.9999;
-    const sweep = ratio * Math.PI * 2;
-    const x1 = (cx + r * Math.cos(angle)).toFixed(2);
-    const y1 = (cy + r * Math.sin(angle)).toFixed(2);
-    angle += sweep;
-    const x2 = (cx + r * Math.cos(angle)).toFixed(2);
-    const y2 = (cy + r * Math.sin(angle)).toFixed(2);
-    const large = sweep > Math.PI ? 1 : 0;
-    paths += '<path d="M' + x1 + ',' + y1 + ' A' + r + ',' + r + ',0,' + large + ',1,' + x2 + ',' + y2
-           + '" stroke="' + seg.color + '" stroke-width="' + sw + '" fill="none" stroke-linecap="butt"/>';
-  }
-  return '<svg width="' + size + '" height="' + size + '" viewBox="0 0 200 200">'
-       + '<circle cx="100" cy="100" r="' + r + '" fill="none" stroke="#2A2D3A" stroke-width="' + sw + '"/>'
-       + paths + '</svg>';
+// ── Structure du relevé ──
+var SECTIONS = [];
+function addSection(id, label, html) { SECTIONS.push({id: id, label: label, html: html}); }
+
+function showSection(id) {
+  document.querySelectorAll('section.page').forEach(function(s){ s.classList.toggle('active', s.id === 'sec-' + id); });
+  document.querySelectorAll('.chip').forEach(function(c){ c.classList.toggle('active', c.dataset.id === id); });
+  window.scrollTo(0, 0);
 }
 
-// ── Render all ───────────────────────────────────────────────────────────
 function renderAll(data) {
-  document.getElementById('headerDate').textContent = 'Export du ' + fmtDate(data.meta.exported_at);
-  document.getElementById('footerInfo').textContent =
-    'Propriétaire : ' + data.meta.owner_name + ' (' + data.meta.owner_email + ')'
-    + ' · Export du ' + fmtDate(data.meta.exported_at) + ' · Patrimonium';
-  renderSummary(data);
-  renderPortfolio(data);
-  renderCrypto(data);
-  renderCoffres(data);
-  renderAssets(data);
-  renderReserves(data);
-  renderVault(data);
+  var meta = data.meta || {};
+  var at = fmtDate(meta.exported_at, true);
+  document.getElementById('hdrTitle').textContent = 'Relevé de patrimoine' + (meta.owner_name ? ' de ' + meta.owner_name : '');
+  document.getElementById('hdrDate').textContent = 'Situation au ' + at;
+  document.getElementById('footerInfo').textContent = 'Relevé établi le ' + at + (meta.owner_name ? ' par ' + meta.owner_name : '')
+    + (meta.owner_email ? ' (' + meta.owner_email + ')' : '') + ' avec l’application Patrimonium.';
+
+  var port = (data.portfolio || []);
+  var titres = port.filter(function(p){ return p.type !== 'crypto' && p.type !== 'crypto_cash'; });
+  var crypto = port.filter(function(p){ return p.type === 'crypto' || p.type === 'crypto_cash'; });
+
+  addSection('home', 'Accueil', renderHome(data, at));
+  if (titres.length || (data.sold_positions || []).some(function(p){ return p.type !== 'crypto'; }))
+    addSection('titres', 'Placements en bourse', renderPositions(titres, (data.sold_positions || []).filter(function(p){ return p.type !== 'crypto'; }), 'titres', at));
+  if (crypto.length) addSection('crypto', 'Cryptomonnaies', renderPositions(crypto, (data.sold_positions || []).filter(function(p){ return p.type === 'crypto'; }), 'crypto', at));
+  if ((data.coffres || []).length) addSection('coffres', 'Coffres', renderCoffres(data));
+  if ((data.assets || []).length) addSection('biens', 'Biens', renderAssets(data));
+  if ((data.reserves || []).length) addSection('reserves', 'Réserves', renderReserves(data));
+  if ((data.vault || []).length) addSection('fichiers', 'Fichiers protégés', renderVault(data));
+  addSection('lexique', 'Lexique', renderLexique());
+
+  document.getElementById('nav').innerHTML = SECTIONS.map(function(s){
+    return '<button class="chip" data-id="' + s.id + '" onclick="showSection(\'' + s.id + '\')">' + s.label + '</button>';
+  }).join('');
+  document.getElementById('pages').innerHTML = SECTIONS.map(function(s){
+    return '<section class="page" id="sec-' + s.id + '">' + s.html + '</section>';
+  }).join('');
+  showSection('home');
 }
 
-// ── Summary ──────────────────────────────────────────────────────────────
-function renderSummary(data) {
-  const s = data.summary;
-  const segs = [
-    {label:'Portefeuille',       value: s.total_portfolio_eur  || 0, color:'#3B82F6'},
-    {label:'Crypto',             value: s.total_crypto_eur     || 0, color:'#F7931A'},
-    {label:'Liq. SaxoBank',      value: s.total_saxo_cash_eur  || 0, color:'#00D68F'},
-    {label:'Liq. Coffres',       value: s.total_cash_eur       || 0, color:'#F59E0B'},
-    {label:'Actifs phys.',       value: s.total_assets_eur     || 0, color:'#a855f7'},
-    {label:'Réserves',           value: s.total_reserves_eur   || 0, color:'#14b8a6'},
-  ].filter(function(x){ return x.value > 0; });
+// ── Accueil ──
+function renderHome(data, at) {
+  var s = data.summary || {};
+  var cats = [
+    {id:'titres',   label:'Placements en bourse', color:'var(--p-titres)',   value:(s.total_portfolio_eur || 0),
+      what:'Parts de fonds et actions détenues sur un compte-titres.'},
+    {id:'titres',   label:'Argent sur le compte-titres', color:'var(--p-cash)', value:(s.total_saxo_cash_eur || 0),
+      what:'Liquidités non placées, disponibles sur le compte de courtage.'},
+    {id:'crypto',   label:'Cryptomonnaies', color:'var(--p-crypto)', value:(s.total_crypto_eur || 0),
+      what:'Bitcoin et autres, détenus sur des plateformes en ligne.'},
+    {id:'coffres',  label:'Argent liquide en coffre', color:'var(--p-coffres)', value:(s.total_cash_eur || 0),
+      what:'Billets rangés dans des coffres, avec leur code d’accès.'},
+    {id:'biens',    label:'Biens', color:'var(--p-biens)', value:(s.total_assets_eur || 0),
+      what:'Immobilier, véhicules, bijoux, métaux précieux (valeurs estimées).'},
+    {id:'reserves', label:'Réserves de la société', color:'var(--p-reserves)', value:(s.total_reserves_eur || 0),
+      what:'Montants mis de côté dans la société, versables plus tard.'},
+  ].filter(function(c){ return c.value > 0; });
+  var total = s.grand_total_eur || 0;
+  var bar = cats.map(function(c){ return '<span style="flex:' + c.value + ' 0 0;background:' + c.color + '" title="' + esc(c.label) + '"></span>'; }).join('');
+  var tiles = cats.map(function(c){
+    return '<button class="cat" onclick="showSection(\'' + c.id + '\')">'
+      + '<span class="name"><span class="dot" style="background:' + c.color + '"></span>' + c.label + '</span>'
+      + '<span class="val">' + eur0(c.value) + '</span>'
+      + '<span class="what">' + c.what + (total > 0 ? ' · ' + (c.value / total * 100).toFixed(1).replace('.', ',') + ' % du total' : '') + '</span>'
+      + '<span class="go no-print">Voir le détail →</span></button>';
+  }).join('');
+  var hasDocs = (data.vault || []).length || (data.assets || []).some(function(a){ return (a.documents || []).length; });
+  var hasCodes = (data.coffres || []).some(function(c){ return c.combination || c.combination_hint; });
 
-  const donut = buildDonut(segs, 200);
-  let legend = '';
-  for (let i = 0; i < segs.length; i++) {
-    const seg = segs[i];
-    const pctVal = s.grand_total_eur > 0 ? (seg.value / s.grand_total_eur * 100).toFixed(1) : '0';
-    legend += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
-            + '<div style="width:12px;height:12px;border-radius:3px;background:' + seg.color + ';flex-shrink:0"></div>'
-            + '<div><div style="font-size:13px;font-weight:500">' + esc(seg.label) + '</div>'
-            + '<div style="font-size:12px;color:var(--text2)">' + eur(seg.value) + ' · ' + pctVal + '%</div></div>'
-            + '</div>';
-  }
-
-  const topPositions = (data.portfolio || []).filter(function(p){ return p.type !== 'cash' && p.pnl_pct != null; }).slice().sort(function(a,b){ return (b.pnl_pct||0)-(a.pnl_pct||0); }).slice(0,5);
-  let topRows = '';
-  for (let i = 0; i < topPositions.length; i++) {
-    const p = topPositions[i];
-    topRows += '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">'
-             + '<span style="font-size:13px">' + esc(p.name) + '</span>'
-             + '<span class="' + cls(p.pnl_pct) + '" style="font-size:13px;font-weight:600">' + pct(p.pnl_pct) + '</span>'
-             + '</div>';
-  }
-
-  let coffreRows = '';
-  const coffres = data.coffres || [];
-  for (let i = 0; i < coffres.length; i++) {
-    const c = coffres[i];
-    coffreRows += '<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">'
-               + '<span style="font-size:13px">' + esc(c.name) + '</span>'
-               + '<span style="font-size:13px;font-weight:600">' + eur(c.balance) + '</span>'
-               + '</div>';
-  }
-
-  document.getElementById('tab-summary').innerHTML =
-    '<div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;margin-bottom:24px">'
-    + '<div class="card" style="flex:0 0 auto;padding:24px;display:flex;flex-direction:column;align-items:center">'
-    + donut
-    + '<div style="margin-top:14px;text-align:center">'
-    + '<div style="font-size:24px;font-weight:700;color:var(--accent)">' + eur(s.grand_total_eur) + '</div>'
-    + '<div style="font-size:11px;color:var(--text2);margin-top:3px;text-transform:uppercase;letter-spacing:.06em">Patrimoine total</div>'
-    + '</div></div>'
-    + '<div class="card" style="flex:1;min-width:220px">'
-    + '<div class="card-label" style="margin-bottom:14px">Répartition</div>'
-    + legend
-    + '</div></div>'
-    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">'
-    + '<div class="card"><div class="card-label" style="margin-bottom:14px">📈 Top positions</div>' + topRows + '</div>'
-    + '<div class="card"><div class="card-label" style="margin-bottom:14px">🏦 Soldes coffres</div>' + coffreRows + '</div>'
-    + '</div>';
+  return '<h2 class="ttl">Vue d’ensemble</h2>'
+    + '<p class="lead">Voici la situation du patrimoine au <b>' + at + '</b>. Touchez une catégorie pour en voir le détail ; '
+    + 'le <a href="#" onclick="showSection(\'lexique\');return false">lexique</a> explique les termes techniques.</p>'
+    + '<div class="note"><b>À savoir :</b> les montants sont ceux du ' + at + '. Les placements en bourse et les cryptomonnaies changent de valeur chaque jour ; '
+    + 'les biens sont des estimations. Pour connaître la valeur actuelle, il faut consulter les comptes concernés.</div>'
+    + '<div class="card"><div class="hero"><div class="hero-total"><div class="lbl2">Valeur totale estimée</div>'
+    + '<div class="big">' + eur0(total) + '</div></div></div>'
+    + (bar ? '<div class="bar" aria-hidden="true">' + bar + '</div>' : '') + '</div>'
+    + '<div class="grid" style="margin-bottom:18px">' + tiles + '</div>'
+    + '<div class="card"><h3>Par où commencer ?</h3><ol class="steps">'
+    + '<li><span>Parcourez les <b>catégories</b> ci-dessus : chacune explique ce qu’elle contient et où se trouvent les avoirs.</span></li>'
+    + (hasCodes ? '<li><span>La section <b>Coffres</b> indique le montant présent dans chaque coffre et permet d’afficher son <b>code d’accès</b>.</span></li>' : '')
+    + (hasDocs ? '<li><span>Les <b>documents</b> (actes, factures, certificats…) peuvent être téléchargés depuis la fiche de chaque bien ou la section Fichiers protégés. Une fois téléchargés, ils ne sont plus protégés : conservez-les en lieu sûr.</span></li>' : '')
+    + '<li><span>Le bouton <b>Imprimer / PDF</b> en haut permet d’obtenir une version papier complète, par exemple pour un notaire ou un comptable.</span></li>'
+    + '</ol></div>';
 }
 
-// ── Portfolio ────────────────────────────────────────────────────────────
-function toggleCard(card) {
-  const d = card.querySelector('.card-detail');
-  const ch = card.querySelector('.pos-chevron');
-  if (!d) return;
-  const open = d.style.display === 'block';
-  d.style.display = open ? 'none' : 'block';
-  if (ch) ch.style.transform = open ? '' : 'rotate(90deg)';
-}
+// ── Placements (titres ou crypto) ──
+function renderPositions(list, sold, kind, at) {
+  var held = list.filter(function(p){ return p.type !== 'cash' && p.type !== 'crypto_cash'; });
+  var cash = list.filter(function(p){ return p.type === 'cash' || p.type === 'crypto_cash'; });
+  var val = held.reduce(function(s,p){ return s + (p.value_eur || 0); }, 0);
+  var inv = held.reduce(function(s,p){ return s + (p.invested_eur || 0); }, 0);
+  var pnl = held.reduce(function(s,p){ return s + (p.pnl_eur || 0); }, 0);
+  var cashTot = cash.reduce(function(s,p){ return s + (p.value_eur || 0); }, 0);
+  held.sort(function(a,b){ return (b.value_eur || 0) - (a.value_eur || 0); });
 
-var CRYPTO_TYPES = ['crypto', 'crypto_cash'];
+  var intro = kind === 'crypto'
+    ? 'Cryptomonnaies (comme le bitcoin) détenues sur des plateformes en ligne. Pour y accéder, il faut se connecter au compte de chaque plateforme (le nom figure sous chaque ligne).'
+    : 'Placements détenus sur un ou plusieurs comptes-titres (courtier en ligne ou banque). Chaque ligne indique combien de parts sont détenues, ce qu’elles ont coûté et ce qu’elles valaient au ' + at + '.';
 
-function renderPortfolio(data) {
-  renderPositionsTab(data, 'tab-portfolio',
-    function(p){ return CRYPTO_TYPES.indexOf(p.type) === -1; });
-}
-
-function renderCrypto(data) {
-  renderPositionsTab(data, 'tab-crypto',
-    function(p){ return CRYPTO_TYPES.indexOf(p.type) !== -1; });
-}
-
-// Rend un onglet de positions (portefeuille ou crypto) selon le filtre `keep`.
-function renderPositionsTab(data, targetId, keep) {
-  const portfolio = (data.portfolio || []).filter(keep);
-  const sold = (data.sold_positions || []).filter(keep);
-  // Exclure le cash des totaux P&L portefeuille
-  const positions_only = portfolio.filter(function(p){ return p.type !== 'cash' && p.type !== 'crypto_cash'; });
-  const total_val  = positions_only.reduce(function(s,p){ return s+(p.value_eur||0); }, 0);
-  const total_inv  = positions_only.reduce(function(s,p){ return s+(p.invested_eur||0); }, 0);
-  const total_pnl  = positions_only.reduce(function(s,p){ return s+(p.pnl_eur||0); }, 0);
-  const total_rpnl = positions_only.reduce(function(s,p){ return s+(p.realized_pnl||0); }, 0);
-
-  let cards = '';
-  for (let i = 0; i < portfolio.length; i++) {
-    const p = portfolio[i];
-    // Pour le cash, l'alloc est sur le grand total ; pour les positions, sur le total_val seul
-    const alloc = (p.type === 'cash' || p.type === 'crypto_cash')
-      ? (data.summary && data.summary.grand_total_eur > 0 ? ((p.value_eur||0) / data.summary.grand_total_eur * 100) : 0)
-      : (total_val > 0 ? ((p.value_eur||0) / total_val * 100) : 0);
-
-    // Purchases table
-    let purchasesTable = '';
-    if ((p.purchases||[]).length) {
-      let rows = '';
-      for (let j = 0; j < p.purchases.length; j++) {
-        const a = p.purchases[j];
-        rows += '<tr><td class="left">' + fmtDate(a.date) + '</td>'
-              + '<td>' + num(a.quantity, 4) + '</td>'
-              + '<td>' + eur(a.unit_price) + '</td>'
-              + '<td>' + eur(a.fees) + '</td>'
-              + '<td class="left" style="color:var(--text2)">' + esc(a.note || '—') + '</td></tr>';
-      }
-      purchasesTable = '<div class="detail-section">'
-        + '<div class="section-title">Historique d\'achats</div>'
-        + '<div class="table-wrap"><table>'
-        + '<thead><tr><th class="left">Date</th><th>Qté</th><th>Prix unit.</th><th>Frais</th><th class="left">Note</th></tr></thead>'
-        + '<tbody>' + rows + '</tbody></table></div></div>';
-    }
-
-    // Sales table
-    let salesTable = '';
-    if ((p.sales||[]).length) {
-      let rows = '';
-      for (let j = 0; j < p.sales.length; j++) {
-        const s = p.sales[j];
-        rows += '<tr><td class="left">' + fmtDate(s.date) + '</td>'
-              + '<td>' + num(s.quantity, 4) + '</td>'
-              + '<td>' + eur(s.unit_price) + '</td>'
-              + '<td>' + eur(s.fees) + '</td>'
-              + '<td class="' + cls(s.realized_pnl) + '">' + eur(s.realized_pnl) + '</td></tr>';
-      }
-      let pnlLine = '';
-      if (p.realized_pnl != null) {
-        pnlLine = '<div style="margin-top:8px;font-size:12px;color:var(--text2)">'
-                + 'P&amp;L réalisé : <strong class="' + cls(p.realized_pnl) + '">' + eur(p.realized_pnl) + '</strong>'
-                + (p.unrealized_pnl != null ? ' &nbsp;·&nbsp; Non réalisé : <strong class="' + cls(p.unrealized_pnl) + '">' + eur(p.unrealized_pnl) + '</strong>' : '')
-                + '</div>';
-      }
-      salesTable = '<div class="detail-section">'
-        + '<div class="section-title">Ventes</div>'
-        + '<div class="table-wrap"><table>'
-        + '<thead><tr><th class="left">Date</th><th>Qté vendue</th><th>Prix vente</th><th>Frais</th><th>P&amp;L réalisé</th></tr></thead>'
-        + '<tbody>' + rows + '</tbody></table></div>'
-        + pnlLine + '</div>';
-    }
-
-    const isCash = p.type === 'cash' || p.type === 'crypto_cash';
-    const metricsHtml = isCash
-      ? '<div class="metric"><span class="metric-lbl">Solde disponible</span><span class="metric-val" style="font-size:18px;color:var(--green)"><strong>' + eur(p.value_eur) + '</strong></span></div>'
-      : '<div class="metric"><span class="metric-lbl">QTÉ</span><span class="metric-val">' + num(p.quantity,4) + '</span></div>'
-        + '<div class="metric"><span class="metric-lbl">PRU</span><span class="metric-val">' + eur(p.average_cost) + '</span></div>'
-        + '<div class="metric"><span class="metric-lbl">Investi</span><span class="metric-val">' + eur(p.invested_eur) + '</span></div>'
-        + '<div class="metric"><span class="metric-lbl">Valeur</span><span class="metric-val"><strong>' + eur(p.value_eur) + '</strong></span></div>'
-        + '<div class="metric"><span class="metric-lbl">P&amp;L €</span><span class="metric-val ' + cls(p.pnl_eur) + '">' + eur(p.pnl_eur) + '</span></div>'
-        + '<div class="metric"><span class="metric-lbl">P&amp;L %</span><span class="metric-val ' + cls(p.pnl_pct) + '">' + pct(p.pnl_pct) + '</span></div>'
-        + '<div class="metric"><span class="metric-lbl">Alloc.</span><span class="metric-val" style="color:var(--text2)">' + alloc.toFixed(1) + '%</span></div>';
-
-    cards += '<div class="pos-card" onclick="toggleCard(this)">'
-           + '<div class="pos-header">'
-           + '<div class="pos-left">'
-           + '<div class="pos-name-row"><span class="pos-name">' + esc(p.name) + '</span>'
-           + '<span class="badge badge-' + (p.type||'action') + '">' + (TYPE_LABELS[p.type]||p.type) + '</span></div>'
-           + '<div class="pos-ticker">' + esc(p.ticker) + '</div>'
-           + '</div>'
-           + (isCash ? '' : '<span class="pos-chevron">▶</span>')
-           + '</div>'
-           + '<div class="pos-metrics">' + metricsHtml + '</div>'
-           + (isCash ? '' : '<div class="alloc-bar"><div class="alloc-fill" style="width:' + alloc.toFixed(2) + '%"></div></div>')
-           + (isCash ? '' : '<div class="card-detail">' + purchasesTable + salesTable + '</div>')
-           + '</div>';
-  }
-
-  // Sold positions section
-  let soldSection = '';
-  if (sold.length) {
-    let soldRows = '';
-    for (let i = 0; i < sold.length; i++) {
-      const p = sold[i];
-      soldRows += '<tr>'
-               + '<td class="left"><strong>' + esc(p.name) + '</strong><br/><span style="color:var(--text2);font-size:11px">' + esc(p.ticker) + '</span></td>'
-               + '<td class="left"><span class="badge badge-' + (p.type||'action') + '">' + (TYPE_LABELS[p.type]||p.type) + '</span></td>'
-               + '<td class="left">' + fmtDate(p.last_sale_date) + '</td>'
-               + '<td>' + eur(p.total_invested) + '</td>'
-               + '<td class="' + cls(p.realized_pnl) + '"><strong>' + eur(p.realized_pnl) + '</strong></td>'
-               + '</tr>';
-    }
-    const soldId = 'soldPanel-' + targetId;
-    soldSection = '<div class="card" style="margin-top:16px;padding:0;overflow:hidden">'
-      + '<div onclick="var p=document.getElementById(\'' + soldId + '\');var ch=this.querySelector(\'.schev\');var open=p.style.display===\'block\';p.style.display=open?\'none\':\'block\';ch.style.transform=open?\'\':\'rotate(90deg)\'"'
-      + ' style="padding:14px 16px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;user-select:none">'
-      + '<span style="font-size:13px;font-weight:500;color:var(--text2)">Positions clôturées (' + sold.length + ')</span>'
-      + '<span class="schev" style="color:var(--text2);transition:transform .2s;font-size:11px">▶</span>'
-      + '</div>'
-      + '<div id="' + soldId + '" style="display:none;border-top:1px solid var(--border)">'
-      + '<div class="table-wrap"><table>'
-      + '<thead><tr><th class="left">Actif</th><th class="left">Type</th><th class="left">Dernière vente</th><th>Investi total</th><th>P&amp;L réalisé</th></tr></thead>'
-      + '<tbody>' + soldRows + '</tbody></table></div>'
-      + '</div></div>';
-  }
-
-  let kpis = '<div class="summary-grid" style="margin-bottom:20px">'
-    + '<div class="card"><div class="card-label">Valeur totale</div><div class="card-value green">' + eur(total_val) + '</div></div>'
-    + '<div class="card"><div class="card-label">Investi (résiduel)</div><div class="card-value">' + eur(total_inv) + '</div></div>'
-    + '<div class="card"><div class="card-label">P&amp;L total</div><div class="card-value ' + cls(total_pnl) + '">' + eur(total_pnl) + '</div></div>'
-    + (total_rpnl ? '<div class="card"><div class="card-label">P&amp;L réalisé</div><div class="card-value ' + cls(total_rpnl) + '">' + eur(total_rpnl) + '</div></div>' : '')
-    + '</div>';
-
-  const target = document.getElementById(targetId);
-  if (target) target.innerHTML = kpis + cards + soldSection;
-}
-
-// ── Coffres ──────────────────────────────────────────────────────────────
-function toggleCombo(id, code) {
-  const el = document.getElementById('combo-' + id);
-  const btn = document.getElementById('combobtn-' + id);
-  if (!el || !btn) return;
-  if (el.dataset.revealed === '1') {
-    el.textContent = '●●●●●●';
-    el.style.color = 'var(--text2)';
-    el.dataset.revealed = '0';
-    btn.textContent = 'Révéler';
-  } else {
-    el.textContent = code;
-    el.style.color = 'var(--yellow)';
-    el.dataset.revealed = '1';
-    btn.textContent = 'Masquer';
-  }
-}
-
-function renderCoffres(data) {
-  const total = (data.coffres || []).reduce(function(s,c){ return s+c.balance; }, 0);
-  let cards = '';
-  const coffres = data.coffres || [];
-
-  for (let i = 0; i < coffres.length; i++) {
-    const c = coffres[i];
-    // Combination section
-    let comboBlock = '';
-    if (c.combination || c.combination_hint) {
-      comboBlock = '<div style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px">'
-        + '<div style="font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px">🔑 Code d\'accès</div>'
-        + (c.combination_hint ? '<div style="font-size:11px;color:var(--text2);margin-bottom:6px">Indice : ' + esc(c.combination_hint) + '</div>' : '')
-        + (c.combination
-          ? '<div style="display:flex;align-items:center;gap:10px">'
-            + '<div style="font-family:monospace;font-size:16px;letter-spacing:.2em;color:var(--text2)" id="combo-' + c.id + '">●●●●●●</div>'
-            + '<button onclick="toggleCombo(\'' + c.id + '\',\'' + esc(c.combination) + '\')" '
-            + 'style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:4px 10px;font-size:11px;color:var(--text2);cursor:pointer" '
-            + 'id="combobtn-' + c.id + '">Révéler</button></div>'
-          : '<div style="font-size:12px;color:var(--text2);font-style:italic">Indice uniquement</div>')
-        + '</div>';
-    }
-
-    // Movements section
-    let movBlock = '';
-    const movs = c.movements || [];
-    if (movs.length) {
-      let movRows = '';
-      for (let j = 0; j < movs.length; j++) {
-        const mv = movs[j];
-        const isEntry = mv.type === 'ENTRY';
-        movRows += '<tr>'
-                 + '<td class="left">' + fmtDate(mv.date) + '</td>'
-                 + '<td class="left"><span style="color:' + (isEntry ? 'var(--green)' : 'var(--red)') + ';font-weight:500">'
-                 + (isEntry ? 'ENTRÉE' : 'SORTIE') + '</span></td>'
-                 + '<td class="' + (isEntry ? 'pos' : 'neg') + '">' + eur(mv.amount) + '</td>'
-                 + '<td class="left" style="color:var(--text2)">' + esc(mv.description || '—') + '</td>'
-                 + '</tr>';
-      }
-      movBlock = '<div style="margin-top:16px;border-top:1px solid var(--border);padding-top:14px">'
-               + '<div class="section-title">Derniers mouvements</div>'
-               + '<div class="table-wrap"><table style="font-size:12px">'
-               + '<thead><tr><th class="left">Date</th><th class="left">Type</th><th>Montant</th><th class="left">Description</th></tr></thead>'
-               + '<tbody>' + movRows + '</tbody></table></div></div>';
-    } else {
-      movBlock = '<div style="margin-top:14px;font-size:12px;color:var(--text2)">Aucun mouvement récent.</div>';
-    }
-
-    cards += '<div class="card">'
-           + '<div class="card-label">🏦 ' + esc(c.name) + '</div>'
-           + '<div class="card-value yellow">' + eur(c.balance) + '</div>'
-           + comboBlock
-           + movBlock
-           + '</div>';
-  }
-
-  document.getElementById('tab-coffres').innerHTML =
-    '<div class="summary-grid" style="margin-bottom:24px">'
-    + '<div class="card"><div class="card-label">Total liquidités</div><div class="card-value yellow">' + eur(total) + '</div></div>'
-    + '</div>'
-    + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px">' + cards + '</div>'
-    + '<div class="card" style="margin-top:16px;padding:14px 16px">'
-    + '<p style="color:var(--text2);font-size:13px">Les soldes et codes affichés correspondent à l\'état au moment de l\'export.</p>'
-    + '</div>';
-}
-
-// ── Assets ───────────────────────────────────────────────────────────────
-function renderAssets(data) {
-  const coffreMap = {};
-  (data.coffres||[]).forEach(function(c){ coffreMap[c.id] = c.name; });
-  const total = (data.assets||[]).reduce(function(s,a){ return s+(a.estimated_value||0); }, 0);
-  const DOC_LABELS = {facture:'🧾 Facture',carte_grise:'📋 Carte grise',assurance:'🛡 Assurance',controle_technique:'🔧 CT',certificat:'📜 Certificat',photo:'📷 Photo',autre:'📄 Autre'};
-
-  let rows = '';
-  const assets = data.assets || [];
-  for (let i = 0; i < assets.length; i++) {
-    const a = assets[i];
-    const vInfo = a.category==='vehicule' && (a.vehicle_make||a.vehicle_model)
-      ? [a.vehicle_make,a.vehicle_model,a.vehicle_year].filter(Boolean).join(' ') : '';
-
-    let vehicleBlock = '';
-    if (a.category==='vehicule') {
-      vehicleBlock = '<div class="v-grid">'
-        + (a.vehicle_make?'<div class="v-field"><div class="v-label">Marque</div><div class="v-val">'+esc(a.vehicle_make)+'</div></div>':'')
-        + (a.vehicle_model?'<div class="v-field"><div class="v-label">Modèle</div><div class="v-val">'+esc(a.vehicle_model)+'</div></div>':'')
-        + (a.vehicle_year?'<div class="v-field"><div class="v-label">Année</div><div class="v-val">'+a.vehicle_year+'</div></div>':'')
-        + (a.vehicle_fuel?'<div class="v-field"><div class="v-label">Carburant</div><div class="v-val">'+esc(a.vehicle_fuel)+'</div></div>':'')
-        + (a.vehicle_plate?'<div class="v-field"><div class="v-label">Immatriculation</div><div class="v-val">'+esc(a.vehicle_plate)+'</div></div>':'')
-        + (a.vehicle_km!=null?'<div class="v-field"><div class="v-label">Kilométrage</div><div class="v-val">'+num(a.vehicle_km)+' km</div></div>':'')
-        + (a.vehicle_vin?'<div class="v-field" style="grid-column:1/-1"><div class="v-label">VIN</div><div class="v-val">'+esc(a.vehicle_vin)+'</div></div>':'')
-        + '</div>';
-    }
-
-    let docsBlock = '';
-    if ((a.documents||[]).length) {
-      let docCards = '';
-      for (let j = 0; j < a.documents.length; j++) {
-        const d = a.documents[j];
-        docCards += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;display:flex;align-items:center;gap:10px;min-width:200px">'
-                  + '<span style="font-size:20px">📄</span>'
-                  + '<div style="flex:1;min-width:0">'
-                  + '<div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(d.filename) + '</div>'
-                  + '<div style="font-size:11px;color:var(--text2);margin-top:2px">' + (DOC_LABELS[d.document_type]||d.document_type||'—') + ' · ' + fmtSize(d.size_bytes) + ' · ' + fmtDate(d.created_at) + '</div>'
-                  + (d.notes?'<div style="font-size:11px;color:var(--text2);font-style:italic">'+esc(d.notes)+'</div>':'')
-                  + '</div>'
-                  + '<button onclick="downloadFile(\''+esc(d.doc_key)+'\',\''+esc(d.filename)+'\',\''+esc(d.mime_type)+'\')" '
-                  + 'style="background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:12px;cursor:pointer;white-space:nowrap;flex-shrink:0">⬇ Télécharger</button>'
-                  + '</div>';
-      }
-      docsBlock = '<div style="margin-top:10px"><div class="section-title">Documents (' + a.documents.length + ')</div>'
-               + '<div style="display:flex;flex-wrap:wrap;gap:8px">' + docCards + '</div></div>';
-    }
-
-    let eventsBlock = '';
-    if ((a.events||[]).length) {
-      let evRows = '';
-      for (let j = 0; j < a.events.length; j++) {
-        const e = a.events[j];
-        evRows += '<tr><td class="left">'+fmtDate(e.date)+'</td><td class="left">'+e.type+'</td><td>'+eur(e.amount)+'</td><td class="left" style="color:var(--text2)">'+esc(e.notes||'—')+'</td></tr>';
-      }
-      eventsBlock = '<div style="margin-top:10px"><div class="section-title">Événements</div>'
-                 + '<table style="font-size:12px"><thead><tr><th class="left">Date</th><th class="left">Type</th><th>Montant</th><th class="left">Note</th></tr></thead>'
-                 + '<tbody>' + evRows + '</tbody></table></div>';
-    }
-
-    const locStr = a.location || (a.coffre_id ? (coffreMap[a.coffre_id]||'Coffre') : '—');
-
-    rows += '<tr class="asset-row" onclick="toggleAssetRow(this)" style="cursor:pointer">'
-          + '<td class="left"><strong>' + (CAT_ICONS[a.category]||'📦') + ' ' + esc(a.name) + '</strong>'
-          + (vInfo?'<br/><span style="color:var(--text2);font-size:11px">'+esc(vInfo)+'</span>':'') + '</td>'
-          + '<td class="left"><span class="badge badge-'+(a.category||'autre')+'">'+(CAT_LABELS[a.category||'autre']||a.category)+'</span></td>'
-          + '<td class="left" style="color:var(--text2)">' + esc(locStr) + '</td>'
-          + '<td><strong>' + eur(a.estimated_value) + '</strong></td>'
-          + '<td style="color:var(--text2)">' + (a.documents||[]).length + '</td>'
-          + '<td style="width:28px;text-align:center"><span class="asset-chevron">▶</span></td>'
-          + '</tr>'
-          + '<tr class="expand-row" style="display:table-row"><td colspan="6">'
-          + '<div class="expand-content" style="max-height:0;overflow:hidden;transition:.3s">'
-          + vehicleBlock + eventsBlock + docsBlock + '</div></td></tr>';
-  }
-
-  document.getElementById('tab-assets').innerHTML =
-    '<div class="summary-grid" style="margin-bottom:24px">'
-    + '<div class="card"><div class="card-label">Valeur totale</div><div class="card-value purple">' + eur(total) + '</div></div>'
-    + '</div>'
-    + '<div class="card" style="padding:0"><div class="table-wrap"><table>'
-    + '<thead><tr><th class="left">Actif</th><th class="left">Catégorie</th><th class="left">Localisation</th><th>Valeur estimée</th><th>Docs</th><th></th></tr></thead>'
-    + '<tbody>' + rows + '</tbody></table></div></div>';
-
-  document.querySelectorAll('#tab-assets .expand-content').forEach(function(el) {
-    const observer = new MutationObserver(function() {
-      el.style.maxHeight = el.classList.contains('open') ? el.scrollHeight + 'px' : '0';
-    });
-    observer.observe(el, {attributes:true,attributeFilter:['class']});
-  });
-}
-
-function toggleAssetRow(tr) {
-  tr.classList.toggle('open');
-  var ec = tr.nextElementSibling.querySelector('.expand-content');
-  if (ec) ec.classList.toggle('open');
-}
-
-// ── Reserves ─────────────────────────────────────────────────────────────
-function renderReserves(data) {
-  const reserves = data.reserves || [];
-  const rs = (data.summary && data.summary.reserves_stats) || {};
-  const yearsSet = {};
-  reserves.forEach(function(r){ yearsSet[r.year]=true; });
-  const years = Object.keys(yearsSet).map(Number).sort(function(a,b){return b-a;});
-
-  const byYear = {};
-  reserves.forEach(function(r) {
-    if (!byYear[r.year]) byYear[r.year] = {amount:0,released:0,precompte_paye:0,net_recu:0,releasable:0,notes:r.notes};
-    const y = byYear[r.year];
-    y.amount         += r.amount         || 0;
-    y.released       += r.released       || 0;
-    y.precompte_paye += r.precompte_paye || 0;
-    y.net_recu       += r.net_recu       || 0;
-    y.releasable     += r.releasable     || 0;
-  });
-
-  let rows = '';
-  for (let i = 0; i < years.length; i++) {
-    const yr = years[i];
-    const y = byYear[yr];
-    rows += '<tr>'
-          + '<td class="left" style="font-weight:600">' + yr + '</td>'
-          + '<td>' + eur(y.amount) + '</td>'
-          + '<td>' + eur(y.released) + '</td>'
-          + '<td style="color:var(--text2)">' + eur(y.precompte_paye) + '</td>'
-          + '<td class="' + (y.net_recu>0?'pos':'') + '">' + eur(y.net_recu) + '</td>'
-          + '<td class="' + (y.releasable>0?'pos':'') + '">' + eur(y.releasable) + '</td>'
-          + '<td class="left" style="color:var(--text2)">' + esc(y.notes||'—') + '</td>'
-          + '</tr>';
-  }
-
-  document.getElementById('tab-reserves').innerHTML =
-    '<div class="summary-grid" style="margin-bottom:24px">'
-    + '<div class="card"><div class="card-label">Total constitué</div><div class="card-value blue">' + eur(rs.total_amount||0) + '</div></div>'
-    + '<div class="card"><div class="card-label">Encore libérable</div><div class="card-value yellow">' + eur(rs.total_releasable||0) + '</div></div>'
-    + '<div class="card"><div class="card-label">Libéré (brut)</div><div class="card-value green">' + eur(rs.total_released||0) + '</div></div>'
-    + '<div class="card"><div class="card-label">Net reçu total</div><div class="card-value green">' + eur(rs.total_net_recu||0) + '</div>'
-    + '<div style="font-size:11px;color:var(--text2);margin-top:2px">après précompte ' + eur(rs.total_precompte||0) + '</div></div>'
-    + '</div>'
-    + '<div class="card" style="padding:0"><div class="table-wrap"><table>'
-    + '<thead><tr><th class="left">Année</th><th>Montant constitué</th><th>Libéré (brut)</th><th>Précompte payé</th><th>Net reçu</th><th>Encore libérable</th><th class="left">Note</th></tr></thead>'
-    + '<tbody>' + (rows || '<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text2)">Aucune réserve</td></tr>') + '</tbody>'
-    + '</table></div></div>';
-}
-
-// ── Vault ─────────────────────────────────────────────────────────────────
-function renderVault(data) {
-  const files = data.vault || [];
-  const EXT_ICONS = {pdf:'📕',jpg:'🖼',jpeg:'🖼',png:'🖼',webp:'🖼',csv:'📊',json:'📋',zip:'🗜',txt:'📝',doc:'📄',docx:'📄',xls:'📊',xlsx:'📊'};
-  function getIcon(f) { const ext = f.split('.').pop().toLowerCase(); return EXT_ICONS[ext] || '📄'; }
-
-  if (!files.length) {
-    document.getElementById('tab-vault').innerHTML =
-      '<div class="card" style="padding:40px;text-align:center">'
-      + '<div style="font-size:40px;margin-bottom:12px">🔐</div>'
-      + '<div style="color:var(--text2);font-size:14px">Aucun fichier dans le coffre au moment de l\'export.</div>'
+  var cards = held.map(function(p){
+    var purchases = (p.purchases || []).map(function(a){
+      return '<tr><td>' + fmtDate(a.date) + '</td><td class="r">' + num(a.quantity, 6) + '</td><td class="r">' + eur(a.unit_price) + '</td><td class="r">' + eur(a.fees) + '</td><td class="wrap">' + esc(a.note || '') + '</td></tr>';
+    }).join('');
+    var sales = (p.sales || []).map(function(s){
+      return '<tr><td>' + fmtDate(s.date) + '</td><td class="r">' + num(s.quantity, 6) + '</td><td class="r">' + eur(s.unit_price) + '</td><td class="r">' + eur(s.fees) + '</td><td class="r ' + cls(s.realized_pnl) + '">' + signed(s.realized_pnl) + '</td></tr>';
+    }).join('');
+    var hist = (purchases ? '<div class="group-title" style="margin-top:4px">Achats</div><div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="r">Quantité</th><th class="r">Prix par part</th><th class="r">Frais</th><th>Note</th></tr></thead><tbody>' + purchases + '</tbody></table></div>' : '')
+      + (sales ? '<div class="group-title">Ventes</div><div class="tbl-wrap"><table><thead><tr><th>Date</th><th class="r">Quantité</th><th class="r">Prix par part</th><th class="r">Frais</th><th class="r">Gain réalisé</th></tr></thead><tbody>' + sales + '</tbody></table></div>' : '');
+    return '<div class="item"><div class="item-head">'
+      + '<span class="badge">' + esc(String(p.ticker || '').split(/[.\-]/)[0].slice(0, 5)) + '</span>'
+      + '<div class="item-main"><div class="item-name">' + esc(p.name) + '</div>'
+      + '<div class="item-sub">' + (TYPE_LABELS[p.type] || esc(p.type)) + ' · code ' + esc(p.ticker) + '</div></div>'
+      + '<div class="item-val"><div class="v">' + eur0(p.value_eur) + '</div>'
+      + (p.pnl_eur != null ? '<span class="pill ' + cls(p.pnl_eur) + '">' + signed(p.pnl_eur) + ' (' + pct(p.pnl_pct) + ')</span>' : '') + '</div></div>'
+      + '<div class="facts">' + fact('Nombre de parts', num(p.quantity, 6)) + fact('Prix d’achat moyen', eur(p.average_cost))
+      + fact('Montant investi', eur(p.invested_eur)) + fact('Cours au ' + at, eur(p.current_price_eur)) + '</div>'
+      + (hist ? '<details class="more"><summary>Historique des achats et ventes</summary><div class="in">' + hist + '</div></details>' : '')
       + '</div>';
-    return;
-  }
+  }).join('');
 
-  let cards = '';
-  for (let i = 0; i < files.length; i++) {
-    const f = files[i];
-    cards += '<div class="card" style="display:flex;align-items:center;gap:16px;padding:16px">'
-           + '<span style="font-size:32px;flex-shrink:0">' + getIcon(f.filename) + '</span>'
-           + '<div style="flex:1;min-width:0">'
-           + '<div style="font-size:14px;font-weight:600;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + esc(f.filename) + '</div>'
-           + '<div style="font-size:12px;color:var(--text2)">' + fmtSize(f.size_bytes) + ' · Ajouté le ' + fmtDate(f.created_at) + '</div>'
-           + '</div>'
-           + '<button onclick="downloadFile(\'' + esc(f.doc_key) + '\',\'' + esc(f.filename) + '\',\'' + esc(f.mime_type) + '\')" '
-           + 'style="background:var(--accent);color:#fff;border:none;border-radius:8px;padding:10px 16px;font-size:13px;font-weight:500;cursor:pointer;flex-shrink:0;display:flex;align-items:center;gap:6px">'
-           + '⬇ Télécharger</button></div>';
-  }
+  var cashBlock = cash.length ? '<div class="group-title">Argent disponible</div>' + cash.map(function(c){
+    return '<div class="item"><div class="item-head"><span class="badge">€</span><div class="item-main"><div class="item-name">' + esc(c.name) + '</div>'
+      + '<div class="item-sub">Liquidités non placées sur le compte</div></div><div class="item-val"><div class="v">' + eur(c.value_eur) + '</div></div></div></div>';
+  }).join('') : '';
 
-  document.getElementById('tab-vault').innerHTML =
-    '<div class="summary-grid" style="margin-bottom:24px">'
-    + '<div class="card"><div class="card-label">🔐 Fichiers chiffrés</div>'
-    + '<div class="card-value">' + files.length + '</div>'
-    + '<div style="font-size:12px;color:var(--text2);margin-top:4px">Total : ' + fmtSize(files.reduce(function(s,f){return s+f.size_bytes;},0)) + '</div></div>'
+  var soldBlock = sold.length ? '<details class="more card" style="padding:0"><summary>Placements vendus entièrement (' + sold.length + ')</summary><div class="in"><div class="tbl-wrap"><table>'
+    + '<thead><tr><th>Placement</th><th>Dernière vente</th><th class="r">Montant investi</th><th class="r">Gain ou perte</th></tr></thead><tbody>'
+    + sold.map(function(p){ return '<tr><td class="wrap"><b>' + esc(p.name) + '</b><br/><span class="muted">' + esc(p.ticker) + '</span></td><td>' + fmtDate(p.last_sale_date) + '</td><td class="r">' + eur(p.total_invested) + '</td><td class="r ' + cls(p.realized_pnl) + '">' + signed(p.realized_pnl) + '</td></tr>'; }).join('')
+    + '</tbody></table></div><p class="hint">Ces placements ne sont plus détenus ; ils sont listés pour mémoire.</p></div></details>' : '';
+
+  return '<h2 class="ttl">' + (kind === 'crypto' ? 'Cryptomonnaies' : 'Placements en bourse') + '</h2>'
+    + '<p class="lead">' + intro + '</p>'
+    + '<div class="kpis">'
+    + '<div class="kpi"><div class="k">Valeur au ' + at + '</div><div class="v">' + eur0(val) + '</div><div class="s">' + held.length + ' ligne' + (held.length > 1 ? 's' : '') + '</div></div>'
+    + '<div class="kpi"><div class="k">Montant investi</div><div class="v">' + eur0(inv) + '</div><div class="s">ce que ces placements ont coûté</div></div>'
+    + '<div class="kpi"><div class="k">Gain ou perte</div><div class="v ' + cls(pnl) + '">' + signed(pnl) + '</div><div class="s">valeur − montant investi</div></div>'
+    + (cash.length ? '<div class="kpi"><div class="k">Argent disponible</div><div class="v">' + eur0(cashTot) + '</div><div class="s">non placé</div></div>' : '')
+    + '</div>' + cards + cashBlock + soldBlock;
+}
+
+// ── Coffres ──
+function renderCoffres(data) {
+  var coffres = data.coffres || [];
+  var total = coffres.reduce(function(s,c){ return s + (c.balance || 0); }, 0);
+  var cards = coffres.map(function(c){
+    var code = '';
+    if (c.combination || c.combination_hint) {
+      var idx = c.combination ? _codes.push(c.combination) - 1 : -1;
+      code = '<div style="padding:0 18px 16px"><div class="fact" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">'
+        + '<div style="flex:1;min-width:140px"><div class="k">Code d’accès</div>'
+        + (idx > -1 ? '<div class="code" id="code-' + idx + '">••••••</div>' : '<div class="v">Pas de code enregistré</div>')
+        + (c.combination_hint ? '<div class="k" style="margin-top:4px">Indice : ' + esc(c.combination_hint) + '</div>' : '') + '</div>'
+        + (idx > -1 ? '<button class="btn no-print" onclick="toggleCode(this,' + idx + ')">Afficher le code</button>' : '') + '</div></div>';
+    }
+    var movs = (c.movements || []).map(function(m){
+      var inMove = m.type === 'ENTRY';
+      return '<tr><td>' + fmtDate(m.date) + '</td><td>' + (inMove ? 'Dépôt' : 'Retrait') + '</td><td class="r ' + (inMove ? 'pos' : 'neg') + '">' + (inMove ? '+' : '−') + eur(Math.abs(m.amount)) + '</td><td class="wrap">' + esc(m.description || '') + '</td></tr>';
+    }).join('');
+    return '<div class="item"><div class="item-head"><span class="badge" style="color:var(--p-coffres)">€</span>'
+      + '<div class="item-main"><div class="item-name">' + esc(c.name) + '</div><div class="item-sub">Argent liquide (billets)</div></div>'
+      + '<div class="item-val"><div class="v">' + eur(c.balance) + '</div></div></div>' + code
+      + (movs ? '<details class="more"><summary>Derniers dépôts et retraits</summary><div class="in"><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Opération</th><th class="r">Montant</th><th>Note</th></tr></thead><tbody>' + movs + '</tbody></table></div></div></details>' : '')
+      + '</div>';
+  }).join('');
+  var anyCode = coffres.some(function(c){ return c.combination; });
+  return '<h2 class="ttl">Coffres</h2>'
+    + '<p class="lead">Argent liquide conservé dans des coffres. Le montant indiqué est celui enregistré au moment du relevé ; il est conseillé de recompter sur place.</p>'
+    + (anyCode ? '<div class="note blue no-print"><b>Codes d’accès :</b> ils sont masqués par défaut. Appuyez sur « Afficher le code » quand vous êtes seul devant l’écran.</div>' : '')
+    + '<div class="kpis"><div class="kpi"><div class="k">Total en coffres</div><div class="v">' + eur0(total) + '</div><div class="s">' + coffres.length + ' coffre' + (coffres.length > 1 ? 's' : '') + '</div></div></div>'
+    + cards;
+}
+
+// ── Biens ──
+function renderAssets(data) {
+  var coffreMap = {};
+  (data.coffres || []).forEach(function(c){ coffreMap[c.id] = c.name; });
+  var assets = (data.assets || []).slice().sort(function(a,b){ return (b.estimated_value || 0) - (a.estimated_value || 0); });
+  var total = assets.reduce(function(s,a){ return s + (a.estimated_value || 0); }, 0);
+  var order = ['immo', 'vehicule', 'bijou', 'metal', 'art', 'autre'];
+  var groups = {};
+  assets.forEach(function(a){ var k = a.category || 'autre'; (groups[k] = groups[k] || []).push(a); });
+
+  var html = '';
+  order.concat(Object.keys(groups).filter(function(k){ return order.indexOf(k) < 0; })).forEach(function(k){
+    var g = groups[k]; if (!g) return;
+    var sub = g.reduce(function(s,a){ return s + (a.estimated_value || 0); }, 0);
+    html += '<div class="group-title">' + (CAT_LABELS[k] || esc(k)) + ' · ' + eur0(sub) + '</div>';
+    g.forEach(function(a){
+      var where = a.location ? esc(a.location) : (a.coffre_id ? 'Dans le coffre « ' + esc(coffreMap[a.coffre_id] || '?') + ' »' : '');
+      var facts = a.category === 'vehicule'
+        ? fact('Marque', esc(a.vehicle_make)) + fact('Modèle', esc(a.vehicle_model)) + fact('Année', a.vehicle_year) + fact('Carburant', esc(a.vehicle_fuel))
+          + fact('Kilométrage', a.vehicle_km != null ? num(a.vehicle_km) + ' km' : null) + fact('Immatriculation', esc(a.vehicle_plate)) + fact('Numéro de châssis (VIN)', esc(a.vehicle_vin))
+        : '';
+      var events = (a.events || []).map(function(e){
+        return '<tr><td>' + fmtDate(e.date) + '</td><td>' + (EVENT_LABELS[e.type] || esc(e.type)) + '</td><td class="r">' + eur(e.amount) + '</td><td class="wrap">' + esc(e.notes || '') + '</td></tr>';
+      }).join('');
+      var docs = (a.documents || []).map(docButton).join('');
+      var more = (events ? '<div class="group-title" style="margin-top:4px">Historique</div><div class="tbl-wrap"><table><thead><tr><th>Date</th><th>Événement</th><th class="r">Montant</th><th>Note</th></tr></thead><tbody>' + events + '</tbody></table></div>' : '')
+        + (docs ? '<div class="group-title">Documents</div><div class="docs">' + docs + '</div>' : '');
+      html += '<div class="item"><div class="item-head"><span class="badge" style="color:var(--p-biens)">' + esc((CAT_LABELS[k] || k).slice(0, 4).toUpperCase()) + '</span>'
+        + '<div class="item-main"><div class="item-name">' + esc(a.name) + '</div>'
+        + '<div class="item-sub">' + [where, a.description ? esc(a.description) : ''].filter(Boolean).join(' · ') + '</div></div>'
+        + '<div class="item-val"><div class="v">' + (a.estimated_value != null ? eur0(a.estimated_value) : '—') + '</div>'
+        + (docs ? '<span class="pill muted">' + a.documents.length + ' document' + (a.documents.length > 1 ? 's' : '') + '</span>' : '') + '</div></div>'
+        + (facts ? '<div class="facts">' + facts + '</div>' : '')
+        + (more ? '<details class="more"><summary>' + (docs ? 'Documents et historique' : 'Historique') + '</summary><div class="in">' + more + '</div></details>' : '')
+        + '</div>';
+    });
+  });
+  return '<h2 class="ttl">Biens</h2>'
+    + '<p class="lead">Biens matériels : immobilier, véhicules, bijoux, métaux précieux… Les valeurs sont des <b>estimations</b> ; une expertise peut être nécessaire en cas de vente ou de succession.</p>'
+    + '<div class="kpis"><div class="kpi"><div class="k">Valeur estimée totale</div><div class="v">' + eur0(total) + '</div><div class="s">' + assets.length + ' bien' + (assets.length > 1 ? 's' : '') + '</div></div></div>'
+    + html;
+}
+
+// ── Réserves ──
+function renderReserves(data) {
+  var rs = (data.summary && data.summary.reserves_stats) || {};
+  var byYear = {};
+  (data.reserves || []).forEach(function(r){
+    var y = byYear[r.year] = byYear[r.year] || {amount:0, released:0, precompte:0, net:0, left:0, release_year:r.release_year, notes:r.notes};
+    y.amount += r.amount || 0; y.released += r.released || 0; y.precompte += r.precompte_paye || 0;
+    y.net += r.net_recu || 0; y.left += r.releasable || 0;
+  });
+  var now = new Date().getFullYear();
+  var rows = Object.keys(byYear).sort(function(a,b){ return b - a; }).map(function(yr){
+    var y = byYear[yr];
+    var st = y.left <= 0.01 ? '<span class="pill pos">Versée</span>'
+      : (y.release_year && y.release_year <= now ? '<span class="pill" style="background:var(--warnBg);color:var(--warn)">Versable</span>'
+      : '<span class="pill muted">À partir de ' + (y.release_year || '?') + '</span>');
+    return '<tr><td><b>' + yr + '</b></td><td class="r">' + eur(y.amount) + '</td><td class="r">' + eur(y.released) + '</td><td class="r">' + eur(y.left) + '</td><td>' + st + '</td><td class="wrap">' + esc(y.notes || '') + '</td></tr>';
+  }).join('');
+  return '<h2 class="ttl">Réserves de la société</h2>'
+    + '<p class="lead">Bénéfices mis de côté dans la société (réserves de liquidation). Ils peuvent être versés plus tard à l’actionnaire ; '
+    + 'l’année « à partir de » indique quand ce versement devient possible dans les conditions prévues. Le comptable de la société peut confirmer les montants et la marche à suivre.</p>'
+    + '<div class="kpis">'
+    + '<div class="kpi"><div class="k">Encore à verser</div><div class="v">' + eur0(rs.total_releasable || 0) + '</div></div>'
+    + '<div class="kpi"><div class="k">Déjà versé (brut)</div><div class="v">' + eur0(rs.total_released || 0) + '</div><div class="s">net reçu ' + eur0(rs.total_net_recu || 0) + ' après précompte</div></div>'
+    + '<div class="kpi"><div class="k">Total mis en réserve</div><div class="v">' + eur0(rs.total_amount || 0) + '</div></div>'
     + '</div>'
-    + '<div style="display:flex;flex-direction:column;gap:10px">' + cards + '</div>';
+    + '<div class="card" style="padding:8px 10px"><div class="tbl-wrap"><table><thead><tr><th>Année</th><th class="r">Mis en réserve</th><th class="r">Déjà versé</th><th class="r">Reste</th><th>Statut</th><th>Note</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+}
+
+// ── Fichiers protégés ──
+function renderVault(data) {
+  var files = data.vault || [];
+  return '<h2 class="ttl">Fichiers protégés</h2>'
+    + '<p class="lead">Fichiers importants conservés de façon sécurisée (par exemple la liste des mots de passe et des comptes en ligne).</p>'
+    + '<div class="note"><b>Attention :</b> un fichier téléchargé n’est plus protégé. Ouvrez-le sur un appareil de confiance et supprimez-le après usage.</div>'
+    + '<div class="card"><div class="docs">' + files.map(docButton).join('') + '</div></div>';
+}
+
+// ── Lexique ──
+function renderLexique() {
+  var L = [
+    ['Compte-titres', 'Compte ouvert chez une banque ou un courtier en ligne, sur lequel sont détenus des placements en bourse.'],
+    ['Action', 'Part d’une entreprise cotée en bourse.'],
+    ['Fonds indiciel (ETF)', 'Placement qui regroupe des centaines d’actions d’un coup (par exemple « MSCI World » = grandes entreprises du monde entier).'],
+    ['Nombre de parts', 'Combien d’unités d’un placement sont détenues.'],
+    ['Prix d’achat moyen', 'Prix payé en moyenne pour une part, frais compris. Aussi appelé « PRU » (prix de revient unitaire).'],
+    ['Montant investi', 'Ce que les parts encore détenues ont coûté au total.'],
+    ['Gain ou perte', 'Différence entre la valeur au jour du relevé et le montant investi. Positive en vert, négative en rouge.'],
+    ['Cours', 'Prix d’une part en bourse à une date donnée.'],
+    ['Cryptomonnaie', 'Monnaie numérique (bitcoin, ether…) détenue sur une plateforme en ligne comme Kraken ou Bitvavo.'],
+    ['Réserve de liquidation', 'Bénéfice d’une société mis de côté, qui peut être versé plus tard à l’actionnaire avec une fiscalité particulière.'],
+    ['Précompte mobilier', 'Impôt retenu à la source lors du versement d’un dividende ou d’une réserve.'],
+    ['Liquidités', 'Argent disponible immédiatement, non placé.'],
+  ];
+  return '<h2 class="ttl">Lexique</h2><p class="lead">Les termes utilisés dans ce relevé, expliqués simplement.</p>'
+    + '<div class="card"><dl class="lex">' + L.map(function(x){ return '<dt>' + x[0] + '</dt><dd>' + x[1] + '</dd>'; }).join('') + '</dl></div>';
+}
+
+// ── Écran d'ouverture : interactions ──
+document.getElementById('unlockForm').addEventListener('submit', function(e){ e.preventDefault(); unlock(); });
+document.getElementById('togglePass').addEventListener('click', function(){
+  var inp = document.getElementById('passInput');
+  var show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  this.textContent = show ? 'Masquer' : 'Afficher';
+  this.setAttribute('aria-pressed', show ? 'true' : 'false');
+  inp.focus();
+});
+if (!(window.crypto && crypto.subtle && window.DecompressionStream && window.TextEncoder)) {
+  document.getElementById('browserWarn').classList.remove('hidden');
+  document.getElementById('unlockBtn').disabled = true;
 }
 </script>
 <!-- Bloc 2 : injection des données — séparé pour éviter les erreurs de parsing Safari -->
@@ -1033,10 +894,13 @@ function renderVault(data) {
 BLOB = "__BLOB__";
 DOC_BLOBS = __DOC_BLOBS__;
 ITERATIONS = __ITERATIONS__;
-document.getElementById('exportDateDisplay').textContent = "__EXPORTED_AT__";
-document.getElementById('passInput').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') unlock();
-});
+(function(){
+  var raw = "__EXPORTED_AT__";
+  var d = new Date(raw + 'T00:00:00');
+  document.getElementById('exportDateDisplay').textContent = isNaN(d) ? raw
+    : d.toLocaleDateString('fr-BE', {day:'numeric', month:'long', year:'numeric'});
+})();
+document.getElementById('passInput').focus();
 </script>
 </body>
 </html>'''
